@@ -123,6 +123,7 @@ interface TopHeaderCellProps {
   isNightMode: boolean;
   getCellClickHandler: CellClickHandler;
   onResize?: (newWidth: number) => void;
+  backgroundColor: string;
 }
 
 export const TopHeaderCell = ({
@@ -131,6 +132,7 @@ export const TopHeaderCell = ({
   isNightMode,
   getCellClickHandler,
   onResize,
+  backgroundColor,
 }: TopHeaderCellProps) => {
   const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
 
@@ -138,8 +140,11 @@ export const TopHeaderCell = ({
     <Cell
       style={{
         ...style,
+        fontWeight: "bold",
+        color: "#000",
       }}
       value={value}
+      backgroundColor={backgroundColor}
       isNightMode={isNightMode}
       isBorderedHeader={maxDepthBelow === 0}
       isEmphasized={hasChildren}
@@ -203,6 +208,7 @@ interface BodyCellProps {
   getCellClickHandler: CellClickHandler;
   cellWidths: number[];
   showTooltip?: boolean;
+  bottomBackgroundColor? :string;
 }
 
 export const BodyCell = ({
@@ -212,16 +218,18 @@ export const BodyCell = ({
   getCellClickHandler,
   cellWidths,
   showTooltip = true,
+  bottomBackgroundColor,
 }: BodyCellProps) => {
   return (
     <div style={style} className={CS.flex}>
       {rowSection.map(
-        ({ value, isSubtotal, clicked, backgroundColor }, index) => (
+        ({ value, isSubtotal, clicked,backgroundColor }, index) => (
           <Cell
             isNightMode={isNightMode}
             key={index}
             style={{
               flexBasis: cellWidths[index],
+              color:bottomBackgroundColor?"#fff":"#000",
             }}
             value={value}
             isEmphasized={isSubtotal}
@@ -229,7 +237,7 @@ export const BodyCell = ({
             showTooltip={showTooltip}
             isBody
             onClick={getCellClickHandler(clicked)}
-            backgroundColor={backgroundColor}
+            backgroundColor={bottomBackgroundColor?bottomBackgroundColor:backgroundColor}
           />
         ),
       )}

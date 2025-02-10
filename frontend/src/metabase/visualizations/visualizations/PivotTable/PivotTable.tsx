@@ -363,7 +363,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
           settings,
         });
     }
-
+    
     return (
       <PivotTableRoot
         ref={ref}
@@ -391,8 +391,9 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                       isBold
                       isBorderedHeader
                       isTransparent
-                      hasTopBorder={topHeaderRows > 1}
+                      hasTopBorder={true}
                       isNightMode={isNightMode}
+                      backgroundColor={"#B3B3B3"}
                       value={getColumnTitle(rowIndex)}
                       onResize={(newWidth: number) =>
                         handleColumnResize("leftHeader", index, newWidth)
@@ -408,6 +409,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                         ...(index === rowIndexes.length - 1
                           ? { borderRight: "none" }
                           : {}),
+                          fontWeight: "bold",
+                          color: "#000",
                       }}
                       icon={
                         // you can only collapse before the last column
@@ -439,6 +442,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                       item={topHeaderItems[index]}
                       getCellClickHandler={getCellClickHandler}
                       isNightMode={isNightMode}
+                      backgroundColor={"#B3B3B3"}
                       onResize={(newWidth: number) =>
                         handleColumnResize(
                           "value",
@@ -482,6 +486,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             settings={settings}
                             isNightMode={isNightMode}
                             getCellClickHandler={getCellClickHandler}
+                            backgroundColor={"#B3B3B3"}
                           />
                         )}
                         cellSizeAndPositionGetter={({ index }) =>
@@ -540,6 +545,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                               valueIndexes,
                               columnIndex,
                             )}
+                            bottomBackgroundColor={rowIndex==(rowCount-1) && settings["pivot.show_column_totals"]? "#4D4B4B":""}
                           />
                         )}
                         onScroll={({ scrollLeft, scrollTop }) =>
