@@ -185,18 +185,18 @@ export const LeftHeaderCell = ({
       isBold={isSubtotal}
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
-      icon={
-        (isSubtotal || hasSubtotal) && (
-          <RowToggleIcon
-            data-testid={`${item.rawValue}-toggle-button`}
-            value={path}
-            settings={settings}
-            updateSettings={onUpdateVisualizationSettings}
-            hideUnlessCollapsed={isSubtotal}
-            rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
-          />
-        )
-      }
+      // icon={
+      //   (isSubtotal || hasSubtotal) && (
+      //     <RowToggleIcon
+      //       data-testid={`${item.rawValue}-toggle-button`}
+      //       value={path}
+      //       settings={settings}
+      //       updateSettings={onUpdateVisualizationSettings}
+      //       hideUnlessCollapsed={isSubtotal}
+      //       rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
+      //     />
+      //   )
+      // }
     />
   );
 };

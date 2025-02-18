@@ -412,17 +412,17 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                           fontWeight: "bold",
                           color: "#000",
                       }}
-                      icon={
-                        // you can only collapse before the last column
-                        index < rowIndexes.length - 1 &&
-                        isColumnCollapsible(rowIndex) && (
-                          <RowToggleIcon
-                            value={index + 1}
-                            settings={settings}
-                            updateSettings={onUpdateVisualizationSettings}
-                          />
-                        )
-                      }
+                      // icon={
+                      //   // you can only collapse before the last column
+                      //   index < rowIndexes.length - 1 &&
+                      //   isColumnCollapsible(rowIndex) && (
+                      //     <RowToggleIcon
+                      //       value={index + 1}
+                      //       settings={settings}
+                      //       updateSettings={onUpdateVisualizationSettings}
+                      //     />
+                      //   )
+                      // }
                     />
                   ))}
                 </PivotTableTopLeftCellsContainer>
