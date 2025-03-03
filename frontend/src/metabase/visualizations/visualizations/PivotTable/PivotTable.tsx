@@ -545,7 +545,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                               valueIndexes,
                               columnIndex,
                             )}
-                            bottomBackgroundColor={rowIndex==(rowCount-1) && settings["pivot.show_column_totals"]? "#4D4B4B":""}
+                            bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#4D4B4B":""}
                           />
                         )}
                         onScroll={({ scrollLeft, scrollTop }) =>
