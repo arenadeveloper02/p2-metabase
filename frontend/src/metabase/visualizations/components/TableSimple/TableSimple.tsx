@@ -246,8 +246,8 @@ const TableSimpleInner = forwardRef<HTMLDivElement, TableSimpleProps>(
                 EmbedFrameS.fullscreenNightText,
               )}
             >
-              <thead ref={headerRef}>
-                <tr>{cols.map(renderColumnHeader)}</tr>
+              <thead style ={{ background: "#B3B3B3"}}ref={headerRef}>
+                <tr style={{outline:"none"}}>{cols.map(renderColumnHeader)}</tr>
               </thead>
               <tbody>{paginatedRowIndexes.map(renderRow)}</tbody>
             </Table>

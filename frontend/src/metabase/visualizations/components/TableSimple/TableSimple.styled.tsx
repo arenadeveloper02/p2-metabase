@@ -76,7 +76,8 @@ export const TableHeaderCellContent = styled.button<{
     props.isSorted
       ? "var(--mb-color-brand)"
       : "var(--mb-color-text-secondary)"};
-  font-weight: 700;
+  color:black;
+  font-weight: bolder;
   cursor: pointer;
 
   ${SortIcon} {
@@ -84,7 +85,7 @@ export const TableHeaderCellContent = styled.button<{
   }
 
   &:hover {
-    color: var(--mb-color-brand);
+    // color: var(--mb-color-brand);
   }
 `;
 
@@ -108,7 +109,7 @@ export const PaginationButton = styled.button<{
   cursor: pointer;
 
   &:hover {
-    color: var(--mb-color-brand);
+    // color: var(--mb-color-brand);
   }
 
   ${props =>

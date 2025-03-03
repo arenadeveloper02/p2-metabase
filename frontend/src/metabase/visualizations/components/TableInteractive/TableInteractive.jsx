@@ -882,6 +882,7 @@ class TableInteractive extends Component {
             left: isDragging
               ? style.left
               : this.getColumnLeft(style, columnIndex),
+            background: "#B3B3B3",
           }}
           className={cx(
             TableS.TableInteractiveCellWrapper,

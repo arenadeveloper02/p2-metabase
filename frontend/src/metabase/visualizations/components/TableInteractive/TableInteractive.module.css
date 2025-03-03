@@ -5,14 +5,22 @@
 
 .TableInteractiveHeaderCellData .cellData {
   font-weight: 900;
-  border: 1px solid transparent;
+  /* border: 1px solid transparent; */
   padding: 0.25em 0.65em;
   border-radius: 6px;
   min-width: 35px;
+  color: black;
+  border:0px;
+  /* background-color: red; */
+  /* background: red; */
+  outline: none;
+}
+.TableInteractiveHeaderCellData div{
+  border: 0px !important;
 }
 
 .TableInteractiveHeaderCellData .cellData:hover {
-  border: 1px solid transparent;
+  /* border: 1px solid transparent; */
 }
 
 .TableInteractiveHeaderCellData :global(.Icon-chevrondown),
@@ -22,7 +30,7 @@
 
 .TableInteractiveHeader {
   box-sizing: border-box;
-  border-bottom: 1px solid var(--mb-color-border);
+  /* border-bottom: 1px solid var(--mb-color-border); */
 }
 
 .TableInteractive .TableInteractiveCellWrapper {
