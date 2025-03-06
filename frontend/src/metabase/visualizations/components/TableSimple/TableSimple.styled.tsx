@@ -30,7 +30,7 @@ const standardTableStyleReset = css`
   border-collapse: collapse;
   border-spacing: 0;
   width: 100%;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 12px;
   text-align: left;
 `;
@@ -77,7 +77,7 @@ export const TableHeaderCellContent = styled.button<{
       ? "var(--mb-color-brand)"
       : "var(--mb-color-text-secondary)"};
   color:black;
-  font-weight: bolder;
+  font-weight: bold;
   cursor: pointer;
   ${SortIcon} {
     opacity: ${props => (props.isSorted ? 1 : 0.5)};

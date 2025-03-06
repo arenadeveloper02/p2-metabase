@@ -67,7 +67,7 @@ export const AdminExitLink = styled(Link)`
   padding: 12px 18px;
   border-radius: 5px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   transition: all 200ms;
   color: var(--mb-color-text-white);
   white-space: nowrap;

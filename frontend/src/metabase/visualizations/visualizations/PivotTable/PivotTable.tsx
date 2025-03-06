@@ -393,7 +393,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                       isTransparent
                       hasTopBorder={true}
                       isNightMode={isNightMode}
-                      backgroundColor={"#B3B3B3"}
+                      backgroundColor={"#e2e3e5"}
                       value={getColumnTitle(rowIndex)}
                       onResize={(newWidth: number) =>
                         handleColumnResize("leftHeader", index, newWidth)
@@ -442,7 +442,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                       item={topHeaderItems[index]}
                       getCellClickHandler={getCellClickHandler}
                       isNightMode={isNightMode}
-                      backgroundColor={"#B3B3B3"}
+                      backgroundColor={"#e2e3e5"}
                       onResize={(newWidth: number) =>
                         handleColumnResize(
                           "value",
@@ -486,7 +486,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             settings={settings}
                             isNightMode={isNightMode}
                             getCellClickHandler={getCellClickHandler}
-                            backgroundColor={"#B3B3B3"}
+                            backgroundColor={"#e2e3e5"}
                           />
                         )}
                         cellSizeAndPositionGetter={({ index }) =>
@@ -545,7 +545,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                               valueIndexes,
                               columnIndex,
                             )}
-                            bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#4D4B4B":""}
+                            bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#6d717f":""}
                           />
                         )}
                         onScroll={({ scrollLeft, scrollTop }) =>

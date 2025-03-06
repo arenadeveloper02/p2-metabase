@@ -63,6 +63,7 @@
   text-overflow: ellipsis;
   overflow-x: hidden;
   font-weight: 700;
+  font-size: 14px !important;
 }
 
 /* pivot */

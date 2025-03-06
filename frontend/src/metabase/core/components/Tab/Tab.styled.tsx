@@ -42,4 +42,5 @@ export const TabLabel = styled.div`
   font-weight: bold;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 14px !important;
 `;
