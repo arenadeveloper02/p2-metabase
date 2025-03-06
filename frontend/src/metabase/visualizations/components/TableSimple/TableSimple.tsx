@@ -185,7 +185,7 @@ const TableSimpleInner = forwardRef<HTMLDivElement, TableSimpleProps>(
               onClick={onClick}
               isRightAligned={isColumnRightAligned(col)}
             >
-              <Ellipsified>{getColumnTitle(colIndex)}</Ellipsified>
+              <div>{getColumnTitle(colIndex)}</div>
               <SortIcon name={iconName} />
             </TableHeaderCellContent>
           </th>

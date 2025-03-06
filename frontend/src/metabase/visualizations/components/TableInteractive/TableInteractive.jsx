@@ -927,7 +927,7 @@ class TableInteractive extends Component {
             showFingerprintInfo
           >
             {renderTableHeaderWrapper(
-              <Ellipsified tooltip={columnTitle}>
+              <div tooltip={columnTitle} style ={{"display": "-webkit-inline-box",whiteSpace: "break-spaces"}}>
                 {isSortable && isRightAligned && (
                   <Icon
                     className={cx("Icon", CS.mr1)}
@@ -936,7 +936,7 @@ class TableInteractive extends Component {
                     data-testid={columnInfoPopoverTestId}
                   />
                 )}
-                {columnTitle}
+                <div>{columnTitle}</div>
                 {isSortable && !isRightAligned && (
                   <Icon
                     className={cx("Icon", CS.ml1)}
@@ -945,7 +945,7 @@ class TableInteractive extends Component {
                     data-testid={columnInfoPopoverTestId}
                   />
                 )}
-              </Ellipsified>,
+              </div>,
               column,
               columnIndex,
               theme,

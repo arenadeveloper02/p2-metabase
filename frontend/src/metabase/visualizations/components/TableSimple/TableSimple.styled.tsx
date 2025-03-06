@@ -79,11 +79,13 @@ export const TableHeaderCellContent = styled.button<{
   color:black;
   font-weight: bolder;
   cursor: pointer;
-
   ${SortIcon} {
     opacity: ${props => (props.isSorted ? 1 : 0.5)};
   }
 
+  &:focus{
+    outline:none !important;
+  }
   &:hover {
     // color: var(--mb-color-brand);
   }
