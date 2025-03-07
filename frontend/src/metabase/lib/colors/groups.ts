@@ -26,7 +26,12 @@ const getBaseAccentsNames = (withGray = false) => {
   if (withGray) {
     accents.push("accent-gray");
   }
-
+  accents.push("accent8");
+  accents.push("accent9");
+  accents.push("accent10");
+  accents.push("accent11");
+  accents.push("accent12");
+  accents.push("accent13");
   return accents;
 };
 

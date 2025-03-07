@@ -49,6 +49,30 @@ export const colors = {
   shadow: "rgba(0,0,0,0.08)",
   border: "#EEECEC",
 
+  accent8:"#F975A5",
+  "accent8-light":"#FCBAD2",
+ "accent8-dark":"#C64272",
+
+  accent9:"#C283DF",
+  "accent9-light":"#E1C1EF",
+  "accent9-dark":"#6B3C81",
+
+  accent10:"#33B9DE",
+  "accent10-light":"#99DCEF",
+  "accent10-dark":"#0086AB",
+
+  accent11:"#E5D141",
+  "accent11-light":"#F2E8A0",
+ "accent11-dark":"#B29E0E",
+
+  accent12:"#62D39D",
+  "accent12-light":"#B9E1EC",
+  "accent12-dark":"#2FA06A",
+
+  accent13:"#FC9A6A",
+  "accent13-light":"#FEE6DA",
+  "accent13-dark":"#C96737",
+
   /* Saturated colors for the SQL editor. Shouldn't be used elsewhere since they're not white-labelable. */
   "saturated-blue": "#2D86D4",
   "saturated-green": "#70A63A",
