@@ -225,7 +225,7 @@ function folds() {
 
 function fonts() {
   const shared = {
-    fontSize: "12px",
+    fontSize: "14px",
     lineHeight: "normal",
     fontFamily: monospaceFontFamily,
   };

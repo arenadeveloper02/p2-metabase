@@ -337,7 +337,7 @@ class ExpressionEditorTextfieldInner extends React.Component<
 
       editor.setOptions({
         fontFamily: "Monaco, monospace",
-        fontSize: "12px",
+        fontSize: "14px",
       });
 
       const passKeysToBrowser = editor.commands.byName.passKeysToBrowser;

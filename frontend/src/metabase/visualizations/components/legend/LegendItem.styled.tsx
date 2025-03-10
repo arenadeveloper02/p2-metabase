@@ -30,7 +30,8 @@ const LEGEND_ITEM_TITLE_MARGIN = 4;
 
 export const LegendItemTitle = styled.div<{ isInsidePopover?: boolean }>`
   color: var(--mb-color-text-primary);
-  font-size: 0.85em;
+  font-size: 1em;
+  font-weight:600;
   margin-left: ${LEGEND_ITEM_TITLE_MARGIN}px;
   overflow: hidden;
   cursor: ${({ onClick }) => (onClick ? "pointer" : "")};

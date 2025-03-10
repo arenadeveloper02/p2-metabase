@@ -224,7 +224,7 @@
 
 .Dashboard :global(text.value-label),
 .Dashboard :global(text.value-label-white) {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .ScalarValue {

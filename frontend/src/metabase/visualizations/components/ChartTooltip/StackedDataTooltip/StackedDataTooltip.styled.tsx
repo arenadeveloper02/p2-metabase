@@ -18,7 +18,7 @@ export const DataPointRoot = styled.div`
 
 export const DataPointHeader = styled.header`
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 14px;
   padding: 0 1.5rem 0.25rem 1.5rem;
 `;
 

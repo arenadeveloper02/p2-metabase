@@ -37,7 +37,7 @@ export const MembershipSelectItem = styled.li<MembershipSelectItemProps>`
 
 export const MembershipSelectHeader = styled.li`
   padding: 0.75rem 1.5rem 0.5rem 1.5rem;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--mb-color-filter);
 `;

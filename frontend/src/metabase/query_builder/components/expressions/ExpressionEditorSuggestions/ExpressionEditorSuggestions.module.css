@@ -29,7 +29,7 @@
 
 .GroupTitle {
   font-weight: bold;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--mb-color-text-medium);
   pointer-events: none;
   margin-top: 12px;

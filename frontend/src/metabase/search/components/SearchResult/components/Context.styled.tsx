@@ -8,6 +8,6 @@ export const ContextText = styled("p")`
 
 export const ContextContainer = styled.div`
   margin-left: 42px;
-  margin-top: 12px;
+  margin-top: 14px;
   max-width: 620px;
 `;

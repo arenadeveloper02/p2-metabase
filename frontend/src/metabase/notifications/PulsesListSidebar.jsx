@@ -236,7 +236,7 @@ function PulseDetails({ pulse, parameters }) {
                 CS.hoverChild,
                 CS.hoverInherit,
               )}
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "14px" }}
             >
               {recipientText}
             </span>
@@ -267,7 +267,7 @@ function PulseDetails({ pulse, parameters }) {
                 CS.hoverChild,
                 CS.hoverInherit,
               )}
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "14px" }}
             >
               {filterText}
             </span>

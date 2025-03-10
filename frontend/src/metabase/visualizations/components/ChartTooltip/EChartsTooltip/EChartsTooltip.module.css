@@ -32,7 +32,7 @@
 
 .SecondaryRow {
   color: var(--mb-color-tooltip-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .RowFocused {

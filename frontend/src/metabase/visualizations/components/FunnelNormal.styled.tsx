@@ -37,7 +37,7 @@ export const Head = styled.div<SharedProps>`
   ${props =>
     props.isNarrow
       ? css`
-          font-size: 0.85em;
+          font-size: 1em;
         `
       : null}
 `;

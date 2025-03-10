@@ -211,14 +211,14 @@ export const ReactMarkdownStyleWrapper = styled.div`
   }
 
   .text-card-markdown ul {
-    font-size: 16px;
+    font-size: 18px;
     margin: 0;
     padding: 0.5em 1.5em;
     list-style-type: disc;
   }
 
   .text-card-markdown ol {
-    font-size: 16px;
+    font-size: 18px;
     margin: 0;
     padding: 0.5em 1.5em;
     list-style-type: decimal;
