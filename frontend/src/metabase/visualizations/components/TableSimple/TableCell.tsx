@@ -1,5 +1,11 @@
 import cx from "classnames";
-import { isValidElement, useCallback, useMemo } from "react";
+import {
+  isValidElement,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from "react";
 
 import ExternalLink from "metabase/core/components/ExternalLink";
 import DashboardS from "metabase/css/dashboard.module.css";
@@ -27,6 +33,9 @@ import type {
 import MiniBar from "../MiniBar";
 
 import { CellContent, CellRoot } from "./TableCell.styled";
+import styled from "@emotion/styled";
+import { t } from "ttag";
+import { Tooltip } from "metabase/ui";
 
 type GetCellDataOpts = {
   value: RowValue;
@@ -185,6 +194,22 @@ export function TableCell({
     [value, column, isClickable],
   );
 
+  const href =
+    isLink && typeof (cellData as React.ReactElement).props.href === "string"
+      ? (cellData as React.ReactElement).props.href
+      : null;
+
+
+
+  const [shouldPreview, setShouldPreview] = useState(false);
+
+  useEffect(() => {
+    if (href) {
+      checkIfImage(href).then(result => setShouldPreview(result));
+    }
+  }, [href]);
+
+
   return (
     <CellRoot
       className={classNames}
@@ -198,8 +223,39 @@ export function TableCell({
         onClick={isClickable ? onClick : undefined}
         data-testid="cell-data"
       >
-        {cellData}
+        {isLink && href && shouldPreview ? (
+          <Tooltip
+            style={{
+              padding: "8px",
+              background: "rgb(226, 227, 229)",
+            }}
+            label={
+              <img
+                src={href}
+                alt="preview"
+                style={{
+                  maxHeight: "150px",
+                  maxWidth: "150px",
+                }}
+              />
+            }
+          >
+            {cellData}
+          </Tooltip>
+        ) : (
+          cellData
+        )}
       </CellContent>
     </CellRoot>
   );
+}
+
+
+export  function checkIfImage(url: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.src = url;
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+  });
 }

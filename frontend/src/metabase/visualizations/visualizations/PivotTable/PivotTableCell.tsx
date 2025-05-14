@@ -124,6 +124,7 @@ interface TopHeaderCellProps {
   getCellClickHandler: CellClickHandler;
   onResize?: (newWidth: number) => void;
   backgroundColor: string;
+  isNumber?: boolean;
 }
 
 export const TopHeaderCell = ({
@@ -133,11 +134,15 @@ export const TopHeaderCell = ({
   getCellClickHandler,
   onResize,
   backgroundColor,
+  isNumber=false
 }: TopHeaderCellProps) => {
   const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
 
+
+
   return (
     <Cell
+    isBody={isNumber}
       style={{
         ...style,
         fontWeight: "bold",
