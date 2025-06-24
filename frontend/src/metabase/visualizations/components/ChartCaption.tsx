@@ -19,6 +19,7 @@ interface ChartCaptionProps {
   width?: number;
   getHref?: () => string | undefined;
   onChangeCardAndRun: OnChangeCardAndRun;
+  dashcard?: any
 }
 
 const ChartCaption = ({
@@ -29,6 +30,7 @@ const ChartCaption = ({
   onChangeCardAndRun,
   getHref,
   width,
+  dashcard
 }: ChartCaptionProps) => {
   const title = settings["card.title"] ?? series[0].card.name;
   const description = settings["card.description"];
@@ -52,6 +54,7 @@ const ChartCaption = ({
       actionButtons={actionButtons}
       onSelectTitle={canSelectTitle ? handleSelectTitle : undefined}
       width={width}
+      dashcard={dashcard}
     />
   );
 };

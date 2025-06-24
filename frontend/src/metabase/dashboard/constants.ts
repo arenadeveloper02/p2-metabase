@@ -16,6 +16,8 @@ export const SIDEBAR_NAME: Record<DashboardSidebarName, DashboardSidebarName> =
     sharing: "sharing",
     settings: "settings",
     info: "info",
+    insight: "insight",
+
   };
 
 export const INITIAL_DASHBOARD_STATE: DashboardState = {

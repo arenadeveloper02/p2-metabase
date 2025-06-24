@@ -461,7 +461,7 @@ function Dashboard(props: DashboardProps) {
                   !isFullscreen && (isEditing || isSharing)
                 }
               >
-                <DashboardParameterPanel isFullscreen={isFullscreen} />
+                <DashboardParameterPanel isFullscreen={isFullscreen} selectedTabId={selectedTabId} />
                 {isEmpty ? (
                   renderEmptyStates()
                 ) : (

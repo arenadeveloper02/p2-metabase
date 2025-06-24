@@ -471,6 +471,7 @@ class Visualization extends PureComponent {
         (loading || error || noResults || isHeaderEnabled)) ||
       (replacementContent && (dashcard.size_y !== 1 || isMobile) && !isAction);
 
+
     return (
       <ErrorBoundary
         onError={this.onErrorBoundaryError}
@@ -496,6 +497,7 @@ class Visualization extends PureComponent {
                     ? this.handleOnChangeCardAndRun
                     : null
                 }
+                dashcard={dashcard}
               />
             </VisualizationHeader>
           )}

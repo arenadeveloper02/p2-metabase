@@ -293,6 +293,7 @@ const RowChartVisualization = ({
           onSelectTitle={canSelectTitle ? openQuestion : undefined}
           width={outerWidth}
           getHref={getHref}
+          dashcard={card}
         />
       )}
       <RowChartLegendLayout
