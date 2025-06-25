@@ -164,6 +164,7 @@ type LeftHeaderCellProps = TopHeaderCellProps & {
   rowIndex: string[];
   settings: VisualizationSettings;
   onUpdateVisualizationSettings: (settings: VisualizationSettings) => void;
+  backgroundColor?: string;
 };
 
 export const LeftHeaderCell = ({
@@ -175,6 +176,7 @@ export const LeftHeaderCell = ({
   settings,
   onUpdateVisualizationSettings,
   onResize,
+  backgroundColor,
 }: LeftHeaderCellProps) => {
   const { value, isSubtotal, hasSubtotal, depth, path, clicked } = item;
 
@@ -190,6 +192,7 @@ export const LeftHeaderCell = ({
       isBold={isSubtotal}
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
+      backgroundColor={backgroundColor}
       // icon={
       //   (isSubtotal || hasSubtotal) && (
       //     <RowToggleIcon
@@ -228,13 +231,14 @@ export const BodyCell = ({
   return (
     <div style={style} className={CS.flex}>
       {rowSection.map(
-        ({ value, isSubtotal, clicked,backgroundColor }, index) => (
+        ({ value, isSubtotal, clicked, backgroundColor, isGrandTotal }, index) => {
+          return(
           <Cell
             isNightMode={isNightMode}
             key={index}
             style={{
               flexBasis: cellWidths[index],
-              color:bottomBackgroundColor?"#fff":"#000",
+              color:  bottomBackgroundColor ? "#fff":"#000",
             }}
             value={value}
             isEmphasized={isSubtotal}
@@ -242,9 +246,9 @@ export const BodyCell = ({
             showTooltip={showTooltip}
             isBody
             onClick={getCellClickHandler(clicked)}
-            backgroundColor={bottomBackgroundColor?bottomBackgroundColor:backgroundColor}
+            backgroundColor={!isGrandTotal && isSubtotal ? "#f3f2f3" : bottomBackgroundColor ? bottomBackgroundColor:backgroundColor}
           />
-        ),
+        )}
       )}
     </div>
   );
