@@ -144,6 +144,7 @@ export interface VisualizationProps {
   canToggleSeriesVisibility?: boolean;
   onRemoveSeries?: (event: React.MouseEvent, seriesIndex: number) => void;
   onUpdateWarnings?: any;
+  dashcard?: any
 }
 
 export type ColumnSettingDefinition<TValue, TProps = unknown> = {

@@ -57,6 +57,7 @@ function _CartesianChart(props: VisualizationProps) {
     canToggleSeriesVisibility,
     canRemoveSeries,
     onRemoveSeries,
+    dashcard
   } = props;
 
   const settings = useMemo(
@@ -138,6 +139,8 @@ function _CartesianChart(props: VisualizationProps) {
 
   useCloseTooltipOnScroll(chartRef);
 
+
+
   return (
     <CartesianChartRoot isQueryBuilder={isQueryBuilder}>
       {showTitle && (
@@ -151,6 +154,7 @@ function _CartesianChart(props: VisualizationProps) {
             canSelectTitle ? () => onOpenQuestion(card.id) : undefined
           }
           width={outerWidth}
+          dashcard={dashcard}
         />
       )}
       <CartesianChartLegendLayout
