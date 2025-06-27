@@ -1,5 +1,5 @@
 import cx from "classnames";
-import { useRef } from "react";
+import React,{ useRef, useState } from "react";
 
 import TransitionS from "metabase/css/core/transitions.module.css";
 import { DASHBOARD_PARAMETERS_PDF_EXPORT_NODE_ID } from "metabase/dashboard/constants";
@@ -10,6 +10,7 @@ import {
   getIsNightMode,
   getParameters,
   getTabHiddenParameterSlugs,
+  getValuePopulatedParameters,
 } from "metabase/dashboard/selectors";
 import { isSmallScreen } from "metabase/lib/dom";
 import { useSelector } from "metabase/lib/redux";
@@ -25,10 +26,12 @@ import { DashboardParameterList } from "../DashboardParameterList";
 
 interface DashboardParameterPanelProps {
   isFullscreen: boolean;
+  selectedTabId?: number | any;
 }
 
 export function DashboardParameterPanel({
   isFullscreen,
+  selectedTabId,
 }: DashboardParameterPanelProps) {
   const dashboard = useSelector(getDashboardComplete);
   const parameters = useSelector(getParameters);
@@ -49,7 +52,7 @@ export function DashboardParameterPanel({
   const { isSticky, isStickyStateChanging } = useIsParameterPanelSticky({
     parameterPanelRef,
   });
-
+  const parametersValues = useSelector(getValuePopulatedParameters);
   const shouldApplyThemeChangeTransition = !isStickyStateChanging && isSticky;
 
   if (!hasVisibleParameters) {

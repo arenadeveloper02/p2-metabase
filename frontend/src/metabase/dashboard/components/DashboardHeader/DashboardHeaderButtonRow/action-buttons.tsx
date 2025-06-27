@@ -21,6 +21,7 @@ import {
 import { AddLinkOrEmbedButton } from "../buttons/AddLinkOrEmbedButton";
 
 import type { DashboardActionButton, DashboardActionKey } from "./types";
+import { DashboardBulbButton } from "../buttons/DashboardBulbButton";
 
 export const DASHBOARD_ACTION = {
   ADD_QUESTION: "ADD_QUESTION",
@@ -39,6 +40,7 @@ export const DASHBOARD_ACTION = {
   DASHBOARD_HEADER_ACTION_DIVIDER: "DASHBOARD_HEADER_ACTION_DIVIDER",
   DASHBOARD_BOOKMARK: "DASHBOARD_BOOKMARK",
   DASHBOARD_INFO: "DASHBOARD_INFO",
+  // DASHBOARD_INSIGHT: "DASHBOARD_INSIGHT",
   DASHBOARD_ACTION_MENU: "DASHBOARD_ACTION_MENU",
   FULLSCREEN_ANALYTICS_DASHBOARD: "FULLSCREEN_ANALYTICS_DASHBOARD",
 } as const;
@@ -140,6 +142,10 @@ export const dashboardActionButtons: Record<
     component: DashboardBookmark,
     enabled: ({ isEditing, dashboard }) => !isEditing && !dashboard.archived,
   },
+  // [DASHBOARD_ACTION.DASHBOARD_INSIGHT]: {
+  //   component: DashboardBulbButton,
+  //   enabled: ({ isEditing }) => !isEditing,
+  // },
   [DASHBOARD_ACTION.DASHBOARD_INFO]: {
     component: DashboardInfoButton,
     enabled: ({ isEditing }) => !isEditing,

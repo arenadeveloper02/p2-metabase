@@ -8,7 +8,7 @@ import CS from "metabase/css/core/index.css";
 import DashboardS from "metabase/css/dashboard.module.css";
 import EmbedFrameS from "metabase/public/components/EmbedFrame/EmbedFrame.module.css";
 import type { IconProps } from "metabase/ui";
-
+import { Modal } from "metabase/ui";
 import LegendActions from "./LegendActions";
 import {
   LegendCaptionRoot,
@@ -17,10 +17,53 @@ import {
   LegendLabelIcon,
   LegendRightContent,
 } from "./LegendCaption.styled";
+import { t } from "ttag";
+import { LoadingSpinner } from "metabase/common/components/EntityPicker";
+import axios from "axios";
+import { getValuePopulatedParameters } from "metabase/dashboard/selectors";
+import { useSelector } from "metabase/lib/redux";
 
 function shouldHideDescription(width: number | undefined) {
   const HIDE_DESCRIPTION_THRESHOLD = 100;
   return width != null && width < HIDE_DESCRIPTION_THRESHOLD;
+}
+type ParamValue = string | string[] | null | undefined;
+
+interface ParameterItem {
+  name: string;
+  value: ParamValue;
+}
+
+interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+type FilterPayload = Record<string, string | string[] | DateRange>;
+
+export function buildFilterObject(parametersValues: ParameterItem[]): FilterPayload {
+  const result: FilterPayload = {};
+
+  for (const item of parametersValues) {
+    const val = item?.value;
+
+    const isEmpty =
+      val == null ||
+      (typeof val === "string" && val.trim() === "") ||
+      (Array.isArray(val) && val.length === 0);
+
+    if (isEmpty || item.name === "Date(Prev)") continue;
+
+    if (item.name === "Date(Current)" && typeof val === "string") {
+      const [startDate, endDate] = val.split("~");
+      result["Date"] = { startDate, endDate };
+    } else {
+      const key = item.name.replace(/\s+/g, "_");
+      result[key] = val;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -39,6 +82,7 @@ interface LegendCaptionProps {
   actionButtons?: React.ReactNode;
   onSelectTitle?: () => void;
   width?: number;
+  dashcard?: any;
 }
 
 export const LegendCaption = ({
@@ -50,6 +94,7 @@ export const LegendCaption = ({
   actionButtons,
   onSelectTitle,
   width,
+  dashcard,
 }: LegendCaptionProps) => {
   /*
    * Optimization: lazy computing the href on title focus & mouseenter only.
@@ -60,6 +105,9 @@ export const LegendCaption = ({
    * potentially affect the href).
    */
   const [href, setHref] = useState(getHref ? HREF_PLACEHOLDER : undefined);
+  const [isOpenModalId, setIsOpenModalId] = useState("");
+  const parametersValues = useSelector(getValuePopulatedParameters);
+  const [responseData, setResponseData] = useState<any>({});
 
   const handleFocus = useCallback(() => {
     if (getHref) {
@@ -72,6 +120,71 @@ export const LegendCaption = ({
       setHref(getHref());
     }
   }, [getHref]);
+
+  const apiCall = async (payload: any) => {
+    try {
+      axios
+        .post(
+          "http://127.0.0.1:5000/api/v1/metabase/getDashboardDetailsbyId",
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        )
+        .then((response: any) => {
+          setResponseData({ response: response.data, localStatus: "success" });
+          console.log("✅ Response:.....", response.data);
+        })
+        .catch(error => {
+          if (axios.isAxiosError(error)) {
+            setResponseData({
+              response: "Somthing went wrong!",
+              localStatus: "failed",
+            });
+            console.error(
+              "❌ Axios error:....",
+              error.message,
+              error.toJSON?.(),
+            );
+          }
+        });
+    } catch (error) {
+      setResponseData({
+        response: "Somthing went wrong!",
+        localStatus: "failed",
+      });
+      console.error("❌ Error fetching dashboard details:....", error);
+    }
+  };
+
+
+
+
+
+  const renderModal = (cardId: number | string) => {
+    return (
+      <Modal
+        size="30rem"
+        opened={cardId === isOpenModalId}
+        onClose={() => {
+          setResponseData({});
+          setIsOpenModalId("");
+        }}
+        title={t`Render Insight`}
+      >
+        {
+          <div style={{marginTop: "8px"}}>
+            <Markdown dark disallowHeading unstyleLinks >
+              {responseData?.response?.response || responseData?.response}
+            </Markdown>
+          </div>
+        }
+        {!responseData?.localStatus && <LoadingSpinner />}
+      </Modal>
+    );
+  };
 
   return (
     <LegendCaptionRoot className={className} data-testid="legend-caption">
@@ -90,6 +203,37 @@ export const LegendCaption = ({
         <Ellipsified data-testid="legend-caption-title">{title}</Ellipsified>
       </LegendLabel>
       <LegendRightContent>
+        {dashcard?.id === isOpenModalId && renderModal(dashcard?.id)}
+        <Tooltip
+          tooltip={
+            <Markdown dark disallowHeading unstyleLinks lineClamp={8}>
+              {"Insight"}
+            </Markdown>
+          }
+          maxWidth="22em"
+        >
+          <div
+            onClick={() => {
+              setResponseData({});
+              setIsOpenModalId(dashcard?.id || "");
+              apiCall({
+                dashboardId: dashcard?.dashboard_id,
+                tabId: dashcard?.dashboard_tab_id,
+                dashcardId: dashcard?.id,
+                tabFilters : buildFilterObject(parametersValues)
+              });
+            }}
+          >
+            <LegendDescriptionIcon
+              name="lightbulb"
+              className={cx(
+                CS.cursorPointer,
+                CS.hoverChild,
+                CS.hoverChildSmooth,
+              )}
+            />
+          </div>
+        </Tooltip>
         {description && !shouldHideDescription(width) && (
           <Tooltip
             tooltip={

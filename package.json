@@ -41,6 +41,7 @@
     "@visx/shape": "^3.5.0",
     "@visx/text": "^3.3.0",
     "ace-builds": "^1.4.14",
+    "axios": "^1.10.0",
     "bowser": "^2.11.0",
     "buffer": "^6.0.3",
     "classnames": "^2.1.3",

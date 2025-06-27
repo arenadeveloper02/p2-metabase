@@ -496,6 +496,7 @@ class Visualization extends PureComponent {
                     ? this.handleOnChangeCardAndRun
                     : null
                 }
+                dashcard={dashcard}
               />
             </VisualizationHeader>
           )}
