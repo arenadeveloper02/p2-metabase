@@ -471,6 +471,7 @@ class Visualization extends PureComponent {
         (loading || error || noResults || isHeaderEnabled)) ||
       (replacementContent && (dashcard.size_y !== 1 || isMobile) && !isAction);
 
+
     return (
       <ErrorBoundary
         onError={this.onErrorBoundaryError}

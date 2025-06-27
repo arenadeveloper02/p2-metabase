@@ -23,6 +23,11 @@ import {
   ParametersWidgetContainer,
 } from "../Dashboard/Dashboard.styled";
 import { DashboardParameterList } from "../DashboardParameterList";
+import { Button } from "@mantine/core";
+import { Modal } from "metabase/ui";
+import { t } from "ttag";
+import { LoadingSpinner } from "metabase/common/components/EntityPicker";
+import axios from "axios";
 
 interface DashboardParameterPanelProps {
   isFullscreen: boolean;
@@ -54,6 +59,8 @@ export function DashboardParameterPanel({
   });
   const parametersValues = useSelector(getValuePopulatedParameters);
   const shouldApplyThemeChangeTransition = !isStickyStateChanging && isSticky;
+
+
 
   if (!hasVisibleParameters) {
     return null;
@@ -98,6 +105,15 @@ export function DashboardParameterPanel({
           <DashboardParameterList isFullscreen={isFullscreen} />
 
           <FilterApplyButton />
+          {/* <Button
+            style={{ marginTop: "7px" }}
+            onClick={() => {
+              setIsOpenModalId(selectedTabId);
+              apiCall(payload)
+            }}
+          >
+            View Insight
+          </Button> */}
         </ParametersFixedWidthContainer>
       </ParametersWidgetContainer>
     </span>

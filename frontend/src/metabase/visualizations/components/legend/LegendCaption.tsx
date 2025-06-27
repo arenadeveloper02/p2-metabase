@@ -58,7 +58,7 @@ export function buildFilterObject(parametersValues: ParameterItem[]): FilterPayl
       const [startDate, endDate] = val.split("~");
       result["Date"] = { startDate, endDate };
     } else {
-      const key = item.name.replace(/\s+/g, "_");
+      const key = item?.name?.replace(/\s+/g, "_");
       result[key] = val;
     }
   }
