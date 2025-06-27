@@ -212,7 +212,7 @@ export const LegendCaption = ({
           }
           maxWidth="22em"
         >
-          <div
+          {dashcard?.dashboard_id === 81 && <div
             onClick={() => {
               setResponseData({});
               setIsOpenModalId(dashcard?.id || "");
@@ -232,7 +232,7 @@ export const LegendCaption = ({
                 CS.hoverChildSmooth,
               )}
             />
-          </div>
+          </div>}
         </Tooltip>
         {description && !shouldHideDescription(width) && (
           <Tooltip
