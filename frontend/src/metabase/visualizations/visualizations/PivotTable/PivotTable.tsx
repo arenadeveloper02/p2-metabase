@@ -67,6 +67,23 @@ import {
   topHeaderCellSizeAndPositionGetter,
 } from "./utils";
 
+
+export function isValidNumber(valueStr: string): boolean {
+  if (typeof valueStr !== 'string') return false;
+
+  const cleaned: string = valueStr.replace(/,/g, '');
+  const num: number = parseFloat(cleaned);
+
+  return !isNaN(num);
+}
+
+// Example usage
+interface InputItem {
+  value: string;
+  isSubtotal: boolean;
+  isGrandTotal: boolean;
+}
+
 const MIN_USABLE_BODY_WIDTH = 240;
 
 const mapStateToProps = (state: State) => ({
@@ -435,7 +452,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                   width={topHeaderWidth}
                   height={topHeaderHeight}
                   cellCount={topHeaderItems.length}
-                  cellRenderer={({ index, style, key }) => (
+                  cellRenderer={({ index, style, key }) => {
+                    return(
                     <TopHeaderCell
                       key={key}
                       style={style}
@@ -450,8 +468,9 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                           newWidth,
                         )
                       }
+                      isNumber={isValidNumber(getRowSection(index, rowIndex)?.[0]?.value)}
                     />
-                  )}
+                  )}}
                   cellSizeAndPositionGetter={({ index }) =>
                     topHeaderCellSizeAndPositionGetter(
                       topHeaderItems[index],
@@ -486,7 +505,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             settings={settings}
                             isNightMode={isNightMode}
                             getCellClickHandler={getCellClickHandler}
-                            backgroundColor={"#e2e3e5"}
+                            backgroundColor={leftHeaderItems[index]?.isSubtotal && !leftHeaderItems[index]?.isGrandTotal ? "#f3f2f3" : ""}
                           />
                         )}
                         cellSizeAndPositionGetter={({ index }) =>
@@ -532,7 +551,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                           key,
                           style,
                           isScrolling,
-                        }) => (
+                        }) => {
+                          return(
                           <BodyCell
                             key={key}
                             style={style}
@@ -547,7 +567,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             )}
                             bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#6d717f":""}
                           />
-                        )}
+                        )}}
                         onScroll={({ scrollLeft, scrollTop }) =>
                           onScroll({ scrollLeft, scrollTop } as OnScrollParams)
                         }

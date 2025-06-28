@@ -12,7 +12,7 @@ import { isUuid } from "metabase/lib/uuid";
 import { Button, Icon } from "metabase/ui";
 import {
   getExportTabAsPdfButtonText,
-  saveDashboardPdf,
+  saveDashboardPdfAsSinglePage,
 } from "metabase/visualizations/lib/save-dashboard-pdf";
 import type { Dashboard } from "metabase-types/api";
 
@@ -37,7 +37,7 @@ export const ExportAsPdfButton = ({
     });
 
     const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-    return saveDashboardPdf(
+    return saveDashboardPdfAsSinglePage(
       cardNodeSelector,
       dashboard.name ?? t`Exported dashboard`,
     );

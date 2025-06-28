@@ -173,7 +173,7 @@ const TableSimpleInner = forwardRef<HTMLDivElement, TableSimpleProps>(
       () => rowIndexes.slice(start, end + 1),
       [rowIndexes, start, end],
     );
-
+    
     const renderColumnHeader = useCallback(
       (col: DatasetColumn, colIndex: number) => {
         const iconName = sortDirection === "desc" ? "chevrondown" : "chevronup";
