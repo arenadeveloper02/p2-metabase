@@ -246,7 +246,7 @@ export const BodyCell = ({
             showTooltip={showTooltip}
             isBody
             onClick={getCellClickHandler(clicked)}
-            backgroundColor={!isGrandTotal && isSubtotal ? "#f3f2f3" : bottomBackgroundColor ? bottomBackgroundColor:backgroundColor}
+            backgroundColor={!isGrandTotal && isSubtotal && !bottomBackgroundColor ? "#f3f2f3" : bottomBackgroundColor ? bottomBackgroundColor: backgroundColor}
           />
         )}
       )}
