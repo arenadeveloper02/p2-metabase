@@ -287,6 +287,109 @@ export const saveDashboardPdf = async (
   pdf.save(fileName);
 };
 
+//export dashboard as a single page
+export const saveDashboardPdfAsSinglePage = async (
+  selector: string,
+  dashboardName: string,
+) => {
+  const fileName = `${dashboardName}.pdf`;
+  const dashboardRoot = document.querySelector(selector);
+  const gridNode = dashboardRoot?.querySelector(".react-grid-layout");
+
+  if (!gridNode || !(gridNode instanceof HTMLElement)) {
+    console.warn("No dashboard content found", selector);
+    return;
+  }
+
+  const pdfHeader = createHeaderElement(dashboardName, HEADER_MARGIN_BOTTOM);
+  const parametersNode = dashboardRoot
+    ?.querySelector(`#${DASHBOARD_PARAMETERS_PDF_EXPORT_NODE_ID}`)
+    ?.cloneNode(true);
+
+  let parametersHeight = 0;
+  if (parametersNode instanceof HTMLElement) {
+    gridNode.append(parametersNode);
+    parametersNode.style.cssText = `margin-bottom: ${PARAMETERS_MARGIN_BOTTOM}px`;
+    parametersHeight =
+      parametersNode.getBoundingClientRect().height + PARAMETERS_MARGIN_BOTTOM;
+    gridNode.removeChild(parametersNode);
+  }
+
+  gridNode.appendChild(pdfHeader);
+  const headerHeight =
+    pdfHeader.getBoundingClientRect().height + HEADER_MARGIN_BOTTOM;
+  gridNode.removeChild(pdfHeader);
+
+  const verticalOffset = headerHeight + parametersHeight;
+  const contentWidth = gridNode.offsetWidth;
+  const contentHeight = gridNode.offsetHeight + verticalOffset;
+  const width = contentWidth + PAGE_PADDING * 2;
+  const height = contentHeight + PAGE_PADDING * 2;
+
+  const backgroundColor = getComputedStyle(document.documentElement)
+    .getPropertyValue("--mb-color-bg-dashboard")
+    .trim();
+
+  const { default: html2canvas } = await import("html2canvas-pro");
+  const image = await html2canvas(gridNode, {
+    height: contentHeight,
+    width: contentWidth,
+    useCORS: true,
+    onclone: (_doc: Document, node: HTMLElement) => {
+      node.classList.add(SAVING_DOM_IMAGE_CLASS);
+      node.style.height = `${contentHeight}px`;
+      node.style.backgroundColor = backgroundColor;
+      if (parametersNode instanceof HTMLElement) {
+        node.insertBefore(parametersNode, node.firstChild);
+      }
+      node.insertBefore(pdfHeader, node.firstChild);
+    },
+  });
+
+  const { default: jspdf } = await import("jspdf");
+  const scale = window.devicePixelRatio || 1;
+
+  const pdf = new jspdf({
+    orientation: contentWidth > contentHeight ? "landscape" : "portrait",
+    unit: "px",
+    format: [width, height],
+    hotfixes: ["px_scaling"],
+  });
+
+  pdf.setFillColor(backgroundColor);
+  pdf.rect(0, 0, width, height, "F");
+
+  const canvas = document.createElement("canvas");
+  canvas.width = contentWidth * scale;
+  canvas.height = contentHeight * scale;
+
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.drawImage(
+      image,
+      0,
+      0,
+      contentWidth * scale,
+      contentHeight * scale,
+      0,
+      0,
+      contentWidth * scale,
+      contentHeight * scale,
+    );
+    pdf.addImage(
+      canvas,
+      "JPEG",
+      PAGE_PADDING,
+      PAGE_PADDING,
+      contentWidth,
+      contentHeight,
+    );
+  }
+
+  pdf.save(fileName);
+};
+
+
 export const getExportTabAsPdfButtonText = (tabs: Dashboard["tabs"]) => {
   return Array.isArray(tabs) && tabs.length > 1
     ? t`Export tab as PDF`

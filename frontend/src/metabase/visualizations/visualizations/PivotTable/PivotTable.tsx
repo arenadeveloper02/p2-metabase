@@ -505,7 +505,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             settings={settings}
                             isNightMode={isNightMode}
                             getCellClickHandler={getCellClickHandler}
-                            backgroundColor={"#e2e3e5"}
+                            backgroundColor={leftHeaderItems[index]?.isSubtotal && !leftHeaderItems[index]?.isGrandTotal ? "#f3f2f3" : ""}
                           />
                         )}
                         cellSizeAndPositionGetter={({ index }) =>
@@ -551,7 +551,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                           key,
                           style,
                           isScrolling,
-                        }) => (
+                        }) => {
+                          return(
                           <BodyCell
                             key={key}
                             style={style}
@@ -566,7 +567,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             )}
                             bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#6d717f":""}
                           />
-                        )}
+                        )}}
                         onScroll={({ scrollLeft, scrollTop }) =>
                           onScroll({ scrollLeft, scrollTop } as OnScrollParams)
                         }
