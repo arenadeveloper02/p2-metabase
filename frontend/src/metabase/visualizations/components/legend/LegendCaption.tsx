@@ -1,5 +1,6 @@
 import cx from "classnames";
 import { useCallback, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 import { Ellipsified } from "metabase/core/components/Ellipsified";
 import Markdown from "metabase/core/components/Markdown";
@@ -41,7 +42,9 @@ interface DateRange {
 
 type FilterPayload = Record<string, string | string[] | DateRange>;
 
-export function buildFilterObject(parametersValues: ParameterItem[]): FilterPayload {
+export function buildFilterObject(
+  parametersValues: ParameterItem[],
+): FilterPayload {
   const result: FilterPayload = {};
 
   for (const item of parametersValues) {
@@ -159,14 +162,10 @@ export const LegendCaption = ({
     }
   };
 
-
-
-
-
   const renderModal = (cardId: number | string) => {
     return (
       <Modal
-        size="30rem"
+        size="50rem"
         opened={cardId === isOpenModalId}
         onClose={() => {
           setResponseData({});
@@ -175,10 +174,13 @@ export const LegendCaption = ({
         title={t`Render Insight`}
       >
         {
-          <div style={{marginTop: "8px"}}>
-            <Markdown dark disallowHeading unstyleLinks >
+          <div style={{ marginTop: "8px" }}>
+            <ReactMarkdown className="prose prose-lg max-w-none">
               {responseData?.response?.response || responseData?.response}
-            </Markdown>
+            </ReactMarkdown>
+            {/* <Markdown dark disallowHeading unstyleLinks >
+              {responseData?.response?.response || responseData?.response}
+            </Markdown> */}
           </div>
         }
         {!responseData?.localStatus && <LoadingSpinner />}
@@ -212,27 +214,30 @@ export const LegendCaption = ({
           }
           maxWidth="22em"
         >
-          {dashcard?.dashboard_id === 81 && <div
-            onClick={() => {
-              setResponseData({});
-              setIsOpenModalId(dashcard?.id || "");
-              apiCall({
-                dashboardId: dashcard?.dashboard_id,
-                tabId: dashcard?.dashboard_tab_id,
-                dashcardId: dashcard?.id,
-                tabFilters : buildFilterObject(parametersValues)
-              });
-            }}
-          >
-            <LegendDescriptionIcon
-              name="lightbulb"
-              className={cx(
-                CS.cursorPointer,
-                CS.hoverChild,
-                CS.hoverChildSmooth,
-              )}
-            />
-          </div>}
+          {dashcard?.dashboard_id === 81 &&
+            dashcard?.visualization_settings?.["table.pivot_column"] && (
+              <div
+                onClick={() => {
+                  setResponseData({});
+                  setIsOpenModalId(dashcard?.id || "");
+                  apiCall({
+                    dashboardId: dashcard?.dashboard_id,
+                    tabId: dashcard?.dashboard_tab_id,
+                    dashcardId: dashcard?.id,
+                    tabFilters: buildFilterObject(parametersValues),
+                  });
+                }}
+              >
+                <LegendDescriptionIcon
+                  name="lightbulb"
+                  className={cx(
+                    CS.cursorPointer,
+                    CS.hoverChild,
+                    CS.hoverChildSmooth,
+                  )}
+                />
+              </div>
+            )}
         </Tooltip>
         {description && !shouldHideDescription(width) && (
           <Tooltip
