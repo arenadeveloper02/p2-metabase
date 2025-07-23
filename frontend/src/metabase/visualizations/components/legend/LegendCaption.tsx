@@ -1,5 +1,5 @@
 import cx from "classnames";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 
 import { Ellipsified } from "metabase/core/components/Ellipsified";
@@ -9,7 +9,7 @@ import CS from "metabase/css/core/index.css";
 import DashboardS from "metabase/css/dashboard.module.css";
 import EmbedFrameS from "metabase/public/components/EmbedFrame/EmbedFrame.module.css";
 import type { IconProps } from "metabase/ui";
-import { Modal } from "metabase/ui";
+import { Image, Modal } from "metabase/ui";
 import LegendActions from "./LegendActions";
 import {
   LegendCaptionRoot,
@@ -23,6 +23,7 @@ import { LoadingSpinner } from "metabase/common/components/EntityPicker";
 import axios from "axios";
 import { getValuePopulatedParameters } from "metabase/dashboard/selectors";
 import { useSelector } from "metabase/lib/redux";
+import CustomMarkdownText from "metabase/core/components/Markdown/CustomMarkdown";
 
 function shouldHideDescription(width: number | undefined) {
   const HIDE_DESCRIPTION_THRESHOLD = 100;
@@ -111,6 +112,9 @@ export const LegendCaption = ({
   const [isOpenModalId, setIsOpenModalId] = useState("");
   const parametersValues = useSelector(getValuePopulatedParameters);
   const [responseData, setResponseData] = useState<any>({});
+  const markdownRef = useRef<any>();
+  const VIMI_SPARKLE_IMAGE_URL =
+    "https://arenav2image.s3.us-west-1.amazonaws.com/vimi-sparkle.png";
 
   const handleFocus = useCallback(() => {
     if (getHref) {
@@ -128,7 +132,7 @@ export const LegendCaption = ({
     try {
       axios
         .post(
-          "http://127.0.0.1:5000/api/v1/metabase/getDashboardDetailsbyId",
+          "http://52.39.126.122:5000/api/v1/metabase/getDashboardDetailsbyId",
           payload,
           {
             headers: {
@@ -171,18 +175,60 @@ export const LegendCaption = ({
           setResponseData({});
           setIsOpenModalId("");
         }}
-        title={t`Render Insight`}
+        // title={t`Calibrate Insight`}
       >
-        {
-          <div style={{ marginTop: "8px" }}>
-            <ReactMarkdown className="prose prose-lg max-w-none">
-              {responseData?.response?.response || responseData?.response}
-            </ReactMarkdown>
-            {/* <Markdown dark disallowHeading unstyleLinks >
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            alignItems: "center",
+            position: "absolute",
+            top: "20px",
+            zIndex: "2000",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(#8F50AC, #0086AB)",
+              cursor: "pointer",
+              height: "48px",
+              width: "48px",
+              borderRadius: "8px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <img
+              src={VIMI_SPARKLE_IMAGE_URL}
+              style={{
+                height: "32px",
+                width: "32px",
+              }}
+              alt="vimi"
+            />
+          </div>
+          <h2 className="text-[#4A4A4A] text-[18px] ">Calibrate Insight</h2>
+        </div>
+        <div
+          style={{
+            marginTop: "34px",
+            maxHeight: "calc(100vh - 260px)",
+            overflowY: "auto",
+          }}
+        >
+          {
+            <CustomMarkdownText
+              markdown={
+                responseData?.response?.response || responseData?.response || ""
+              }
+              markdownRef={markdownRef}
+            />
+          }
+          {/* <Markdown dark disallowHeading unstyleLinks >
               {responseData?.response?.response || responseData?.response}
             </Markdown> */}
-          </div>
-        }
+        </div>
         {!responseData?.localStatus && <LoadingSpinner />}
       </Modal>
     );

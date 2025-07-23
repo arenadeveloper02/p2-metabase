@@ -167,7 +167,9 @@
                                  (when config/is-dev?
                                    "ws://*:9630")
                                   (when config/is-dev?
-  "http://127.0.0.1:*")
+                                  "http://127.0.0.1:*")
+                                  (when config/is-dev?
+                                    "http://52.39.126.122:*")
                                    ]
                   :manifest-src ["'self'"]}]
       (format "%s %s; " (name k) (str/join " " vs))))})
