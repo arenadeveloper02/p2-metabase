@@ -106,17 +106,36 @@ const CustomMarkdownText: React.FC<MarkdownTextProps> = ({
 
   const components: Components = {
     h1: ({ children }) => (
-      <h1 className="text-2xl font-medium text-[#1b1f23] mt-6 mb-3">
+      <h1 style={{
+        fontSize: "18px",
+        fontWeight: "medium",
+        marginTop: "24px",
+        marginBottom: "12px"
+      }} className="text-[#1b1f23]">
         {children}
       </h1>
     ),
     h2: ({ children }) => (
-      <h2 className="text-xl font-medium text-[#1b1f23] mt-6 mb-3">
+      <h2 
+      style={{
+        fontSize: "18px",
+        fontWeight: "medium",
+        marginTop: "24px",
+        marginBottom: "12px"
+      }}
+      className="text-[#1b1f23]">
         {children}
       </h2>
     ),
     h3: ({ children }) => (
-      <h3 className="text-lg font-medium text-[#1b1f23] mt-6 mb-3">
+      <h3
+      style={{
+        fontSize: "16px",
+        fontWeight: "medium",
+        marginTop: "24px",
+        marginBottom: "12px"
+      }}
+      className=" text-[#1b1f23]">
         {children}
       </h3>
     ),
@@ -133,6 +152,9 @@ const CustomMarkdownText: React.FC<MarkdownTextProps> = ({
     code({ node, inline, className, children, ...props }: any) {
       return inline ? (
         <code
+        style={{
+          padding: "2px 4px"
+        }}
           className="bg-[#f6f8fa] text-[#e83e8c] px-1 py-[2px] rounded text-[0.85rem]"
           {...props}
         >
