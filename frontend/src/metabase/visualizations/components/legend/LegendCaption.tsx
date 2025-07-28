@@ -215,6 +215,7 @@ export const LegendCaption = ({
             marginTop: "34px",
             maxHeight: "calc(100vh - 260px)",
             overflowY: "auto",
+            paddingRight: "12px"
           }}
         >
           {
