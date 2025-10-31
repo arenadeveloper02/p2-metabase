@@ -1,6 +1,5 @@
 import cx from "classnames";
-import { useCallback, useState, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import { useCallback, useState, useRef, useEffect } from "react";
 
 import { Ellipsified } from "metabase/core/components/Ellipsified";
 import Markdown from "metabase/core/components/Markdown";
@@ -128,43 +127,43 @@ export const LegendCaption = ({
     }
   }, [getHref]);
 
-  const apiCall = async (payload: any) => {
-    try {
-      axios
-        .post(
-          "http://52.39.126.122:5000/api/v1/metabase/getDashboardDetailsbyId",
-          payload,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        )
-        .then((response: any) => {
-          setResponseData({ response: response.data, localStatus: "success" });
-          console.log("✅ Response:.....", response.data);
-        })
-        .catch(error => {
-          if (axios.isAxiosError(error)) {
-            setResponseData({
-              response: "Somthing went wrong!",
-              localStatus: "failed",
-            });
-            console.error(
-              "❌ Axios error:....",
-              error.message,
-              error.toJSON?.(),
-            );
-          }
-        });
-    } catch (error) {
-      setResponseData({
-        response: "Somthing went wrong!",
-        localStatus: "failed",
-      });
-      console.error("❌ Error fetching dashboard details:....", error);
-    }
-  };
+  // const apiCall = async (payload: any) => {
+  //   try {
+  //     axios
+  //       .post(
+  //         "http://52.39.126.122:5000/api/v1/metabase/getDashboardDetailsbyId",
+  //         payload,
+  //         {
+  //           headers: {
+  //             "Content-Type": "application/json",
+  //           },
+  //         },
+  //       )
+  //       .then((response: any) => {
+  //         setResponseData({ response: response.data, localStatus: "success" });
+  //         console.log("✅ Response:.....", response.data);
+  //       })
+  //       .catch(error => {
+  //         if (axios.isAxiosError(error)) {
+  //           setResponseData({
+  //             response: "Somthing went wrong!",
+  //             localStatus: "failed",
+  //           });
+  //           console.error(
+  //             "❌ Axios error:....",
+  //             error.message,
+  //             error.toJSON?.(),
+  //           );
+  //         }
+  //       });
+  //   } catch (error) {
+  //     setResponseData({
+  //       response: "Somthing went wrong!",
+  //       localStatus: "failed",
+  //     });
+  //     console.error("❌ Error fetching dashboard details:....", error);
+  //   }
+  // };
 
   const renderModal = (cardId: number | string) => {
     return (
@@ -215,7 +214,7 @@ export const LegendCaption = ({
             marginTop: "34px",
             maxHeight: "calc(100vh - 260px)",
             overflowY: "auto",
-            paddingRight: "12px"
+            paddingRight: "12px",
           }}
         >
           {
@@ -265,14 +264,24 @@ export const LegendCaption = ({
             dashcard?.visualization_settings?.["table.pivot_column"] && (
               <div
                 onClick={() => {
-                  setResponseData({});
-                  setIsOpenModalId(dashcard?.id || "");
-                  apiCall({
-                    dashboardId: dashcard?.dashboard_id,
-                    tabId: dashcard?.dashboard_tab_id,
-                    dashcardId: dashcard?.id,
-                    tabFilters: buildFilterObject(parametersValues),
-                  });
+                  window.parent.postMessage(
+                    {
+                      type: "FROM_IFRAME_PASS_PAYLOAD",
+                      payload: {
+                        dashboardId: dashcard?.dashboard_id,
+                        tabId: dashcard?.dashboard_tab_id,
+                        dashcardId: dashcard?.id,
+                        tabFilters: buildFilterObject(parametersValues),
+                      },
+                    },
+                    "*",
+                  );
+                  // apiCall({
+                  //   dashboardId: dashcard?.dashboard_id,
+                  //   tabId: dashcard?.dashboard_tab_id,
+                  //   dashcardId: dashcard?.id,
+                  //   tabFilters: buildFilterObject(parametersValues),
+                  // });
                 }}
               >
                 <LegendDescriptionIcon
