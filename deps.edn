@@ -187,10 +187,17 @@
   redux/redux                               {:git/url "https://github.com/metabase/redux"
                                              :sha "4a37feaf817a2a6b5ef688c927f6fd4375964433"}
   riddley/riddley                           {:mvn/version "0.2.0"}              ; code walking lib -- used interally by Potemkin, manifold, etc.
-  ring/ring-core                            {:mvn/version "1.13.0"}             ; HTTP abstraction
+  ring/ring-core                            {:mvn/version "1.13.0"               ; HTTP abstraction
+                                             :exclusions [org.apache.commons/commons-fileupload2-core]}
   ring/ring-jetty-adapter                   {:mvn/version "1.13.0"              ; Jetty adapter
                                              :exclusions [org.eclipse.jetty/jetty-server
                                                           org.eclipse.jetty.websocket/websocket-jetty-server]}
+  ;; Fix CVE-2025-48976: Upgrade commons-fileupload2-core from 2.0.0-M1 to 2.0.0-M4
+  org.apache.commons/commons-fileupload2-core {:mvn/version "2.0.0-M4"}
+  ;; Fix CVE-2025-55163: Upgrade netty-codec-http2 from 4.1.111.Final to 4.1.124.Final
+  io.netty/netty-codec-http2                {:mvn/version "4.1.124.Final"}
+  ;; Fix CVE-2025-24970: Upgrade netty-handler from 4.1.111.Final to 4.1.118.Final
+  io.netty/netty-handler                    {:mvn/version "4.1.118.Final"}
   slingshot/slingshot                       {:mvn/version "0.12.2"}             ; enhanced throw/catch, used by other deps
   stencil/stencil                           {:mvn/version "0.5.0"}              ; Mustache templates for Clojure
   user-agent/user-agent                     {:mvn/version "0.1.1"}              ; User-Agent string parser, for Login History page & elsewhere

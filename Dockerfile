@@ -41,7 +41,9 @@ FROM eclipse-temurin:21-jre-alpine as runner
 ENV FC_LANG en-US LC_CTYPE en_US.UTF-8
 
 # dependencies
+# Explicitly upgrade sqlite-libs and libexpat to fix CVEs
 RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && \
+    apk upgrade --no-cache sqlite-libs libexpat && \
     apk upgrade && \
     rm -rf /var/cache/apk/* && \
     mkdir -p /app/certs && \
