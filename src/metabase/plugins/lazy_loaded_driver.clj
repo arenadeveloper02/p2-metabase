@@ -25,13 +25,20 @@
     (string? prop)
     (or (driver.common/default-options (keyword prop))
         (driver.common/default-connection-info-fields (keyword prop))
-        (throw (Exception. (trs "Default connection property {0} does not exist." prop))))
+        (do
+          (log/warn (trs "Default connection property {0} does not exist. Skipping." prop))
+          nil))
 
     (not (map? prop))
-    (throw (Exception. (trs "Invalid connection property {0}: not a string or map." prop)))
+    (do
+      (log/warn (trs "Invalid connection property {0}: not a string or map. Skipping." prop))
+      nil)
 
     (:merge prop)
-    (into {} (map parse-connection-property) (:merge prop))
+    (let [parsed (keep parse-connection-property (:merge prop))]
+      (if (seq parsed)
+        (into {} parsed)
+        nil))
 
     :else
     prop))
@@ -41,9 +48,12 @@
   referring to one of the default maps in `driver.common`, a entire custom map, or a list of maps to `merge:` (e.g.
   for overriding part, but not all, of a default option)."
   [{:keys [connection-properties]}]
-  (->> (map parse-connection-property connection-properties)
-       (map u/one-or-many)
-       (apply concat)))
+  (if (seq connection-properties)
+    (->> (map parse-connection-property connection-properties)
+         (filter some?)
+         (map u/one-or-many)
+         (apply concat))
+    []))
 
 (defn- make-initialize! [driver add-to-classpath! init-steps]
   (fn [_]
