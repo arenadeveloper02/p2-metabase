@@ -6,12 +6,13 @@ import { Icon, Menu } from "metabase/ui";
 import {
   getExportTabAsPdfButtonText,
   saveDashboardPdf,
+  saveDashboardPdfAsSinglePage
 } from "metabase/visualizations/lib/save-dashboard-pdf";
 import type { Dashboard } from "metabase-types/api";
 
 const handleClick = async (dashboard: Dashboard, includeBranding: boolean) => {
   const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-  await saveDashboardPdf({
+  await saveDashboardPdfAsSinglePage({
     selector: cardNodeSelector,
     dashboardName: dashboard.name,
     includeBranding,

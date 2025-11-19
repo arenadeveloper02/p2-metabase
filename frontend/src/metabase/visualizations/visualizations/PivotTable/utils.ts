@@ -26,7 +26,7 @@ import {
   ROW_TOGGLE_ICON_WIDTH,
 } from "./constants";
 import { partitions } from "./partitions";
-import type { CustomColumnWidth, HeaderItem } from "./types";
+import type { BodyItem, CustomColumnWidth, HeaderItem } from "./types";
 
 // adds or removes columns from the pivot settings based on the current query
 export function updateValueWithCurrentColumns(
@@ -305,3 +305,101 @@ export const getCellWidthsForSection = (
   }
   return widths;
 };
+
+
+
+export function isValidNumber(valueStr: string | number | null | undefined): boolean {
+  if (valueStr === null || valueStr === undefined || valueStr === '') {
+    return false;
+  }
+
+  // If it's already a number, it's valid
+  if (typeof valueStr === 'number') {
+    return !isNaN(valueStr) && isFinite(valueStr);
+  }
+
+  // If it's a string, check if it's a valid number
+  if (typeof valueStr !== 'string') {
+    return false;
+  }
+
+  const cleaned: string = valueStr.replace(/,/g, '').trim();
+  if (cleaned === '') {
+    return false;
+  }
+
+  const num: number = parseFloat(cleaned);
+  return !isNaN(num) && isFinite(num);
+}
+
+/**
+ * Checks if a column in a pivot table has any numeric values.
+ * This function iterates through all rows for a given column header item,
+ * skipping null/empty values, and returns true if any numeric value is found.
+ * 
+ * @param headerItem - The header item representing the column to check
+ * @param rowCount - Total number of rows in the pivot table
+ * @param columnCount - Total number of column groups in the pivot table
+ * @param getRowSection - Function to get the row section (body items) for a given column and row index
+ * @param valueIndexes - Array of value column indexes
+ * @returns true if the column contains any numeric values, false otherwise
+ */
+export function checkColumnHasNumericValues(
+  headerItem: HeaderItem,
+  rowCount: number,
+  columnCount: number,
+  getRowSection: (columnIndex: number, rowIndex: number) => BodyItem[],
+  valueIndexes: number[],
+): boolean {
+  // Only check leaf nodes (single columns)
+  if (headerItem.maxDepthBelow !== 0) {
+    return false;
+  }
+
+  const offset = headerItem.offset;
+  if (offset === undefined || valueIndexes.length === 0) {
+    return false;
+  }
+
+  // Find which columnIndex group this offset belongs to
+  // Each columnIndex group contains valueIndexes.length columns
+  const columnIndexGroup = Math.floor(offset / valueIndexes.length);
+  const positionInGroup = offset % valueIndexes.length;
+
+  // Ensure columnIndexGroup is within bounds
+  if (columnIndexGroup < 0 || columnIndexGroup >= columnCount) {
+    return false;
+  }
+
+  // Check all rows for this column
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    try {
+      const rowSection = getRowSection(columnIndexGroup, rowIndex);
+
+      // Check if rowSection exists and has the item at positionInGroup
+      if (
+        rowSection &&
+        Array.isArray(rowSection) &&
+        positionInGroup < rowSection.length &&
+        rowSection[positionInGroup]
+      ) {
+        const cellValue = rowSection[positionInGroup].value;
+
+        // Skip null/empty values and move to next row
+        if (cellValue === null || cellValue === undefined || cellValue === '') {
+          continue;
+        }
+
+        // If we find a numeric value, return true
+        if (isValidNumber(cellValue)) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // If there's an error getting the row section, continue to next row
+      continue;
+    }
+  }
+
+  return false;
+}

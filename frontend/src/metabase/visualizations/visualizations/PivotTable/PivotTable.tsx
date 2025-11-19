@@ -61,6 +61,7 @@ import {
 } from "./settings";
 import type { HeaderWidthType, PivotTableClicked } from "./types";
 import {
+  checkColumnHasNumericValues,
   checkRenderable,
   getCellWidthsForSection,
   getLeftHeaderWidths,
@@ -359,6 +360,23 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
     const bodyHeight = height - topHeaderHeight;
     const topHeaderWidth = viewPortWidth - leftHeaderWidth;
 
+        // Memoize which columns have numeric values
+    // Uses the reusable checkColumnHasNumericValues function from utils.ts
+    const columnHasNumericValues = useMemo(() => {
+      const result: Record<number, boolean> = {};
+      topHeaderItems.forEach((item: typeof topHeaderItems[0], index: number) => {
+        result[index] = checkColumnHasNumericValues(
+          item,
+          rowCount,
+          columnCount,
+          getRowSection,
+          valueIndexes,
+        );
+      });
+      return result;
+    }, [topHeaderItems, rowCount, columnCount, getRowSection, valueIndexes]);
+
+
     function getCellClickHandler(clicked: PivotTableClicked) {
       if (!clicked) {
         return undefined;
@@ -428,7 +446,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                         isBold
                         isBorderedHeader
                         isTransparent
-                        hasTopBorder={topHeaderRows > 1}
+                        hasTopBorder={true}
+                        backgroundColor={"#e2e3e5"}
                         value={getColumnTitle(rowIndex)}
                         onResize={(newWidth: number) =>
                           handleColumnResize("leftHeader", index, newWidth)
@@ -444,18 +463,20 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                           ...(index === rowIndexes.length - 1
                             ? { borderRight: "none" }
                             : {}),
+                            fontWeight: "bold",
+                            color: "#000",
                         }}
-                        icon={
-                          // you can only collapse before the last column
-                          index < rowIndexes.length - 1 &&
-                          isColumnCollapsible(rowIndex) && (
-                            <RowToggleIcon
-                              value={index + 1}
-                              settings={settings}
-                              updateSettings={onUpdateVisualizationSettings}
-                            />
-                          )
-                        }
+                        // icon={
+                        //   // you can only collapse before the last column
+                        //   index < rowIndexes.length - 1 &&
+                        //   isColumnCollapsible(rowIndex) && (
+                        //     <RowToggleIcon
+                        //       value={index + 1}
+                        //       settings={settings}
+                        //       updateSettings={onUpdateVisualizationSettings}
+                        //     />
+                        //   )
+                        // }
                       />
                     ))}
                   </PivotTableTopLeftCellsContainer>
@@ -467,7 +488,12 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                     width={topHeaderWidth}
                     height={topHeaderHeight}
                     cellCount={topHeaderItems.length}
-                    cellRenderer={({ index, style, key }) => (
+                    cellRenderer={({ index, style, key }) => {
+                      const headerItem = topHeaderItems[index];
+                      // Function to check if a column has any numeric values it will right align the header
+                      const isNumber = columnHasNumericValues[index] ?? false;
+
+                      return (
                       <TopHeaderCell
                         key={key}
                         style={style}
@@ -480,8 +506,10 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             newWidth,
                           )
                         }
+                        backgroundColor={"#e2e3e5"}
+                        isNumber={isNumber}
                       />
-                    )}
+                    )}}
                     cellSizeAndPositionGetter={({ index }) =>
                       topHeaderCellSizeAndPositionGetter(
                         topHeaderItems[index],
@@ -515,6 +543,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                               }
                               settings={settings}
                               getCellClickHandler={getCellClickHandler}
+                              backgroundColor={leftHeaderItems[index]?.isSubtotal && !leftHeaderItems[index]?.isGrandTotal ? "#f3f2f3" : ""}
                             />
                           )}
                           cellSizeAndPositionGetter={({ index }) =>
@@ -576,6 +605,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                                   valueIndexes,
                                   columnIndex,
                                 )}
+                                bottomBackgroundColor={rowIndex==(rowCount-1) && rowCount !=1 && settings["pivot.show_column_totals"]? "#6d717f":""}
                               />
                             );
                           }}

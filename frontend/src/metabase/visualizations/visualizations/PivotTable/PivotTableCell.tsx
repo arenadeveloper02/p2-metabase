@@ -140,6 +140,8 @@ interface TopHeaderCellProps {
   style: React.CSSProperties;
   getCellClickHandler: CellClickHandler;
   onResize?: (newWidth: number) => void;
+  backgroundColor: string;
+  isNumber?: boolean;
 }
 
 export const TopHeaderCell = ({
@@ -147,6 +149,8 @@ export const TopHeaderCell = ({
   style,
   getCellClickHandler,
   onResize,
+  backgroundColor,
+  isNumber=false
 }: TopHeaderCellProps) => {
   const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
 
@@ -154,8 +158,12 @@ export const TopHeaderCell = ({
 
   return (
     <Cell
+      isBody={isNumber}
+      backgroundColor={backgroundColor}
       style={{
         ...style,
+        fontWeight: "bold",
+        color: "#000",
       }}
       value={tc(value)}
       isBorderedHeader={maxDepthBelow === 0}
@@ -171,6 +179,7 @@ type LeftHeaderCellProps = TopHeaderCellProps & {
   rowIndex: string[];
   settings: VisualizationSettings;
   onUpdateVisualizationSettings: (settings: VisualizationSettings) => void;
+  backgroundColor?: string;
 };
 
 export const LeftHeaderCell = ({
@@ -181,6 +190,7 @@ export const LeftHeaderCell = ({
   settings,
   onUpdateVisualizationSettings,
   onResize,
+  backgroundColor,
 }: LeftHeaderCellProps) => {
   const { value, isSubtotal, hasSubtotal, depth, path, clicked } = item;
 
@@ -195,18 +205,19 @@ export const LeftHeaderCell = ({
       isBold={isSubtotal}
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
-      icon={
-        (isSubtotal || hasSubtotal) && (
-          <RowToggleIcon
-            data-testid={`${item.rawValue}-toggle-button`}
-            value={path}
-            settings={settings}
-            updateSettings={onUpdateVisualizationSettings}
-            hideUnlessCollapsed={isSubtotal}
-            rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
-          />
-        )
-      }
+      backgroundColor={backgroundColor}
+      // icon={
+      //   (isSubtotal || hasSubtotal) && (
+      //     <RowToggleIcon
+      //       data-testid={`${item.rawValue}-toggle-button`}
+      //       value={path}
+      //       settings={settings}
+      //       updateSettings={onUpdateVisualizationSettings}
+      //       hideUnlessCollapsed={isSubtotal}
+      //       rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
+      //     />
+      //   )
+      // }
     />
   );
 };
@@ -217,6 +228,7 @@ interface BodyCellProps {
   getCellClickHandler: CellClickHandler;
   cellWidths: number[];
   showTooltip?: boolean;
+  bottomBackgroundColor? :string;
 }
 
 export const BodyCell = ({
@@ -225,16 +237,18 @@ export const BodyCell = ({
   getCellClickHandler,
   cellWidths,
   showTooltip = true,
+  bottomBackgroundColor
 }: BodyCellProps) => {
   return (
     <div style={style} className={CS.flex}>
       {rowSection.map(
-        ({ value, isSubtotal, clicked, backgroundColor }, index) => {
+        ({ value, isSubtotal, clicked, backgroundColor, isGrandTotal }, index) => {
           return (
             <Cell
               key={index}
               style={{
                 flexBasis: cellWidths[index],
+                color:  bottomBackgroundColor ? "#fff":"#000",
               }}
               value={value}
               isEmphasized={isSubtotal}
@@ -242,7 +256,7 @@ export const BodyCell = ({
               showTooltip={showTooltip}
               isBody
               onClick={getCellClickHandler(clicked)}
-              backgroundColor={backgroundColor}
+              backgroundColor={!isGrandTotal && isSubtotal && !bottomBackgroundColor ? "#f3f2f3" : bottomBackgroundColor ? bottomBackgroundColor: backgroundColor}
             />
           );
         },

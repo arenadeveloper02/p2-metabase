@@ -11,7 +11,7 @@ import { useDashboardContext } from "metabase/dashboard/context/context";
 import { isJWT } from "metabase/lib/utils";
 import { isUuid } from "metabase/lib/uuid";
 import { ActionIcon, type ActionIconProps, Icon, Tooltip } from "metabase/ui";
-import { saveDashboardPdf } from "metabase/visualizations/lib/save-dashboard-pdf";
+import { saveDashboardPdf, saveDashboardPdfAsSinglePage } from "metabase/visualizations/lib/save-dashboard-pdf";
 
 export const ExportAsPdfButton = (props: ActionIconProps) => {
   const { dashboard } = useDashboardContext();
@@ -30,7 +30,7 @@ export const ExportAsPdfButton = (props: ActionIconProps) => {
     });
 
     const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-    return saveDashboardPdf({
+    return saveDashboardPdfAsSinglePage({
       selector: cardNodeSelector,
       dashboardName: dashboard?.name ?? t`Exported dashboard`,
       includeBranding,

@@ -361,6 +361,133 @@ export const saveDashboardPdf = async ({
   pdf.save(fileName);
 };
 
+
+//export as single page
+export const saveDashboardPdfAsSinglePage = async ({
+  selector,
+  dashboardName,
+  includeBranding,
+}: {
+  selector: string;
+  dashboardName: string;
+  includeBranding?: boolean;
+}) => {
+  const fileName = includeBranding
+    ? `Metabase - ${dashboardName}.pdf`
+    : `${dashboardName}.pdf`;
+
+  const dashboardRoot = document.querySelector(selector);
+  const gridNode = dashboardRoot?.querySelector(".react-grid-layout");
+
+  if (!gridNode || !(gridNode instanceof HTMLElement)) {
+    console.warn("No dashboard content found", selector);
+    return;
+  }
+
+  const pdfHeader = createHeaderElement(dashboardName, HEADER_MARGIN_BOTTOM);
+  const parametersNode = dashboardRoot
+    ?.querySelector(`#${DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}`)
+    ?.cloneNode(true);
+
+  let parametersHeight = 0;
+  if (parametersNode instanceof HTMLElement) {
+    gridNode.append(parametersNode);
+    parametersNode.style.cssText = `margin-bottom: ${PARAMETERS_MARGIN_BOTTOM}px`;
+    parametersHeight =
+      parametersNode.getBoundingClientRect().height + PARAMETERS_MARGIN_BOTTOM;
+    gridNode.removeChild(parametersNode);
+  }
+
+  gridNode.appendChild(pdfHeader);
+  const headerHeight =
+    pdfHeader.getBoundingClientRect().height + HEADER_MARGIN_BOTTOM;
+  gridNode.removeChild(pdfHeader);
+
+  const contentWidth = gridNode.offsetWidth;
+  const contentHeight = gridNode.offsetHeight + headerHeight + parametersHeight;
+  const width = contentWidth + PAGE_PADDING * 2;
+  const height = contentHeight + PAGE_PADDING * 2;
+
+  let backgroundColor = Color(
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--mb-color-bg-dashboard")
+      .trim(),
+  ).hex();
+
+  const { default: html2canvas } = await import("html2canvas-pro");
+
+  const image = await html2canvas(gridNode, {
+    height: contentHeight,
+    width: contentWidth,
+    useCORS: true,
+    backgroundColor,
+    scale: window.devicePixelRatio || 1,
+    onclone: (_doc, node: HTMLElement) => {
+      node.classList.add(SAVING_DOM_IMAGE_CLASS);
+      node.style.height = `${contentHeight}px`;
+      node.style.backgroundColor = backgroundColor;
+      if (parametersNode instanceof HTMLElement)
+        node.insertBefore(parametersNode, node.firstChild);
+      node.insertBefore(pdfHeader, node.firstChild);
+    },
+  });
+
+  const { default: jspdf } = await import("jspdf");
+  const scale = window.devicePixelRatio || 1;
+
+  const pdf = new jspdf({
+    orientation: contentWidth > contentHeight ? "landscape" : "portrait",
+    unit: "px",
+    format: [width, height],
+    hotfixes: ["px_scaling"],
+  });
+
+  pdf.setFillColor(backgroundColor);
+  pdf.rect(0, 0, width, height, "F");
+
+  const canvas = document.createElement("canvas");
+  canvas.width = contentWidth * scale;
+  canvas.height = contentHeight * scale;
+
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.drawImage(
+      image,
+      0,
+      0,
+      contentWidth * scale,
+      contentHeight * scale,
+      0,
+      0,
+      contentWidth * scale,
+      contentHeight * scale,
+    );
+
+    pdf.addImage(
+      canvas,
+      "JPEG",
+      PAGE_PADDING,
+      PAGE_PADDING,
+      contentWidth,
+      contentHeight,
+    );
+
+    if (includeBranding) {
+      const size = getBrandingSize(width);
+      const brandingHeight = getBrandingConfig(size).h;
+      const url =
+        "https://www.metabase.com?utm_source=product&utm_medium=export&utm_campaign=exports_branding&utm_content=pdf_export";
+
+      pdf.link(PAGE_PADDING, PAGE_PADDING, contentWidth, brandingHeight, {
+        url,
+      });
+    }
+  }
+
+  pdf.save(fileName);
+};
+
+
 export const getExportTabAsPdfButtonText = (tabs: Dashboard["tabs"]) => {
   return Array.isArray(tabs) && tabs.length > 1
     ? t`Export tab as PDF`
