@@ -196,6 +196,8 @@
   org.apache.commons/commons-fileupload2-core {:mvn/version "2.0.0-M4"}
   ;; Fix CVE-2025-55163: Upgrade netty-codec-http2 from 4.1.111.Final to 4.1.124.Final
   io.netty/netty-codec-http2                {:mvn/version "4.1.124.Final"}
+  ;; Fix CVE-2025-59419: Upgrade netty-codec-smtp from 4.1.111.Final to 4.1.128.Final
+  io.netty/netty-codec-smtp                 {:mvn/version "4.1.128.Final"}
   ;; Fix CVE-2025-24970: Upgrade netty-handler from 4.1.111.Final to 4.1.118.Final
   io.netty/netty-handler                    {:mvn/version "4.1.118.Final"}
   slingshot/slingshot                       {:mvn/version "0.12.2"}             ; enhanced throw/catch, used by other deps
