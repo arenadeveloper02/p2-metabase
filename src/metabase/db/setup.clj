@@ -85,7 +85,10 @@
 
         (log/info "Liquibase is ready.")
         (case direction
-          :up            (liquibase/migrate-up-if-needed! liquibase data-source)
+          :up            (if (config/config-bool :mb-skip-precondition-failures)
+                           ;; If skip precondition failures is set, use force migration
+                           (liquibase/force-migrate-up-if-needed! liquibase data-source)
+                           (liquibase/migrate-up-if-needed! liquibase data-source))
           :force         (liquibase/force-migrate-up-if-needed! liquibase data-source)
           :down          (apply liquibase/rollback-major-version conn liquibase args)
           :print         (print-migrations-and-quit-if-needed! liquibase data-source)
@@ -154,20 +157,30 @@
   (with-open [conn (.getConnection ^javax.sql.DataSource data-source)]
     (liquibase/with-liquibase [liquibase conn]
       (let [latest-available (liquibase/latest-available-major-version liquibase)
-            latest-applied   (liquibase/latest-applied-major-version conn (.getDatabase liquibase))]
+            latest-applied   (liquibase/latest-applied-major-version conn (.getDatabase liquibase))
+            bypass-downgrade-check? (config/config-bool :mb-bypass-downgrade-check)]
         ;; `latest-applied` will be `nil` for fresh installs
         (when (and latest-applied (< latest-available latest-applied))
-          (throw (ex-info
-                  (str (u/format-color 'red (trs "ERROR: Downgrade detected."))
-                       "\n\n"
-                       (trs "Your metabase instance appears to have been downgraded without a corresponding database downgrade.")
-                       "\n\n"
-                       (trs "You must run `java --add-opens java.base/java.nio=ALL-UNNAMED -jar metabase.jar migrate down` from version {0}." latest-applied)
-                       "\n\n"
-                       (trs "Once your database has been downgraded, try running the application again.")
-                       "\n\n"
-                       (trs "See: https://www.metabase.com/docs/latest/installation-and-operation/upgrading-metabase#rolling-back-an-upgrade"))
-                  {})))))))
+          (if bypass-downgrade-check?
+            (log/warn (u/format-color 'yellow
+                       (str (trs "WARNING: Downgrade detected but bypassed (MB_BYPASS_DOWNGRADE_CHECK=true).")
+                            "\n"
+                            (trs "Database version: {0}, Code version: {1}" latest-applied latest-available)
+                            "\n"
+                            (trs "This may cause issues. Use at your own risk."))))
+            (throw (ex-info
+                    (str (u/format-color 'red (trs "ERROR: Downgrade detected."))
+                         "\n\n"
+                         (trs "Your metabase instance appears to have been downgraded without a corresponding database downgrade.")
+                         "\n\n"
+                         (trs "You must run `java --add-opens java.base/java.nio=ALL-UNNAMED -jar metabase.jar migrate down` from version {0}." latest-applied)
+                         "\n\n"
+                         (trs "Once your database has been downgraded, try running the application again.")
+                         "\n\n"
+                         (trs "Alternatively, set MB_BYPASS_DOWNGRADE_CHECK=true to bypass this check (development only).")
+                         "\n\n"
+                         (trs "See: https://www.metabase.com/docs/latest/installation-and-operation/upgrading-metabase#rolling-back-an-upgrade"))
+                    {}))))))))
 
 (mu/defn- run-schema-migrations!
   "Run through our DB migration process and make sure DB is fully prepared"

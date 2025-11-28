@@ -2,4 +2,5 @@
  ["src" "resources"]
 
  :deps
- {com.microsoft.sqlserver/mssql-jdbc {:mvn/version "12.8.1.jre11"}}}
+ ;; Fix CVE-2025-59250: Upgrade mssql-jdbc from 12.8.1.jre11 to 12.8.2.jre11
+ {com.microsoft.sqlserver/mssql-jdbc {:mvn/version "12.8.2.jre11"}}}
