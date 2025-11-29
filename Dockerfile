@@ -28,6 +28,12 @@ RUN yarn --frozen-lockfile
 
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
 
+# Patch Athena driver to fix Netty vulnerabilities (CVE-2025-24970, CVE-2025-55163, CVE-2025-59419)
+RUN if [ -f patch_netty.sh ]; then \
+      chmod +x patch_netty.sh && \
+      bash patch_netty.sh; \
+    fi
+
 # ###################
 # # STAGE 2: runner
 # ###################

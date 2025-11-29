@@ -44,10 +44,19 @@
   "Return a map of lib -> provider, where lib is a symbol like `com.h2database/h2` and provider is either
   `metabase-core` or the parent driver that provided that lib."
   [driver edition]
-  (into (parent-provided-libs driver edition)
-        (map (fn [lib]
-               [lib 'metabase-core]))
-        metabase-core-provided-libs))
+  (let [base-provided (into (parent-provided-libs driver edition)
+                            (map (fn [lib]
+                                   [lib 'metabase-core]))
+                            metabase-core-provided-libs)]
+    ;; For athena driver, we need to include Netty JARs explicitly to override the bundled Netty classes
+    ;; in athena-jdbc. Even though Netty is provided by metabase-core, we need the updated versions
+    ;; in the driver JAR to override the old classes bundled in athena-jdbc.
+    (if (= driver :athena)
+      (into {} (remove (fn [[lib]]
+                         (and (namespace lib)
+                              (= (namespace lib) "io.netty")))
+                       base-provided))
+      base-provided)))
 
 (defn- remove-provided-libs [basis driver edition]
   (let [provided-lib->provider (into {}
