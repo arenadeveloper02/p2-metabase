@@ -70,16 +70,20 @@ mkdir -p netty_classes/io/netty
 
 echo "Extracting and merging Netty classes..."
 
-for f in *.jar; do
-  if [ -f "$f" ]; then
-    TEMP_DIR="temp_${f%.jar}"
+# Only unpack the Netty JARs we downloaded, not any other JARs that might be in the directory
+for J in netty-common netty-buffer netty-transport netty-resolver netty-codec netty-handler netty-codec-http2 netty-codec-smtp; do
+  NETTY_VER="${NETTY_VERSIONS[$J]}"
+  JAR_FILE="${J}-${NETTY_VER}.jar"
+  
+  if [ -f "$JAR_FILE" ]; then
+    TEMP_DIR="temp_${JAR_FILE%.jar}"
     mkdir -p "$TEMP_DIR"
-    echo "  Unpacking $f..."
-    unzip -q -o "$f" -d "$TEMP_DIR" || true
+    echo "  Unpacking $JAR_FILE..."
+    unzip -q -o "$JAR_FILE" -d "$TEMP_DIR" || true
     
     # Copy io/netty tree if it exists
     if [ -d "$TEMP_DIR/io/netty" ]; then
-      echo "  Merging io/netty from $f..."
+      echo "  Merging io/netty from $JAR_FILE..."
       cp -a "$TEMP_DIR/io/netty"/* netty_classes/io/netty/ 2>/dev/null || true
     fi
     
