@@ -6,6 +6,7 @@ FROM node:18-bullseye as builder
 
 ARG MB_EDITION=oss
 ARG VERSION
+ARG IMAGE_NAME=metabase-custom:${VERSION}
 
 WORKDIR /home/node
 
@@ -27,6 +28,22 @@ RUN git config --global --add safe.directory /home/node
 RUN yarn --frozen-lockfile
 
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
+
+# Patch drivers to fix vulnerabilities
+# Install zip/unzip tools needed for the patch scripts
+RUN apt-get update && apt-get install -y zip unzip && rm -rf /var/lib/apt/lists/*
+
+# Patch Athena driver to fix Netty vulnerabilities (CVE-2025-24970, CVE-2025-55163, CVE-2025-59419)
+RUN if [ -f patch_netty.sh ]; then \
+      chmod +x patch_netty.sh && \
+      bash patch_netty.sh "${IMAGE_NAME}"; \
+    fi
+
+# Patch SQL Server driver to fix mssql-jdbc version (CVE-2025-59250)
+RUN if [ -f patch_sqlserver.sh ]; then \
+      chmod +x patch_sqlserver.sh && \
+      bash patch_sqlserver.sh; \
+    fi
 
 # ###################
 # # STAGE 2: runner
