@@ -329,10 +329,4 @@ echo
 echo "PATCH COMPLETE. Backups are in $BACKUPDIR"
 echo "Container name used: ${CONTAINER_NAME}"
 echo ""
-echo "Now: rebuild image (recommended) or test the running container. To rebuild:"
-echo "  cd /root/p2-metabase && docker build --build-arg VERSION=v1.3.0 -t metabase-custom:v1.3.0 ."
-echo "Then stop & start container."
-echo ""
-echo "Usage: $0 [container-name]"
-echo "  or set METABASE_CONTAINER_NAME environment variable"
 
