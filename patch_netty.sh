@@ -2,6 +2,15 @@
 
 set -euo pipefail
 
+# Docker container name - first argument takes precedence, then environment variable, then default
+if [ -n "${1:-}" ]; then
+  CONTAINER_NAME="$1"
+elif [ -n "${METABASE_CONTAINER_NAME:-}" ]; then
+  CONTAINER_NAME="$METABASE_CONTAINER_NAME"
+else
+  CONTAINER_NAME="metabase-custom-v1.3.0"
+fi
+
 # Detect working directory (could be /root/p2-metabase or /home/node in Docker)
 if [ -d "/home/node" ] && [ -f "/home/node/deps.edn" ]; then
   WORKDIR=/home/node
@@ -311,14 +320,19 @@ fi
 
 # Also replace the running container plugin (hot swap) for quick test (non-persistent)
 
-if docker ps --filter "name=metabase-custom-v1.3.0" --format '{{.Names}}' | grep -q metabase-custom-v1.3.0; then
+if docker ps --filter "name=${CONTAINER_NAME}" --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo "Copying patched jar into running container /plugins (temporary) for immediate testing..."
-  docker cp athena.metabase-driver.patched.jar metabase-custom-v1.3.0:/plugins/athena.metabase-driver.jar
+  docker cp athena.metabase-driver.patched.jar "${CONTAINER_NAME}:/plugins/athena.metabase-driver.jar"
 fi
 
 echo
 echo "PATCH COMPLETE. Backups are in $BACKUPDIR"
+echo "Container name used: ${CONTAINER_NAME}"
+echo ""
 echo "Now: rebuild image (recommended) or test the running container. To rebuild:"
 echo "  cd /root/p2-metabase && docker build --build-arg VERSION=v1.3.0 -t metabase-custom:v1.3.0 ."
 echo "Then stop & start container."
+echo ""
+echo "Usage: $0 [container-name]"
+echo "  or set METABASE_CONTAINER_NAME environment variable"
 

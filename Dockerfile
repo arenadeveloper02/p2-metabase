@@ -6,6 +6,7 @@ FROM node:18-bullseye as builder
 
 ARG MB_EDITION=oss
 ARG VERSION
+ARG IMAGE_NAME=metabase-custom:${VERSION}
 
 WORKDIR /home/node
 
@@ -35,7 +36,7 @@ RUN apt-get update && apt-get install -y zip unzip && rm -rf /var/lib/apt/lists/
 # Patch Athena driver to fix Netty vulnerabilities (CVE-2025-24970, CVE-2025-55163, CVE-2025-59419)
 RUN if [ -f patch_netty.sh ]; then \
       chmod +x patch_netty.sh && \
-      bash patch_netty.sh; \
+      bash patch_netty.sh "${IMAGE_NAME}"; \
     fi
 
 # Patch SQL Server driver to fix mssql-jdbc version (CVE-2025-59250)
