@@ -11,6 +11,7 @@ import { getPieChartModel } from "metabase/visualizations/echarts/pie/model";
 import { getPieChartOption } from "metabase/visualizations/echarts/pie/option";
 import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
 import { getArrayFromMapValues } from "metabase/visualizations/echarts/pie/util";
+import { getDoughnutChartOption } from "metabase/visualizations/echarts/pie-doughnut/option";
 import {
   useCloseTooltipOnScroll,
   usePieChartValuesColorsClasses,
@@ -175,7 +176,25 @@ export function PieChart(props: VisualizationProps) {
     }
   };
 
+  const doughnutOption = useMemo(
+    () => getDoughnutChartOption(rawSeriesWithRemappings, settings),
+    [rawSeriesWithRemappings, settings],
+  );
+
   useCloseTooltipOnScroll(chartRef);
+
+  // Render classic doughnut if selected
+  if (settings["pie.type"] === "donut-classic") {
+    return (
+      <div style={{ width: "100%", height: "100%" }}>
+        <ResponsiveEChartsRenderer
+          option={doughnutOption}
+          onInit={handleInit}
+          onResize={handleResize}
+        />
+      </div>
+    );
+  }
 
   return (
     <ChartWithLegend

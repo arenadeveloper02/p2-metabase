@@ -115,9 +115,8 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       showColumnSetting: true,
       getDefault: (rawSeries: Series) => getDefaultPieColumns(rawSeries).metric,
     }),
-    ...columnSettings({ hidden: true }),
+    ...columnSettings(),
     ...dimensionSetting("pie.dimension", {
-      hidden: true,
       title: t`Dimension`,
       showColumnSetting: true,
       getDefault: (rawSeries: Series) =>
@@ -213,6 +212,20 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
         onChangeSettings,
       }),
       readDependencies: ["pie.dimension", "pie.rows"],
+    },
+    "pie.type": {
+      title: t`Chart type`,
+      section: t`Display`,
+      widget: "select",
+      props: {
+        options: [
+          { name: t`Pie/Donut`, value: "pie" },
+          { name: t`Donut (Classic)`, value: "donut-classic" },
+        ],
+      },
+      getDefault: () => {
+        return "pie";
+      },
     },
     "pie.show_legend": {
       section: t`Display`,
