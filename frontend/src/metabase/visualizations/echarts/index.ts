@@ -15,6 +15,7 @@ import {
   GridComponent,
   LegendComponent,
   MarkLineComponent,
+  PolarComponent,
   ToolboxComponent,
   TooltipComponent,
 } from "echarts/components";
@@ -33,7 +34,7 @@ export const registerEChartsModules = () => {
     GraphicComponent,
     GridComponent,
     LegendComponent,
-    BarChart,
+    PolarComponent,
     SVGRenderer,
     MarkLineComponent,
     DataZoomComponent,

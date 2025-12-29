@@ -10,7 +10,9 @@ import _ from "underscore";
 import CS from "metabase/css/core/index.css";
 import { color } from "metabase/lib/colors";
 import { formatValue } from "metabase/lib/formatting";
+import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import ChartSettingGaugeSegments from "metabase/visualizations/components/settings/ChartSettingGaugeSegments";
+import { getGaugeChartOption } from "metabase/visualizations/echarts/gauge/option";
 import { columnSettings } from "metabase/visualizations/lib/settings/column";
 import {
   getDefaultSize,
@@ -99,6 +101,32 @@ export default class Gauge extends Component {
         _.find(cols, col => col.name === settings["scalar.field"]) || cols[0],
       ],
     }),
+    "gauge.type": {
+      title: t`Gauge type`,
+      section: t`Display`,
+      widget: "select",
+      props: {
+        options: [
+          { name: t`Gauge`, value: "gauge" },
+          { name: t`Gauge (ECharts)`, value: "echarts" },
+        ],
+      },
+      getDefault: () => "gauge",
+    },
+    "gauge.min": {
+      title: t`Min`,
+      section: t`Display`,
+      widget: "number",
+      getDefault: () => 0,
+      getHidden: (series, settings) => settings["gauge.type"] !== "echarts",
+    },
+    "gauge.max": {
+      title: t`Max`,
+      section: t`Display`,
+      widget: "number",
+      getDefault: () => 100,
+      getHidden: (series, settings) => settings["gauge.type"] !== "echarts",
+    },
     "gauge.range": {
       // currently not exposed in settings, just computed from gauge.segments
       getDefault(series, vizSettings) {
@@ -129,6 +157,7 @@ export default class Gauge extends Component {
       },
       widget: ChartSettingGaugeSegments,
       persistDefault: true,
+      getHidden: (series, settings) => settings["gauge.type"] === "echarts",
     },
   };
 
@@ -168,11 +197,7 @@ export default class Gauge extends Component {
 
   render() {
     const {
-      series: [
-        {
-          data: { rows, cols },
-        },
-      ],
+      series,
       settings,
       className,
       isSettings,
@@ -180,6 +205,31 @@ export default class Gauge extends Component {
       visualizationIsClickable,
       onVisualizationClick,
     } = this.props;
+
+    // Render ECharts version if selected
+    if (settings["gauge.type"] === "echarts") {
+      const option = getGaugeChartOption(series, settings);
+      return (
+        <div
+          className={cx(
+            className,
+            CS.flex,
+            CS.flexColumn,
+            CS.fullWidth,
+            CS.fullHeight,
+          )}
+        >
+          <ResponsiveEChartsRenderer option={option} />
+        </div>
+      );
+    }
+
+    // Regular D3 gauge rendering
+    const [
+      {
+        data: { rows, cols },
+      },
+    ] = series;
 
     const width = this.props.width;
     const height = this.props.height - PADDING_BOTTOM;
