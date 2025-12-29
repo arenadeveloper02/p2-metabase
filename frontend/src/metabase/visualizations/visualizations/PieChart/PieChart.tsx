@@ -181,6 +181,87 @@ export function PieChart(props: VisualizationProps) {
     [rawSeriesWithRemappings, settings],
   );
 
+  // Create event handlers for classic doughnut
+  const doughnutEventHandlers = useMemo(() => {
+    const pieRows = settings["pie.rows"] || [];
+
+    return [
+      {
+        eventName: "click",
+        handler: (params: any) => {
+          if (params.componentType === "series") {
+            const sliceName = params.name;
+            const pieRow = pieRows.find(
+              (r: any) => r.name === sliceName || r.key === sliceName,
+            );
+
+            if (pieRow && props.onVisualizationClick) {
+              const [
+                {
+                  data: { cols, rows },
+                },
+              ] = rawSeriesWithRemappings;
+              const dimensionSetting = settings["pie.dimension"];
+              const dimensionName = Array.isArray(dimensionSetting)
+                ? dimensionSetting[0]
+                : dimensionSetting;
+              const metricSetting = settings["pie.metric"];
+              const metricName = Array.isArray(metricSetting)
+                ? metricSetting[0]
+                : metricSetting;
+
+              const dimensionCol = cols.find(
+                (c: any) => c.name === dimensionName,
+              );
+              const metricCol = cols.find((c: any) => c.name === metricName);
+              const dimensionIndex = cols.findIndex(
+                (c: any) => c.name === dimensionName,
+              );
+
+              // Find the row that matches this slice
+              const dataRow = rows.find(
+                (row: any) =>
+                  String(row[dimensionIndex]) === String(pieRow.key),
+              );
+
+              if (dimensionCol && metricCol && dataRow) {
+                // Build the full data array with all columns, matching the format
+                // used by the regular pie chart
+                const data = dataRow.map((value: any, index: number) => ({
+                  value,
+                  col: cols[index],
+                }));
+
+                // Build the click object matching the regular pie chart format
+                const clickObject = {
+                  value: params.value, // The metric value
+                  column: metricCol, // The metric column
+                  data, // Full row data with all columns
+                  dimensions: [
+                    {
+                      value: pieRow.key,
+                      column: dimensionCol,
+                    },
+                  ],
+                  settings,
+                  event: params.event?.event,
+                };
+
+                // Check if it's clickable and trigger the handler
+                if (
+                  !props.visualizationIsClickable ||
+                  props.visualizationIsClickable(clickObject)
+                ) {
+                  props.onVisualizationClick(clickObject);
+                }
+              }
+            }
+          }
+        },
+      },
+    ];
+  }, [settings, rawSeriesWithRemappings, props]);
+
   useCloseTooltipOnScroll(chartRef);
 
   // Render classic doughnut if selected
@@ -191,6 +272,7 @@ export function PieChart(props: VisualizationProps) {
           option={doughnutOption}
           onInit={handleInit}
           onResize={handleResize}
+          eventHandlers={doughnutEventHandlers}
         />
       </div>
     );
