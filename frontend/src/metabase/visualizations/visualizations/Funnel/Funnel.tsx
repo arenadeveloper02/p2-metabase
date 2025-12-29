@@ -1,4 +1,5 @@
 import cx from "classnames";
+import { useMemo } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -210,7 +211,7 @@ Object.assign(Funnel, {
       props: {
         options: [
           { name: t`Funnel`, value: "funnel" },
-          { name: t`Funnel (Classic)`, value: "echarts" },
+          { name: t`Funnel (Vertical)`, value: "echarts" },
           { name: t`Bar chart`, value: "bar" },
         ],
       },
@@ -242,6 +243,65 @@ export function Funnel(props: VisualizationProps) {
 
   const renderingContext = useBrowserRenderingContext({ fontFamily });
 
+  // Create event handlers for vertical funnel (must be at top level for React hooks)
+  const echartsEventHandlers = useMemo(() => {
+    const [
+      {
+        data: { cols, rows },
+      },
+    ] = groupedRawSeries;
+
+    const dimensionIndex = cols.findIndex(
+      col => col.name === settings["funnel.dimension"],
+    );
+    const metricIndex = cols.findIndex(
+      col => col.name === settings["funnel.metric"],
+    );
+
+    return [
+      {
+        eventName: "click",
+        handler: (params: any) => {
+          if (params.componentType === "series") {
+            const sliceName = params.name;
+
+            // Find the row that matches this funnel segment
+            const dataRow = rows.find(
+              (row: any) => String(row[dimensionIndex]) === String(sliceName),
+            );
+
+            if (dataRow && props.onVisualizationClick) {
+              const dimensionCol = cols[dimensionIndex];
+              const metricCol = cols[metricIndex];
+
+              // Build the click object matching FunnelNormal format
+              const clickObject = {
+                value: dataRow[metricIndex], // The metric value
+                column: metricCol, // The metric column
+                dimensions: [
+                  {
+                    value: dataRow[dimensionIndex],
+                    column: dimensionCol,
+                  },
+                ],
+                settings,
+                event: params.event?.event,
+              };
+
+              // Check if it's clickable and trigger the handler
+              if (
+                !props.visualizationIsClickable ||
+                props.visualizationIsClickable(clickObject)
+              ) {
+                props.onVisualizationClick(clickObject);
+              }
+            }
+          }
+        },
+      },
+    ];
+  }, [groupedRawSeries, settings, props]);
+
   if (settings["funnel.type"] === "bar") {
     return (
       <TransformedVisualization
@@ -268,7 +328,10 @@ export function Funnel(props: VisualizationProps) {
             onChangeCardAndRun={onChangeCardAndRun}
           />
         )}
-        <ResponsiveEChartsRenderer option={option} />
+        <ResponsiveEChartsRenderer
+          option={option}
+          eventHandlers={echartsEventHandlers}
+        />
       </div>
     );
   }
