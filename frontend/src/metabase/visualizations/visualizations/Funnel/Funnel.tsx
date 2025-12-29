@@ -3,10 +3,13 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import CS from "metabase/css/core/index.css";
+import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatNullable } from "metabase/lib/formatting/nullable";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
+import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
 import { ChartSettingOrderedSimple } from "metabase/visualizations/components/settings/ChartSettingOrderedSimple";
+import { getFunnelChartOption } from "metabase/visualizations/echarts/funnel/option";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import { groupRawSeriesMetrics } from "metabase/visualizations/lib/dataset";
 import {
@@ -107,7 +110,7 @@ Object.assign(Funnel, {
   ],
 
   settings: {
-    ...columnSettings({ hidden: true }),
+    ...columnSettings(),
     ...dimensionSetting("funnel.dimension", {
       section: t`Data`,
       title: t`Column with steps`,
@@ -141,19 +144,35 @@ Object.assign(Funnel, {
         const rowsOrder = settings["funnel.rows"];
         const rowsKeys = rows.map(row => formatNullable(row[dimensionIndex]));
 
-        const getDefault = (keys: RowValue[]) =>
-          keys.map(key => ({
+        const getDefault = (keys: RowValue[], existingRows?: any[]) => {
+          // Generate colors for the keys
+          const colorMapping =
+            existingRows?.reduce(
+              (acc, row) => {
+                if (row.color) {
+                  acc[row.key] = row.color;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            ) || {};
+
+          const colors = getColorsForValues(keys.map(String), colorMapping);
+
+          return keys.map(key => ({
             key,
             name: key,
             enabled: true,
+            color: colors[String(key)],
           }));
+        };
         if (
           !rowsOrder ||
           !_.isArray(rowsOrder) ||
           !rowsOrder.every(setting => setting.key !== undefined) ||
           orderDimension !== dimension
         ) {
-          return getUniqueFunnelRows(getDefault(rowsKeys));
+          return getUniqueFunnelRows(getDefault(rowsKeys, rowsOrder));
         }
 
         const removeMissingOrder = (keys: RowValue[], order: any) =>
@@ -163,13 +182,13 @@ Object.assign(Funnel, {
 
         const funnelRows = [
           ...removeMissingOrder(rowsKeys, rowsOrder),
-          ...getDefault(newKeys(rowsKeys, rowsOrder)),
+          ...getDefault(newKeys(rowsKeys, rowsOrder), rowsOrder),
         ];
 
         return getUniqueFunnelRows(funnelRows);
       },
       props: {
-        hasEditSettings: false,
+        hasEditSettings: true,
       },
       getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
         settings["funnel.dimension"] === null ||
@@ -191,6 +210,7 @@ Object.assign(Funnel, {
       props: {
         options: [
           { name: t`Funnel`, value: "funnel" },
+          { name: t`Funnel (Classic)`, value: "echarts" },
           { name: t`Bar chart`, value: "bar" },
         ],
       },
@@ -230,6 +250,26 @@ export function Funnel(props: VisualizationProps) {
         transformSeries={funnelToBarTransform}
         renderingContext={renderingContext}
       />
+    );
+  }
+
+  if (settings["funnel.type"] === "echarts") {
+    const option = getFunnelChartOption(groupedRawSeries, settings);
+
+    return (
+      <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>
+        {hasTitle && (
+          <ChartCaption
+            series={groupedRawSeries}
+            settings={settings}
+            icon={headerIcon}
+            getHref={getHref}
+            actionButtons={actionButtons}
+            onChangeCardAndRun={onChangeCardAndRun}
+          />
+        )}
+        <ResponsiveEChartsRenderer option={option} />
+      </div>
     );
   }
 
