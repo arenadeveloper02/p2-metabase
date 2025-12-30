@@ -11,6 +11,7 @@ import { DashCardPlaceholder } from "./visualizations/DashCardPlaceholder";
 import { Funnel } from "./visualizations/Funnel";
 import Gauge from "./visualizations/Gauge";
 import { Heading } from "./visualizations/Heading";
+import { Heatmap } from "./visualizations/Heatmap";
 import { IFrameViz } from "./visualizations/IFrameViz";
 import { LineChart } from "./visualizations/LineChart";
 import { LinkViz } from "./visualizations/LinkViz";
@@ -44,6 +45,7 @@ export default function () {
   registerVisualization(PieChart);
   registerVisualization(Map);
   registerVisualization(Funnel);
+  registerVisualization(Heatmap);
   registerVisualization(ObjectDetail);
   registerVisualization(PivotTable);
   registerVisualization(SankeyChart);

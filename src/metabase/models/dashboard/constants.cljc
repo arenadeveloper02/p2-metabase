@@ -24,6 +24,7 @@
    :area        {:min {:width 4 :height 3} :default {:width 12 :height 6}}
    :pivot       {:min {:width 4 :height 3} :default {:width 12 :height 9}}
    :funnel      {:min {:width 4 :height 3} :default {:width 12 :height 6}}
+   :heatmap     {:min {:width 4 :height 3} :default {:width 12 :height 8}}
    :progress    {:min {:width 4 :height 3} :default {:width 12 :height 6}}
    :smartscalar {:min {:width 2 :height 2} :default {:width 6 :height 3}}
    :map         {:min {:width 4 :height 3} :default {:width 12 :height 6}}

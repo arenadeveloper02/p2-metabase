@@ -2,6 +2,7 @@ import {
   BarChart,
   CustomChart,
   FunnelChart,
+  HeatmapChart,
   LineChart,
   PieChart,
   SankeyChart,
@@ -19,6 +20,7 @@ import {
   PolarComponent,
   ToolboxComponent,
   TooltipComponent,
+  VisualMapComponent,
 } from "echarts/components";
 import { use } from "echarts/core";
 import { LabelLayout } from "echarts/features";
@@ -33,17 +35,19 @@ export const registerEChartsModules = () => {
     SunburstChart,
     FunnelChart,
     PieChart,
+    HeatmapChart,
+    SankeyChart,
     GraphicComponent,
     GridComponent,
     LegendComponent,
     PolarComponent,
+    VisualMapComponent,
     SVGRenderer,
     MarkLineComponent,
     DataZoomComponent,
     ToolboxComponent,
     BrushComponent,
     DatasetComponent,
-    SankeyChart,
     LabelLayout,
     TooltipComponent,
   ]);
