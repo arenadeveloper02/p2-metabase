@@ -188,8 +188,32 @@ Object.assign(Funnel, {
 
         return getUniqueFunnelRows(funnelRows);
       },
-      props: {
-        hasEditSettings: true,
+      getProps: (
+        _object: RawSeries,
+        computedSettings: ComputedVisualizationSettings,
+        _onChange: (value: any) => void,
+        _extra: any,
+        onChangeSettings: (
+          settings: Partial<ComputedVisualizationSettings>,
+        ) => void,
+      ) => {
+        const funnelRows = computedSettings["funnel.rows"] as any[];
+
+        return {
+          hasEditSettings: true,
+          onChangeSeriesColor: (seriesKey: string, color: string) => {
+            if (funnelRows) {
+              onChangeSettings({
+                "funnel.rows": funnelRows.map(row => {
+                  if (row.key !== seriesKey) {
+                    return row;
+                  }
+                  return { ...row, color };
+                }),
+              });
+            }
+          },
+        };
       },
       getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
         settings["funnel.dimension"] === null ||

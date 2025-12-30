@@ -1,6 +1,7 @@
 import type { EChartsOption } from "echarts";
 
 import { getColorsForValues } from "metabase/lib/colors/charts";
+import { formatValue } from "metabase/lib/formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 
@@ -60,8 +61,28 @@ export function getFunnelChartOption(
   // Generate colors for all values, using saved colors when available
   const colors = getColorsForValues(dimensionValues, colorMapping);
 
+  // Get metric column for formatting
+  const metricCol = cols[metricIndex];
+
+  // Create a formatter for metric values
+  const formatMetricValue = (value: number): string => {
+    const formatted = formatValue(value, {
+      column: metricCol,
+      ...(settings.column?.(metricCol) || {}),
+    });
+    // Ensure we always return a string
+    if (typeof formatted === "string") {
+      return formatted;
+    }
+    if (typeof formatted === "number") {
+      return String(formatted);
+    }
+    return String(value);
+  };
+
   // Apply colors to data points
-  const coloredData: FunnelDataPoint[] = data.map(d => ({
+  // We'll configure labels at series level to show both names (outside) and values (inside)
+  const coloredData = data.map(d => ({
     ...d,
     itemStyle: {
       color: colors[d.name],
@@ -74,7 +95,18 @@ export function getFunnelChartOption(
   return {
     tooltip: {
       trigger: "item",
-      formatter: "{a} <br/>{b} : {c}",
+      formatter: (params: any) => {
+        const dataPoint = data.find(d => d.name === params.name);
+        if (!dataPoint) {
+          return `${params.name}: ${params.value}`;
+        }
+
+        // Format metric value using the same formatter as labels
+        const formattedValue = formatMetricValue(dataPoint.value);
+
+        // Show only category name and formatted value
+        return `${params.name}: ${formattedValue}`;
+      },
     },
     legend: {
       data: data.map(d => d.name),
@@ -87,34 +119,93 @@ export function getFunnelChartOption(
         left: "center",
         top: 20,
         bottom: 50,
-        width: "90%",
+        width: "85%",
         min: 0,
         max: maxValue,
         minSize: "0%",
         maxSize: "100%",
         sort: "descending",
         gap: 2,
+        // Main label configuration: names outside
         label: {
           show: true,
-          position: "inside",
+          position: "outer",
+          formatter: "{b}",
+          color: "#333",
         },
         labelLine: {
-          length: 10,
+          show: true,
+          length: 20,
           lineStyle: {
             width: 1,
             type: "solid",
+            color: "#999",
           },
         },
+        data: coloredData,
         itemStyle: {
           borderColor: "#fff",
           borderWidth: 1,
         },
         emphasis: {
           label: {
-            fontSize: 20,
+            fontSize: 18,
+            fontWeight: "bold",
+          },
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: "rgba(0, 0, 0, 0.5)",
           },
         },
-        data: coloredData,
+      },
+      {
+        // Second series: invisible overlay to show values inside
+        name: settings["funnel.dimension"] || "Funnel",
+        type: "funnel",
+        left: "center",
+        top: 20,
+        bottom: 50,
+        width: "65%",
+        min: 0,
+        max: maxValue,
+        minSize: "0%",
+        maxSize: "100%",
+        sort: "descending",
+        gap: 2,
+        // Label configuration: values inside
+        label: {
+          show: true,
+          position: "inside",
+          formatter: (params: any) => {
+            const dataPoint = data.find(d => d.name === params.name);
+            return dataPoint ? formatMetricValue(dataPoint.value) : "";
+          },
+          color: "#fff",
+          fontSize: 14,
+          fontWeight: "bold",
+        },
+        labelLine: {
+          show: false,
+        },
+        // Make this series invisible - only labels are visible
+        data: coloredData.map(d => ({
+          ...d,
+          itemStyle: {
+            color: "transparent",
+            borderColor: "transparent",
+            borderWidth: 0,
+          },
+        })),
+        // Emphasis configuration for scaling labels on hover
+        emphasis: {
+          label: {
+            fontSize: 18,
+            fontWeight: "bold",
+          },
+        },
+        // Ensure this series is on top
+        z: 10,
       },
     ],
   };
