@@ -35,6 +35,14 @@ Object.assign(
         inline: true,
         marginBottom: "1rem",
       },
+      "bar.modern_design": {
+        section: t`Display`,
+        title: t`Gradient`,
+        widget: "toggle",
+        default: false,
+        inline: true,
+        marginBottom: "1rem",
+      },
     } as any as VisualizationSettingsDefinitions,
   }),
 );

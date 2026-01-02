@@ -2,6 +2,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import type { YAXisOption } from "echarts/types/dist/shared";
 import type { OptionSourceData } from "echarts/types/src/util/types";
 
+import { alpha } from "metabase/lib/colors";
 import {
   NEGATIVE_STACK_TOTAL_DATA_KEY,
   OTHER_DATA_KEY,
@@ -166,18 +167,88 @@ export const getCartesianChartOption = (
   const hasBarSeries = seriesOption.some(series => series.type === "bar");
   const isDataZoomEnabled =
     hasBarSeries && settings["bar.data_zoom_enabled"] === true;
+  const isModernDesign = hasBarSeries && settings["bar.modern_design"] === true;
 
   // Calculate grid right padding to accommodate Y-axis dataZoom
   const gridRight = isDataZoomEnabled
     ? Math.max(chartMeasurements.padding.right || 0, 50)
     : chartMeasurements.padding.right;
 
-  return {
+  // Build axes with modern styling if enabled
+  const axesConfig = buildAxes(
+    chartModel,
+    chartWidth,
+    chartMeasurements,
+    settings,
+    hasTimelineEvents,
+    renderingContext,
+  );
+
+  // Apply modern styling to axes if enabled
+  let modernAxesConfig = axesConfig;
+  if (isModernDesign) {
+    // Modern X-axis styling (xAxis is always a single object, not an array)
+    const modernXAxis = axesConfig.xAxis
+      ? {
+          ...axesConfig.xAxis,
+          boundaryGap: true, // Ensure bars align with category labels
+          axisTick: {
+            show: false, // Hide ticks for cleaner look
+          },
+          axisLabel: {
+            ...(axesConfig.xAxis.axisLabel || {}),
+            margin: 12,
+            color: renderingContext.getColor("text-medium"),
+          },
+        }
+      : axesConfig.xAxis;
+
+    // Modern Y-axis styling with subtle grid lines (yAxis is always an array)
+    const modernYAxis = Array.isArray(axesConfig.yAxis)
+      ? axesConfig.yAxis.map((axis: any, index: number) => ({
+          ...axis,
+          axisLine: {
+            show: false, // Hide axis line for cleaner look
+          },
+          axisTick: {
+            show: false,
+          },
+          axisLabel: {
+            ...axis.axisLabel,
+            color: renderingContext.getColor("text-medium"),
+            margin: 8,
+          },
+          splitLine:
+            index === 0
+              ? {
+                  // Only show grid lines on left axis
+                  show: true,
+                  lineStyle: {
+                    color: alpha(renderingContext.getColor("border"), 0.3),
+                    width: 1,
+                    type: "dashed",
+                  },
+                }
+              : {
+                  show: false,
+                },
+        }))
+      : axesConfig.yAxis;
+
+    modernAxesConfig = {
+      xAxis: modernXAxis,
+      yAxis: modernYAxis,
+    };
+  }
+
+  // Get tooltip option (will be merged later)
+  const baseOption: EChartsCoreOption = {
     ...getSharedEChartsOptions(isAnimated),
     grid: {
       ...chartMeasurements.padding,
       outerBoundsMode: "none",
       right: gridRight,
+      ...(isModernDesign ? { containLabel: true } : {}),
     },
     dataset: echartsDataset,
     series: seriesOption,
@@ -194,6 +265,7 @@ export const getCartesianChartOption = (
       chartMeasurements,
       dataSeriesOptions,
     ),
+    ...modernAxesConfig,
     // Add dataZoom for bar charts when enabled (mix zooming: slider, inside, and Y-axis)
     ...(isDataZoomEnabled
       ? {
@@ -227,4 +299,29 @@ export const getCartesianChartOption = (
         }
       : {}),
   };
+
+  // Apply modern tooltip styling if enabled
+  if (isModernDesign && baseOption.tooltip) {
+    const existingTooltip = baseOption.tooltip as any;
+    baseOption.tooltip = {
+      ...existingTooltip,
+      backgroundColor: renderingContext.getColor("bg-white"),
+      borderColor: renderingContext.getColor("border"),
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: [12, 16],
+      textStyle: {
+        ...(existingTooltip.textStyle || {}),
+        color: renderingContext.getColor("text-dark"),
+        fontSize: 13,
+        fontWeight: 500,
+      },
+      extraCssText: `
+        box-shadow: 0 4px 12px ${alpha(renderingContext.getColor("text-dark"), 0.15)};
+        backdrop-filter: blur(8px);
+      `,
+    };
+  }
+
+  return baseOption;
 };

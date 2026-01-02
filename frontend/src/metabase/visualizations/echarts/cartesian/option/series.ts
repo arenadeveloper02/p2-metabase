@@ -7,6 +7,7 @@ import type {
 } from "echarts/types/src/util/types";
 import _ from "underscore";
 
+import { alpha } from "metabase/lib/colors";
 import { getTextColorForBackground } from "metabase/lib/colors/palette";
 import { getObjectValues } from "metabase/lib/objects";
 import { isNotNull } from "metabase/lib/types";
@@ -479,17 +480,38 @@ const buildEChartsBarSeries = (
   chartWidth: number,
   labelFormatter: LabelFormatter | undefined,
   renderingContext: RenderingContext,
+  isTopmostInStack?: boolean,
 ): BarSeriesOption | BarSeriesOption[] => {
   const stack = stackName ?? `bar_${seriesModel.dataKey}`;
   const isStacked = settings["stackable.stack_type"] != null;
+  const isModernDesign = settings["bar.modern_design"] === true;
+  // Only apply border radius to topmost bar in stack, or if not stacked
+  const shouldHaveRoundedCorners =
+    isModernDesign && (!isStacked || isTopmostInStack);
 
   const seriesOption: BarSeriesOption = {
     id: seriesModel.dataKey,
+    name: seriesModel.name,
     emphasis: {
       focus: hasMultipleSeries ? "series" : "self",
       itemStyle: {
         color: seriesModel.color,
+        ...(isModernDesign
+          ? {
+              shadowBlur: 12,
+              shadowColor: seriesModel.color,
+              shadowOffsetY: 4,
+              borderWidth: 1,
+              borderColor: seriesModel.color,
+            }
+          : {}),
       },
+      ...(isModernDesign
+        ? {
+            scale: true,
+            scaleSize: 5,
+          }
+        : {}),
     },
     blur: {
       label: getBlurLabelStyle(settings, hasMultipleSeries),
@@ -500,7 +522,8 @@ const buildEChartsBarSeries = (
     type: "bar",
     z: Z_INDEXES.series,
     yAxisIndex,
-    barGap: 0,
+    barGap: isModernDesign ? "25%" : 0,
+    barCategoryGap: isModernDesign ? "5%" : undefined,
     barMinHeight: 1,
     stack,
     barWidth: computeBarWidth(
@@ -508,7 +531,6 @@ const buildEChartsBarSeries = (
       chartMeasurements.boundaryWidth,
       barSeriesCount,
       isStacked,
-      settings["graph.x_axis.scale"],
     ),
     encode: {
       y: seriesModel.dataKey,
@@ -549,8 +571,49 @@ const buildEChartsBarSeries = (
           },
         }),
     itemStyle: {
-      color: seriesModel.color,
+      color: isModernDesign
+        ? {
+            // Gradient: solid at bottom, translucent at top
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              {
+                offset: 0,
+                color: alpha(seriesModel.color, 0.5), // Translucent at top
+              },
+              {
+                offset: 0.7,
+                color: alpha(seriesModel.color, 0.85), // Mostly solid in middle
+              },
+              {
+                offset: 1,
+                color: seriesModel.color, // Fully solid at bottom
+              },
+            ],
+          }
+        : seriesModel.color,
+      ...(shouldHaveRoundedCorners
+        ? {
+            borderRadius: [6, 6, 0, 0], // Sleeker rounded top corners (only for topmost bar in stack)
+            borderWidth: 0,
+          }
+        : isModernDesign && isStacked
+          ? {
+              borderRadius: [0, 0, 0, 0], // No rounded corners for non-topmost bars
+              borderWidth: 0,
+            }
+          : {}),
     },
+    ...(isModernDesign
+      ? {
+          animation: true,
+          animationDuration: 800,
+          animationEasing: "cubicOut",
+        }
+      : {}),
   };
 
   if (
@@ -925,6 +988,19 @@ export const buildEChartsSeries = (
 
   const hasMultipleSeries = chartModel.seriesModels.length > 1;
 
+  // Determine which bar is topmost in each stack for border radius
+  const stackTopmostBarMap = new Map<string, string>();
+  if (chartModel.stackModels) {
+    chartModel.stackModels.forEach((stackModel) => {
+      if (stackModel.display === "bar") {
+        // The last series in the stack (by order in seriesKeys) is the topmost
+        const topmostDataKey =
+          stackModel.seriesKeys[stackModel.seriesKeys.length - 1];
+        stackTopmostBarMap.set(stackModel.display, topmostDataKey);
+      }
+    });
+  }
+
   const series = chartModel.seriesModels
     .filter((seriesModel) => seriesModel.visible)
     .map((seriesModel) => {
@@ -953,7 +1029,11 @@ export const buildEChartsSeries = (
             chartModel.seriesLabelsFormatters?.[seriesModel.dataKey],
             renderingContext,
           );
-        case "bar":
+        case "bar": {
+          // Check if this is the topmost bar in its stack
+          const isTopmostInStack =
+            stackName != null &&
+            stackTopmostBarMap.get(stackName) === seriesModel.dataKey;
           return buildEChartsBarSeries(
             chartModel.transformedDataset,
             chartModel.dataset,
@@ -970,7 +1050,9 @@ export const buildEChartsSeries = (
             chartWidth,
             chartModel.seriesLabelsFormatters?.[seriesModel.dataKey],
             renderingContext,
+            isTopmostInStack,
           );
+        }
       }
     })
     .flat()
