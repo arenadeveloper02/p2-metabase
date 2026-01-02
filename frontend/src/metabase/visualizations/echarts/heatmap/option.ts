@@ -137,14 +137,19 @@ export function getHeatmapChartOption(
   const valueCol = cols[valueIndex];
   const valueColSettings = getColumnSettings ? getColumnSettings(valueCol) : {};
 
-  // Format value for tooltip
-  const formatValueForTooltip = (value: number) =>
-    String(
+  // Format value function (used for both tooltip and labels)
+  const formatValueForDisplay = (value: number | string) => {
+    if (value === "-" || value === null || value === undefined) {
+      return "";
+    }
+    return String(
       formatValue(value, {
+        column: valueCol,
         ...valueColSettings,
         compact: false,
       }),
     );
+  };
 
   // Get display settings
   const showLabels = settings["heatmap.showLabels"] !== false;
@@ -160,7 +165,7 @@ export function getHeatmapChartOption(
         if (value === "-") {
           return `${yVal} - ${xVal}<br/>No data`;
         }
-        return `${yVal} - ${xVal}<br/>${formatValueForTooltip(value)}`;
+        return `${yVal} - ${xVal}<br/>${formatValueForDisplay(value)}`;
       },
     },
     grid: {
@@ -202,6 +207,10 @@ export function getHeatmapChartOption(
         data,
         label: {
           show: showLabels,
+          formatter: (params: any) => {
+            const value = params.data[2];
+            return formatValueForDisplay(value);
+          },
         },
         emphasis: {
           itemStyle: {

@@ -11,6 +11,7 @@ import {
   MinColumnsError,
   MinRowsError,
 } from "metabase/visualizations/lib/errors";
+import { columnSettings } from "metabase/visualizations/lib/settings/column";
 import {
   dimensionSetting,
   metricSetting,
@@ -73,6 +74,7 @@ Object.assign(Heatmap, {
   },
 
   settings: {
+    ...columnSettings(),
     ...dimensionSetting("heatmap.xDimension", {
       section: t`Data`,
       title: t`X-axis`,
