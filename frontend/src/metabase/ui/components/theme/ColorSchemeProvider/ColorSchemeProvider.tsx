@@ -15,7 +15,6 @@ import type {
   ColorScheme,
   ResolvedColorScheme,
 } from "metabase/lib/color-scheme";
-//import { getIsEmbeddingIframe } from "metabase/selectors/embed";
 
 interface ColorSchemeContextType {
   colorScheme: ColorScheme;

@@ -70,19 +70,14 @@ import {
 } from "./utils";
 
 export function isValidNumber(valueStr: string): boolean {
-  if (typeof valueStr !== "string") return false;
+  if (typeof valueStr !== "string") {
+    return false;
+  }
 
   const cleaned: string = valueStr.replace(/,/g, "");
   const num: number = parseFloat(cleaned);
 
   return !isNaN(num);
-}
-
-// Example usage
-interface InputItem {
-  value: string;
-  isSubtotal: boolean;
-  isGrandTotal: boolean;
 }
 
 const MIN_USABLE_BODY_WIDTH = 240;
@@ -487,26 +482,31 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                     width={topHeaderWidth}
                     height={topHeaderHeight}
                     cellCount={topHeaderItems.length}
-                    cellRenderer={({ index, style, key }) => (
-                      <TopHeaderCell
-                        key={key}
-                        // eslint-disable-next-line no-color-literals
-                        backgroundColor={"#e2e3e5"}
-                        style={style}
-                        item={topHeaderItems[index]}
-                        getCellClickHandler={getCellClickHandler}
-                        isNumber={isValidNumber(
-                          getRowSection(index, rowIndex)?.[0]?.value,
-                        )}
-                        onResize={(newWidth: number) =>
-                          handleColumnResize(
-                            "value",
-                            topHeaderItems[index].offset,
-                            newWidth,
-                          )
-                        }
-                      />
-                    )}
+                    cellRenderer={({ index, style, key }) => {
+                      const rowSection =
+                        typeof index === "number" &&
+                        typeof rowIndex === "number"
+                          ? getRowSection(index, rowIndex)
+                          : null;
+                      return (
+                        <TopHeaderCell
+                          key={key}
+                          // eslint-disable-next-line no-color-literals
+                          backgroundColor={"#e2e3e5"}
+                          style={style}
+                          item={topHeaderItems[index]}
+                          getCellClickHandler={getCellClickHandler}
+                          isNumber={isValidNumber(rowSection?.[0]?.value)}
+                          onResize={(newWidth: number) =>
+                            handleColumnResize(
+                              "value",
+                              topHeaderItems[index].offset,
+                              newWidth,
+                            )
+                          }
+                        />
+                      );
+                    }}
                     cellSizeAndPositionGetter={({ index }) =>
                       topHeaderCellSizeAndPositionGetter(
                         topHeaderItems[index],
@@ -593,15 +593,17 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                             style,
                             isScrolling,
                           }) => {
+                            const rowSection =
+                              typeof columnIndex === "number" &&
+                              typeof rowIndex === "number"
+                                ? getRowSection(columnIndex, rowIndex)
+                                : null;
                             return (
                               <BodyCell
                                 key={key}
                                 style={style}
                                 showTooltip={!isScrolling}
-                                rowSection={getRowSection(
-                                  columnIndex,
-                                  rowIndex,
-                                )}
+                                rowSection={rowSection}
                                 getCellClickHandler={getCellClickHandler}
                                 cellWidths={getCellWidthsForSection(
                                   valueHeaderWidths,
@@ -609,8 +611,8 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                                   columnIndex,
                                 )}
                                 bottomBackgroundColor={
-                                  rowIndex == rowCount - 1 &&
-                                  rowCount != 1 &&
+                                  rowIndex === rowCount - 1 &&
+                                  rowCount !== 1 &&
                                   settings["pivot.show_column_totals"]
                                     ? // eslint-disable-next-line no-color-literals
                                       "#6d717f"
