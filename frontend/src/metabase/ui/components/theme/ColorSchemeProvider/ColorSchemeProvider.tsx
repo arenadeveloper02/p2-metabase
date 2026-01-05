@@ -15,7 +15,7 @@ import type {
   ColorScheme,
   ResolvedColorScheme,
 } from "metabase/lib/color-scheme";
-import { getIsEmbeddingIframe } from "metabase/selectors/embed";
+//import { getIsEmbeddingIframe } from "metabase/selectors/embed";
 
 interface ColorSchemeContextType {
   colorScheme: ColorScheme;
@@ -55,9 +55,7 @@ export function ColorSchemeProvider({
     ? "dark"
     : "light";
 
-  const [colorScheme, setColorScheme] = useState<ColorScheme>(
-    defaultColorScheme || "auto",
-  );
+  const [colorScheme, setColorScheme] = useState<ColorScheme>("light");
 
   useEffect(() => {
     // NOTE: The `defaultColorScheme` prop may change in cases where the
@@ -76,11 +74,9 @@ export function ColorSchemeProvider({
     if (forceColorScheme) {
       return forceColorScheme;
     }
-    if (getIsEmbeddingIframe()) {
-      return "light";
-    }
-    return colorScheme === "auto" ? systemColorScheme : colorScheme;
-  }, [colorScheme, forceColorScheme, systemColorScheme]);
+    // Always use light theme
+    return "light";
+  }, [forceColorScheme]);
 
   const handleColorSchemeUpdate = useCallback(
     (value: ColorScheme) => {
