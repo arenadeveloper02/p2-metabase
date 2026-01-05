@@ -4,6 +4,7 @@ const { H } = cy;
 import {
   FIRST_COLLECTION_ID,
   ORDERS_COUNT_QUESTION_ID,
+  ORDERS_MODEL_ID,
   ORDERS_QUESTION_ID,
   READ_ONLY_PERSONAL_COLLECTION_ID,
 } from "e2e/support/cypress_sample_instance_data";
@@ -47,20 +48,18 @@ describe("scenarios > collections > trash", () => {
       cy.findByText("Deleted at");
     });
 
-    cy.log(
-      "trashed items in collection should not have option to move to trash",
-    );
+    cy.log("trashed items in collection should have option to move to trash");
     toggleEllipsisMenuFor("Collection A");
     H.popover().within(() => {
       cy.findByText("Move to trash").should("not.exist");
       cy.findByText("Restore").should("exist");
-      cy.findByText("Delete permanently").should("not.exist");
+      cy.findByText("Delete permanently").should("exist");
     });
     toggleEllipsisMenuFor("Collection A");
 
     cy.log("items in trash should have greyed out icons");
     collectionTable().within(() => {
-      cy.icon("model").should("have.css", "color", "rgb(148, 154, 171)");
+      cy.icon("model").should("have.css", "color", "rgba(7, 23, 34, 0.44)");
     });
 
     cy.log("there should not be pins in the trash");
@@ -78,8 +77,12 @@ describe("scenarios > collections > trash", () => {
     });
 
     H.popover().findByText("Question").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").should("exist");
+      cy.findByText("Trash").should("not.exist");
+    });
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
       cy.findByText("Our analytics").should("exist");
       cy.findByText("Trash").should("not.exist");
       cy.button("Close").click();
@@ -101,7 +104,7 @@ describe("scenarios > collections > trash", () => {
     H.sidebar().findByText("Trash").should("not.exist");
   });
 
-  H.describeWithSnowplow("", () => {
+  describe("Snowplow analytics", () => {
     beforeEach(() => {
       H.resetSnowplow();
     });
@@ -113,16 +116,16 @@ describe("scenarios > collections > trash", () => {
     it("should be able to trash & restore dashboards/collections/questions on entity page and from parent collection", () => {
       cy.log("create test resources");
       cy.log("Bookmark the resources to test metabase#44224");
-      createCollection({ name: "Collection A" }).then(collection => {
+      createCollection({ name: "Collection A" }).then((collection) => {
         cy.request("POST", `/api/bookmark/collection/${collection.id}`);
       });
-      createDashboard({ name: "Dashboard A" }).then(dashboard => {
+      createDashboard({ name: "Dashboard A" }).then((dashboard) => {
         cy.request("POST", `/api/bookmark/dashboard/${dashboard.id}`);
       });
       createNativeQuestion({
         name: "Question A",
         native: { query: "select 1;" },
-      }).then(question => {
+      }).then((question) => {
         cy.request("POST", `/api/bookmark/card/${question.id}`);
       });
 
@@ -131,7 +134,7 @@ describe("scenarios > collections > trash", () => {
       cy.log("should be able to move to trash from collection view");
       toggleEllipsisMenuFor(/Collection A/);
       H.popover().findByText("Move to trash").click();
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -147,7 +150,7 @@ describe("scenarios > collections > trash", () => {
 
       toggleEllipsisMenuFor("Dashboard A");
       H.popover().findByText("Move to trash").click();
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -163,7 +166,7 @@ describe("scenarios > collections > trash", () => {
 
       toggleEllipsisMenuFor("Question A");
       H.popover().findByText("Move to trash").click();
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -207,7 +210,7 @@ describe("scenarios > collections > trash", () => {
         cy.findByText("Move this collection to trash?");
         cy.findByText("Move to trash").click();
       });
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -233,7 +236,7 @@ describe("scenarios > collections > trash", () => {
         cy.findByText("Move this dashboard to trash?");
         cy.findByText("Move to trash").click();
       });
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -263,7 +266,7 @@ describe("scenarios > collections > trash", () => {
         cy.findByText("Move this question to trash?");
         cy.findByText("Move to trash").click();
       });
-      H.expectGoodSnowplowEvent(event =>
+      H.expectUnstructuredSnowplowEvent((event) =>
         isMatching(
           {
             event: "moved-to-trash",
@@ -289,9 +292,9 @@ describe("scenarios > collections > trash", () => {
     cy.log("create test resources");
     createCollection({ name: "Collection A" })
       .as("collectionA")
-      .then(a => createCollection({ name: "Collection B", parent_id: a.id }));
+      .then((a) => createCollection({ name: "Collection B", parent_id: a.id }));
 
-    cy.get("@collectionA").then(collectionA => {
+    cy.get("@collectionA").then((collectionA) => {
       H.archiveCollection(collectionA.id);
     });
 
@@ -431,18 +434,21 @@ describe("scenarios > collections > trash", () => {
 
     cy.log("can delete from trash list");
     toggleEllipsisMenuFor("Collection A");
-    // FUTURE: replace following two lines with commented out code when collections can be deleted
-    H.popover().findByText("Delete permanently").should("not.exist");
-    toggleEllipsisMenuFor("Collection A");
-    // popover().findByText("Delete permanently").click();
-    // modal().findByText("Delete Collection A permanently?").should("exist");
-    // modal().findByText("Delete permanently").click();
-    // collectionTable().within(() => {
-    //   cy.findByText("Collection A").should("not.exist");
-    // });
+    H.popover()
+      .should("contain", "Delete permanently")
+      .findByText("Delete permanently")
+      .click();
+    H.modal().findByText("Delete Collection A permanently?").should("exist");
+    H.modal().findByText("Delete permanently").click();
+    collectionTable().within(() => {
+      cy.findByText("Collection A").should("not.exist");
+    });
 
     toggleEllipsisMenuFor("Dashboard A");
-    H.popover().findByText("Delete permanently").click();
+    H.popover()
+      .should("contain", "Delete permanently")
+      .findByText("Delete permanently")
+      .click();
     H.modal().findByText("Delete Dashboard A permanently?").should("exist");
     H.modal().findByText("Delete permanently").click();
     collectionTable().within(() => {
@@ -450,7 +456,10 @@ describe("scenarios > collections > trash", () => {
     });
 
     toggleEllipsisMenuFor("Question A");
-    H.popover().findByText("Delete permanently").click();
+    H.popover()
+      .should("contain", "Delete permanently")
+      .findByText("Delete permanently")
+      .click();
     H.modal().findByText("Delete Question A permanently?").should("exist");
     H.modal().findByText("Delete permanently").click();
     collectionTable().within(() => {
@@ -462,14 +471,12 @@ describe("scenarios > collections > trash", () => {
       cy.findByText("Collection B").click();
     });
     // FUTURE: replace following two lines with commented out code when collections can be deleted
-    archiveBanner().findByText("Delete permanently").should("not.exist");
-    cy.visit("/trash");
-    // archiveBanner().findByText("Delete permanently").click();
-    // modal().findByText("Delete Collection B permanently?").should("exist");
-    // modal().findByText("Delete permanently").click();
-    // collectionTable().within(() => {
-    //   cy.findByText("Collection B").should("not.exist");
-    // });
+    archiveBanner().findByText("Delete permanently").click();
+    H.modal().findByText("Delete Collection B permanently?").should("exist");
+    H.modal().findByText("Delete permanently").click();
+    collectionTable().within(() => {
+      cy.findByText("Collection B").should("not.exist");
+    });
 
     collectionTable().within(() => {
       cy.findByText("Dashboard B").click();
@@ -593,7 +600,7 @@ describe("scenarios > collections > trash", () => {
       true,
     ).as("question");
 
-    cy.get("@question").then(question => {
+    cy.get("@question").then((question) => {
       H.visitQuestion(question.id);
       // should not have disabled actions in top navbar
       cy.findAllByTestId("qb-header-action-panel").within(() => {
@@ -611,7 +618,7 @@ describe("scenarios > collections > trash", () => {
       });
     });
 
-    cy.get("@dashboard").then(dashboard => {
+    cy.get("@dashboard").then((dashboard) => {
       H.visitDashboard(dashboard.id);
 
       cy.findAllByTestId("dashboard-header").within(() => {
@@ -627,7 +634,7 @@ describe("scenarios > collections > trash", () => {
   it("user should not be shown restore/move/delete options in archive banner if they have view only permissions", () => {
     createCollection({ name: "Collection A" }).as("collection");
 
-    cy.get("@collection").then(collection => {
+    cy.get("@collection").then((collection) => {
       createNativeQuestion(
         {
           name: "Question A",
@@ -670,7 +677,7 @@ describe("scenarios > collections > trash", () => {
 
     cy.signInAsNormalUser();
 
-    cy.get("@collection").then(collection => {
+    cy.get("@collection").then((collection) => {
       H.visitCollection(collection.id);
       archiveBanner().findByText("Restore").should("not.exist");
       archiveBanner().findByText("Move").should("not.exist");
@@ -736,7 +743,7 @@ describe("scenarios > collections > trash", () => {
     assertTrashSelectedInNavigationSidebar();
 
     cy.log("Make sure trash is selected for a trashed collection");
-    cy.get("@collection").then(collection => {
+    cy.get("@collection").then((collection) => {
       cy.intercept("GET", `/api/collection/${collection.id}`).as(
         "getCollection",
       );
@@ -746,7 +753,7 @@ describe("scenarios > collections > trash", () => {
     });
 
     cy.log("Make sure trash is selected for a trashed dashboard");
-    cy.get("@dashboard").then(dashboard => {
+    cy.get("@dashboard").then((dashboard) => {
       cy.intercept("GET", `/api/dashboard/${dashboard.id}*`).as("getDashboard");
       H.visitDashboard(dashboard.id);
       cy.wait("@getDashboard");
@@ -755,7 +762,7 @@ describe("scenarios > collections > trash", () => {
     });
 
     cy.log("Make sure trash is selected for a trashed question");
-    cy.get("@question").then(question => {
+    cy.get("@question").then((question) => {
       cy.log(question.id);
       cy.intercept("POST", `/api/card/${question.id}/query`).as(
         "getQuestionResult",
@@ -858,15 +865,55 @@ describe("scenarios > collections > trash", () => {
       .and("contain", "Restore")
       .and("contain", "Delete permanently");
   });
+
+  it("should not deselect items when aborting operations (metabase#44911)", () => {
+    cy.request("PUT", `/api/card/${ORDERS_QUESTION_ID}`, { archived: true });
+    cy.request("PUT", `/api/card/${ORDERS_COUNT_QUESTION_ID}`, {
+      archived: true,
+    });
+    cy.request("PUT", `/api/card/${ORDERS_MODEL_ID}`, { archived: true });
+    cy.visit("/trash");
+
+    selectItem("Orders");
+    selectItem("Orders Model");
+
+    cy.findByTestId("toast-card")
+      .should("be.visible")
+      .findByText("Delete permanently")
+      .click();
+
+    H.modal().findByText("Cancel").click();
+
+    assertChecked("Orders");
+    assertChecked("Orders Model");
+
+    cy.findByTestId("toast-card")
+      .should("be.visible")
+      .findByText("Move")
+      .click();
+
+    H.entityPickerModal().findByText("Cancel").click();
+
+    assertChecked("Orders");
+    assertChecked("Orders Model");
+
+    cy.log("Going through with action should reset selection");
+    cy.findByTestId("toast-card")
+      .should("be.visible")
+      .findByText("Delete permanently")
+      .click();
+
+    H.modal().findByText("Delete permanently").click();
+    assertChecked("Orders, Count", false);
+  });
 });
 
 function toggleEllipsisMenuFor(item) {
-  collectionTable().within(() => {
-    cy.findByText(item)
-      .closest("tr")
-      .find(".Icon-ellipsis")
-      .click({ force: true });
-  });
+  collectionTable()
+    .findByText(item)
+    .closest("tr")
+    .find(".Icon-ellipsis")
+    .click();
 }
 
 function createCollection(collectionInfo, archive) {
@@ -932,9 +979,14 @@ function ensureCanRestoreFromPage(name) {
 }
 
 function selectItem(name) {
+  cy.findByText(name).closest("tr").findByRole("checkbox").check();
+}
+
+function assertChecked(name, checked = true) {
   cy.findByText(name)
     .closest("tr")
-    .within(() => cy.findByRole("checkbox").click());
+    .findByRole("checkbox")
+    .should(checked ? "have.attr" : "not.have.attr", "checked");
 }
 
 function assertTrashSelectedInNavigationSidebar() {
@@ -946,7 +998,7 @@ function assertTrashSelectedInNavigationSidebar() {
 }
 
 function ensureBookmarkVisible(bookmark) {
-  cy.findByRole("tab", { name: /bookmarks/i })
+  cy.findByRole("section", { name: "Bookmarks" })
     .findByText(bookmark)
     .should("be.visible");
 }

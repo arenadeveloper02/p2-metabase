@@ -68,31 +68,46 @@
 
      In other words, this bin adds a filter for the selected bin and then divides the bin width in the breakout binning
      options by 10."
+  (:refer-clojure :exclude [some every?])
   (:require
    [metabase.lib.binning :as lib.binning]
    [metabase.lib.breakout :as lib.breakout]
    [metabase.lib.drill-thru.common :as lib.drill-thru.common]
    [metabase.lib.equality :as lib.equality]
    [metabase.lib.filter :as lib.filter]
+   [metabase.lib.metadata.calculation :as lib.metadata.calculation]
    [metabase.lib.remove-replace :as lib.remove-replace]
    [metabase.lib.schema :as lib.schema]
    [metabase.lib.schema.binning :as lib.schema.binning]
    [metabase.lib.schema.drill-thru :as lib.schema.drill-thru]
    [metabase.lib.schema.metadata :as lib.schema.metadata]
+   [metabase.lib.types.isa :as lib.types.isa]
    [metabase.lib.underlying :as lib.underlying]
-   [metabase.util.malli :as mu]))
+   [metabase.util.malli :as mu]
+   [metabase.util.performance :refer [some every?]]))
 
 ;;;
 ;;; available-drill-thrus
 ;;;
 
+(defn- has-lat-lon? [query stage-number]
+  (->> [(lib.metadata.calculation/returned-columns query stage-number)
+        (lib.metadata.calculation/visible-columns query stage-number)]
+       (some (fn [columns]
+               [(some lib.types.isa/latitude? columns)
+                (some lib.types.isa/longitude? columns)]))
+       (every? identity)))
+
 (mu/defn zoom-in-binning-drill :- [:maybe ::lib.schema.drill-thru/drill-thru.zoom-in.binning]
   "Return a drill thru that 'zooms in' on a breakout that uses `:binning` if applicable.
   See [[metabase.lib.drill-thru.zoom-in-bins]] docstring for more information."
   [query                                 :- ::lib.schema/query
-   _stage-number                         :- :int
-   {:keys [column value], :as _context}  :- ::lib.schema.drill-thru/context]
-  (when (and column value (not= value :null))
+   stage-number                         :- :int
+   {{:keys [semantic-type] :as column} :column, :keys [value], :as _context}  :- ::lib.schema.drill-thru/context]
+  (when (and column value (not= value :null)
+             (or (not (or (= semantic-type :type/Latitude)
+                          (= semantic-type :type/Longitude)))
+                 (not (has-lat-lon? query stage-number))))
     (when-let [existing-breakout (first (lib.breakout/existing-breakouts query
                                                                          (lib.underlying/top-level-stage-number query)
                                                                          column))]
@@ -129,11 +144,12 @@
 (mu/defn- update-breakout :- ::lib.schema/query
   [query        :- ::lib.schema/query
    stage-number :- :int
-   column       :- ::lib.schema.metadata/column
+   old-column   :- ::lib.schema.metadata/column
+   new-column   :- ::lib.schema.metadata/column
    new-binning  :- ::lib.schema.binning/binning]
-  (if-let [existing-breakout (first (lib.breakout/existing-breakouts query stage-number column))]
-    (lib.remove-replace/replace-clause query stage-number existing-breakout (lib.binning/with-binning column new-binning))
-    (lib.breakout/breakout query stage-number (lib.binning/with-binning column new-binning))))
+  (if-let [existing-breakout (first (lib.breakout/existing-breakouts query stage-number old-column))]
+    (lib.remove-replace/replace-clause query stage-number existing-breakout (lib.binning/with-binning new-column new-binning))
+    (lib.breakout/breakout query stage-number (lib.binning/with-binning new-column new-binning))))
 
 (mu/defmethod lib.drill-thru.common/drill-thru-method :drill-thru/zoom-in.binning :- ::lib.schema/query
   [query                                        :- ::lib.schema/query
@@ -143,11 +159,12 @@
   ;; where [[metabase.query-processor.middleware.binning/update-binning-strategy]] expects to find them. Adding the
   ;; filters to top-level-stage-number breaks the binning.
   (let [top-level-stage-number (lib.underlying/top-level-stage-number query)
+        resolved-column (lib.drill-thru.common/breakout->resolved-column query stage-number column)
         old-filters (filter (fn [[operator _opts filter-column]]
                               (and (#{:>= :<} operator)
                                    (lib.equality/find-matching-column filter-column [column])))
                             (lib.filter/filters query stage-number))]
     (-> (reduce #(lib.remove-replace/remove-clause %1 stage-number %2) query old-filters)
-        (update-breakout top-level-stage-number column new-binning)
-        (lib.filter/filter stage-number (lib.filter/>= column min-value))
-        (lib.filter/filter stage-number (lib.filter/< column max-value)))))
+        (update-breakout top-level-stage-number column resolved-column new-binning)
+        (lib.filter/filter stage-number (lib.filter/>= resolved-column min-value))
+        (lib.filter/filter stage-number (lib.filter/< resolved-column max-value)))))

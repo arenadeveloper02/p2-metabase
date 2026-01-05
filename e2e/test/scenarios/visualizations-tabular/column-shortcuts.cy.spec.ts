@@ -81,7 +81,7 @@ const URL_CASES = [
   },
 ];
 
-H.describeWithSnowplow("extract shortcut", () => {
+describe("extract shortcut", () => {
   beforeEach(() => {
     H.restore();
     H.resetSnowplow();
@@ -104,7 +104,7 @@ H.describeWithSnowplow("extract shortcut", () => {
             value,
             example,
           });
-          H.expectGoodSnowplowEvent({
+          H.expectUnstructuredSnowplowEvent({
             event: "column_extract_via_plus_modal",
             custom_expressions_used: expressions,
             database_id: SAMPLE_DB_ID,
@@ -141,7 +141,7 @@ H.describeWithSnowplow("extract shortcut", () => {
         formula: "year([Created At]) + 2",
         blur: true,
       });
-      H.popover().button("Update").click();
+      H.popover().button("Update").should("not.be.disabled").click();
       H.visualize();
       cy.findByRole("gridcell", { name: "2,027" }).should("be.visible");
     });
@@ -173,7 +173,7 @@ H.describeWithSnowplow("extract shortcut", () => {
           value,
           example,
         });
-        H.expectGoodSnowplowEvent({
+        H.expectUnstructuredSnowplowEvent({
           event: "column_extract_via_plus_modal",
           custom_expressions_used: expressions,
           database_id: SAMPLE_DB_ID,
@@ -213,7 +213,7 @@ H.describeWithSnowplow("extract shortcut", () => {
           value,
           example,
         });
-        H.expectGoodSnowplowEvent({
+        H.expectUnstructuredSnowplowEvent({
           event: "column_extract_via_plus_modal",
           custom_expressions_used: expressions,
           database_id: SAMPLE_DB_ID,
@@ -240,7 +240,9 @@ H.describeWithSnowplow("extract shortcut", () => {
       option: "Host",
     });
 
-    cy.get("#main-data-grid").scrollTo("left", { duration: 2000 / 60 });
+    H.tableInteractiveScrollContainer().scrollTo("left", {
+      duration: 2000 / 60,
+    });
 
     H.tableHeaderClick("ID");
 
@@ -248,7 +250,7 @@ H.describeWithSnowplow("extract shortcut", () => {
     H.popover().findAllByRole("button").first().click();
 
     // ID should still be visible (ie. no scrolling to the end should have happened)
-    cy.findAllByRole("columnheader", { name: "ID" }).should("be.visible");
+    cy.findAllByRole("columnheader").contains("ID").should("be.visible");
   });
 
   it("should be possible to extract columns from a summarized table", () => {
@@ -345,7 +347,7 @@ function extractColumnAndCheck({
   }
 }
 
-H.describeWithSnowplow("scenarios > visualizations > combine shortcut", () => {
+describe("scenarios > visualizations > combine shortcut", () => {
   function combineColumns({
     columns,
     example,
@@ -426,7 +428,7 @@ H.describeWithSnowplow("scenarios > visualizations > combine shortcut", () => {
       newValue: "borer-hudson@yahoo.com1",
     });
 
-    H.expectGoodSnowplowEvent({
+    H.expectUnstructuredSnowplowEvent({
       event: "column_combine_via_plus_modal",
       custom_expressions_used: ["concat"],
       database_id: SAMPLE_DB_ID,
@@ -450,7 +452,7 @@ H.describeWithSnowplow("scenarios > visualizations > combine shortcut", () => {
       },
     );
 
-    cy.findByTestId("TableInteractive-root").should("exist");
+    H.tableInteractive().should("exist");
     combineColumns({
       columns: ["Created At: Hour of day", "Count"],
       newColumn: "Combined Created At: Hour of day, Count",
@@ -470,7 +472,7 @@ H.describeWithSnowplow("scenarios > visualizations > combine shortcut", () => {
             [
               "field",
               PRODUCTS.CATEGORY,
-              { "base-type": "type/text", "source-field": ORDERS.PRODUCT_ID },
+              { "base-type": "type/Text", "source-field": ORDERS.PRODUCT_ID },
             ],
           ],
         },
@@ -480,10 +482,10 @@ H.describeWithSnowplow("scenarios > visualizations > combine shortcut", () => {
       },
     );
 
-    cy.findByTestId("TableInteractive-root").should("exist");
+    H.tableInteractive().should("exist");
     combineColumns({
-      columns: ["Created At: Hour of day", "Category"],
-      newColumn: "Combined Created At: Hour of day, Category",
+      columns: ["Created At: Hour of day", "Product → Category"],
+      newColumn: "Combined Created At: Hour of day, Product → Category",
       example: "2042-01-01 12:34:56.789 text",
       newValue: "0 Doohickey",
     });

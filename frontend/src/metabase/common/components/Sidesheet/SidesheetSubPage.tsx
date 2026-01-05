@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { Button, Flex, Icon, Title } from "metabase/ui";
+import { Button, Flex, Icon, type ModalOverlayProps, Title } from "metabase/ui";
 
 import { Sidesheet, type SidesheetSize } from "./Sidesheet";
 
@@ -18,6 +18,7 @@ interface SidesheetSubPageProps {
   size?: SidesheetSize;
   /** Whether to show a translucent backdrop */
   withOverlay?: boolean;
+  overlayProps?: ModalOverlayProps;
 }
 
 export const SidesheetSubPageTitle = ({
@@ -25,10 +26,10 @@ export const SidesheetSubPageTitle = ({
   onClick,
 }: SidesheetSubPageTitleProps) => {
   return (
-    <Button variant="unstyled" onClick={onClick} p={0}>
+    <Button variant="subtle" onClick={onClick} p={0}>
       <Flex align="center" justify="center" gap="md">
         <Icon name="chevronleft" />
-        <Title order={2}>{title}</Title>
+        <Title order={3}>{title}</Title>
       </Flex>
     </Button>
   );
@@ -42,6 +43,7 @@ export const SidesheetSubPage = ({
   isOpen,
   size,
   withOverlay = false,
+  overlayProps,
 }: SidesheetSubPageProps) => (
   <Sidesheet
     isOpen={isOpen}
@@ -49,6 +51,7 @@ export const SidesheetSubPage = ({
     onClose={onClose}
     size={size}
     withOverlay={withOverlay}
+    overlayProps={overlayProps}
   >
     {children}
   </Sidesheet>

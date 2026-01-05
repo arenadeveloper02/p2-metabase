@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { WithRouterProps } from "react-router";
 import { match } from "ts-pattern";
 
+import { NotFound } from "metabase/common/components/ErrorPages";
+import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import {
   type BaseEntityId,
   isBaseEntityID,
@@ -11,8 +13,6 @@ import {
   type TranslateEntityIdResponse,
   useTranslateEntityIdQuery,
 } from "./api/entity-id";
-import { NotFound } from "./components/ErrorPages";
-import { LoadingAndErrorWrapper } from "./components/LoadingAndErrorWrapper";
 type ResourceType = "dashboard" | "collection" | "card" | "dashboard-tab";
 type ParamType = "param" | "search";
 
@@ -43,7 +43,7 @@ export const EntityIdRedirect = ({
 
   const paramsWithValues: ParamWithValue[] = useMemo(() => {
     // add the value from the params or the query
-    return parametersToTranslate.map(config => {
+    return parametersToTranslate.map((config) => {
       const value = match(config.type)
         .with("param", () => params[config.name])
         .with("search", () => location.query[config.name])

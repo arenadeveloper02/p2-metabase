@@ -3,14 +3,15 @@
   Currently supports Dashboards and Cards."
   (:require
    [java-time.api :as t]
-   [metabase-enterprise.stale :as stale]
-   [metabase.analytics.snowplow :as snowplow]
-   [metabase.api.collection :as api.collection]
+   [metabase-enterprise.stale.impl :as stale]
+   [metabase.analytics.core :as analytics]
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
-   [metabase.models.card :as card]
-   [metabase.models.collection :as collection]
+   [metabase.api.routes.common :refer [+auth]]
+   [metabase.collections-rest.api :as api.collection]
+   [metabase.collections.models.collection :as collection]
    [metabase.premium-features.core :as premium-features]
+   [metabase.queries.core :as queries]
    [metabase.request.core :as request]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.malli.schema :as ms]
@@ -67,6 +68,7 @@
                                :database_id
                                [nil :location]
                                :dataset_query
+                               :card_schema
                                :last_used_at
                                [{:select   [:status]
                                  :from     [:moderation_review]
@@ -84,8 +86,8 @@
        present-collections
        (map (fn [card]
               (-> card
-                  (assoc :model (if (card/model? card) "dataset" "card"))
-                  (assoc :fully_parameterized (api.collection/fully-parameterized-query? card))
+                  (assoc :model (if (queries/model? card) "dataset" "card"))
+                  (assoc :fully_parameterized (queries/fully-parameterized? card))
                   (dissoc :dataset_query))))))
 
 (defn- annotate-dashboard-with-collection-info
@@ -95,7 +97,8 @@
          :as dashboard} (api.collection/annotate-dashboards dashboards)]
     (assoc dashboard
            :location (or (some-> parent-coll collection/children-location)
-                         "/"))))
+                         "/")
+           :is_tenant_dashboard (some-> parent-coll collection/shared-tenant-collection?))))
 
 (defmethod present-model-items :model/Dashboard [_ dashboards]
   (->> (t2/hydrate (t2/select [:model/Dashboard
@@ -117,6 +120,14 @@
        annotate-dashboard-with-collection-info
        present-collections))
 
+;; TODO (Cam 10/28/25) -- fix this endpoint so it uses kebab-case for query parameters for consistency with the rest
+;; of the REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-query-params-use-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :get ["/:id" :id #"(?:\d+)|(?:root)"]
   "A flexible endpoint that returns stale entities, in the same shape as collections/items, with the following options:
   - `before_date` - only return entities that were last edited before this date (default: 6 months ago)
@@ -163,8 +174,12 @@
                           :total_stale_items_found total
                           ;; convert before-date to a date-time string before sending it.
                           :cutoff_date             (format "%sT00:00:00Z" (str before-date))}]
-    (snowplow/track-event! ::snowplow/cleanup snowplow-payload)
+    (analytics/track-event! :snowplow/cleanup snowplow-payload)
     {:total  total
      :data   (api/present-items present-model-items rows)
      :limit  (request/limit)
      :offset (request/offset)}))
+
+(def ^{:arglists '([request respond raise])} routes
+  "Ring routes for Stale API"
+  (api.macros/ns-handler *ns* +auth))

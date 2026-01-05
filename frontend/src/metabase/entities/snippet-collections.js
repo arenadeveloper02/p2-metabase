@@ -4,7 +4,8 @@ import _ from "underscore";
 
 import { skipToken, useGetCollectionQuery } from "metabase/api";
 import { canonicalCollectionId } from "metabase/collections/utils";
-import NormalCollections, {
+import {
+  Collections,
   getExpandedCollectionsById,
   useListQuery as useListCollectionsQuery,
 } from "metabase/entities/collections";
@@ -14,11 +15,13 @@ import { SnippetCollectionSchema } from "metabase/schema";
 /**
  * @deprecated use "metabase/api" instead
  */
-const SnippetCollections = createEntity({
+export const SnippetCollections = createEntity({
   name: "snippetCollections",
   schema: SnippetCollectionSchema,
 
+  // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
   displayNameOne: t`snippet collection`,
+  // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
   displayNameMany: t`snippet collections`,
 
   rtk: {
@@ -29,8 +32,8 @@ const SnippetCollections = createEntity({
   },
 
   api: _.mapObject(
-    NormalCollections.api,
-    request =>
+    Collections.api,
+    (request) =>
       (opts, ...rest) =>
         request({ ...opts, namespace: "snippets" }, ...rest),
   ),
@@ -55,8 +58,8 @@ const SnippetCollections = createEntity({
 
   selectors: {
     getExpandedCollectionsById: createSelector(
-      state => SnippetCollections.selectors.getList(state) || [],
-      collections => getExpandedCollectionsById(collections, null),
+      (state) => SnippetCollections.selectors.getList(state) || [],
+      (collections) => getExpandedCollectionsById(collections, null),
     ),
   },
 
@@ -64,10 +67,6 @@ const SnippetCollections = createEntity({
     getFetched: (state, props) =>
       getFetched(state, props) || getObject(state, props),
   }),
-
-  objectSelectors: {
-    getIcon: () => ({ name: "folder" }),
-  },
 
   getAnalyticsMetadata() {
     return undefined; // not tracking
@@ -89,5 +88,3 @@ const useGetQuery = (query, options) => {
 function useListQuery(query, options) {
   return useListCollectionsQuery({ ...query, namespace: "snippets" }, options);
 }
-
-export default SnippetCollections;

@@ -100,7 +100,7 @@ export function createBaseQuestions() {
     query: {
       "source-table": ORDERS_ID,
     },
-  }).then(response => cy.wrap(response.body).as("ordersQuestion"));
+  }).then((response) => cy.wrap(response.body).as("ordersQuestion"));
 
   cy.then(function () {
     H.createQuestion({
@@ -109,7 +109,7 @@ export function createBaseQuestions() {
       query: {
         "source-table": `card__${this.ordersQuestion.id}`,
       },
-    }).then(response => cy.wrap(response.body).as("baseQuestion"));
+    }).then((response) => cy.wrap(response.body).as("baseQuestion"));
 
     H.createQuestion({
       type: "model",
@@ -117,7 +117,7 @@ export function createBaseQuestions() {
       query: {
         "source-table": `card__${this.ordersQuestion.id}`,
       },
-    }).then(response => cy.wrap(response.body).as("baseModel"));
+    }).then((response) => cy.wrap(response.body).as("baseModel"));
   });
 }
 
@@ -332,25 +332,25 @@ export function createAndVisitDashboardWithCardMatrix(
       type: "question",
       query: createQuery(this.baseQuestion),
       name: "Question-based Question",
-    }).then(response => cy.wrap(response.body).as("qbq"));
+    }).then((response) => cy.wrap(response.body).as("qbq"));
 
     H.createQuestion({
       type: "question",
       query: createQuery(this.baseModel),
       name: "Model-based Question",
-    }).then(response => cy.wrap(response.body).as("mbq"));
+    }).then((response) => cy.wrap(response.body).as("mbq"));
 
     H.createQuestion({
       type: "model",
       name: "Question-based Model",
       query: createQuery(this.baseQuestion),
-    }).then(response => cy.wrap(response.body).as("qbm"));
+    }).then((response) => cy.wrap(response.body).as("qbm"));
 
     H.createQuestion({
       type: "model",
       name: "Model-based Model",
       query: createQuery(this.baseModel),
-    }).then(response => cy.wrap(response.body).as("mbm"));
+    }).then((response) => cy.wrap(response.body).as("mbm"));
   });
 
   cy.then(function () {
@@ -382,7 +382,7 @@ export function createAndVisitDashboard(cards: Card[]) {
         card_id: card.id,
       })),
     ],
-  }).then(dashboard => {
+  }).then((dashboard) => {
     H.visitDashboard(dashboard.id);
     cy.wrap(dashboard.id).as("dashboardId");
     cy.wait("@getDashboard");
@@ -404,16 +404,17 @@ export function setup1stStageExplicitJoinFilter() {
     getPopoverItem("Reviewer", 0).click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 }
 
 export function apply1stStageExplicitJoinFilter() {
   H.filterWidget().eq(0).click();
-  H.popover().within(() => {
-    cy.findByPlaceholderText("Search by Reviewer").type("abe.gorczany");
-    cy.button("Add filter").click();
-  });
+  H.popover()
+    .first()
+    .within(() => {
+      cy.findByPlaceholderText("Search the list").type("abe.gorczany");
+      cy.button("Add filter").click();
+    });
 }
 
 export function setup1stStageImplicitJoinFromSourceFilter() {
@@ -433,8 +434,7 @@ export function setup1stStageImplicitJoinFromSourceFilter() {
     getPopoverItem("Price", 0).click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
   H.popover().within(() => {
@@ -460,8 +460,7 @@ export function setup1stStageImplicitJoinFromJoinFilter() {
     getPopoverItem("Category", 1).click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
   H.popover().within(() => {
@@ -488,8 +487,7 @@ export function setup1stStageCustomColumnFilter() {
     getPopoverItem("Net").click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
   H.popover().within(() => {
@@ -509,18 +507,15 @@ export function setup1stStageAggregationFilter() {
 
   H.getDashboardCard(0).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Count").click();
+    getPopoverItem("Count").scrollIntoView().click();
   });
 
   H.getDashboardCard(1).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Count").click();
+    getPopoverItem("Count").scrollIntoView().click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
   H.popover().within(() => {
@@ -538,18 +533,15 @@ export function setup1stStageBreakoutFilter() {
 
   H.getDashboardCard(0).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Category", 1).click();
+    getPopoverItem("Category", 1).scrollIntoView().click();
   });
 
   H.getDashboardCard(1).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Category", 1).click();
+    getPopoverItem("Category", 1).scrollIntoView().click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
   H.popover().within(() => {
@@ -574,14 +566,15 @@ export function setup2ndStageExplicitJoinFilter() {
     getPopoverItem("Reviewer", 1).click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 
   H.filterWidget().eq(0).click();
-  H.popover().within(() => {
-    cy.findByPlaceholderText("Search by Reviewer").type("abe.gorczany");
-    cy.button("Add filter").click();
-  });
+  H.popover()
+    .first()
+    .within(() => {
+      cy.findByPlaceholderText("Search the list").type("abe.gorczany");
+      cy.button("Add filter").click();
+    });
   cy.wait(["@dashboardData", "@dashboardData"]);
 }
 
@@ -594,18 +587,15 @@ export function setup2ndStageCustomColumnFilter() {
 
   H.getDashboardCard(0).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("5 * Count").click();
+    getPopoverItem("5 * Count").scrollIntoView().click();
   });
 
   H.getDashboardCard(1).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("5 * Count").click();
+    getPopoverItem("5 * Count").scrollIntoView().click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 }
 
 export function apply2ndStageCustomColumnFilter() {
@@ -626,31 +616,25 @@ export function setup2ndStageAggregationFilter() {
 
   H.getDashboardCard(0).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Count", 1).click();
+    getPopoverItem("Count", 1).scrollIntoView().click();
   });
-  dismissToast();
 
   H.getDashboardCard(1).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Count", 1).click();
+    getPopoverItem("Count", 1).scrollIntoView().click();
   });
-  dismissToast();
 
   H.getDashboardCard(2).findByText("Select…").click();
   H.popover().within(() => {
     getPopoverItem("Count").click();
   });
-  dismissToast();
 
   H.getDashboardCard(3).findByText("Select…").click();
   H.popover().within(() => {
     getPopoverItem("Count").click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
 }
 
 export function apply2ndStageAggregationFilter() {
@@ -669,31 +653,34 @@ export function setup2ndStageBreakoutFilter() {
 
   H.getDashboardCard(0).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Category", 2).click();
+    getPopoverItem("Product → Category", 1).scrollIntoView().click();
   });
-  dismissToast();
+  closeToasts();
 
   H.getDashboardCard(1).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverList().scrollTo("bottom");
-    getPopoverItem("Category", 2).click();
+    getPopoverItem("Product → Category", 1).scrollIntoView().click();
   });
-  dismissToast();
 
   H.getDashboardCard(2).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverItem("Products Via Product ID Category").click();
+    getPopoverItem("Product → Category").scrollIntoView().click();
   });
-  dismissToast();
+
+  closeToasts();
 
   H.getDashboardCard(3).findByText("Select…").click();
   H.popover().within(() => {
-    getPopoverItem("Products Via Product ID Category").click();
+    getPopoverItem("Product → Category").scrollIntoView().click();
   });
 
-  cy.button("Save").click();
-  cy.wait("@updateDashboard");
+  H.saveDashboard({ waitMs: 250 });
+}
+
+function closeToasts() {
+  H.undoToast().each((toast) => {
+    cy.wrap(toast).icon("close").click();
+  });
 }
 
 export function apply2ndStageBreakoutFilter() {
@@ -728,12 +715,6 @@ export function getPopoverItem(name: string, index = 0) {
   return cy.findAllByText(name).eq(index).scrollIntoView();
 }
 
-export function dismissToast() {
-  cy.findByTestId("toast-undo")
-    .findByRole("img", { name: /close icon/ })
-    .click();
-}
-
 export function clickAway() {
   cy.get("body").click(0, 0);
 }
@@ -746,27 +727,15 @@ export function goBackToDashboard() {
 export function getDashboardId(): Cypress.Chainable<number> {
   return cy
     .get("@dashboardId")
-    .then(dashboardId => dashboardId as unknown as number);
+    .then((dashboardId) => dashboardId as unknown as number);
 }
 
-export function waitForPublicDashboardData() {
-  // tests with public dashboards always have 4 dashcards
-  cy.wait([
-    "@publicDashboardData",
-    "@publicDashboardData",
-    "@publicDashboardData",
-    "@publicDashboardData",
-  ]);
+export function waitForPublicDashboardData(requestCount: number) {
+  cy.wait(Array(requestCount).fill("@publicDashboardData"));
 }
 
-export function waitForEmbeddedDashboardData() {
-  // tests with embedded dashboards always have 4 dashcards
-  cy.wait([
-    "@embeddedDashboardData",
-    "@embeddedDashboardData",
-    "@embeddedDashboardData",
-    "@embeddedDashboardData",
-  ]);
+export function waitForEmbeddedDashboardData(requestCount: number) {
+  cy.wait(Array(requestCount).fill("@embeddedDashboardData"));
 }
 
 export function verifyDashcardMappingOptions(
@@ -783,8 +752,10 @@ export function verifyNoDashcardMappingOptions(dashcardIndex: number) {
     .findByText("No valid fields")
     .should("be.visible");
 
-  H.getDashboardCard(dashcardIndex).findByText("No valid fields").realHover();
-  cy.findByRole("tooltip")
+  H.getDashboardCard(dashcardIndex)
+    .findByText("No valid fields")
+    .trigger("mouseenter");
+  H.tooltip()
     .findByText(
       "This card doesn't have any fields or parameters that can be mapped to this parameter type.",
     )
@@ -793,34 +764,45 @@ export function verifyNoDashcardMappingOptions(dashcardIndex: number) {
 
 type SectionName = string;
 type ColumnName = string;
-type MappingSection = [SectionName, ColumnName[]];
+type MappingSection = [SectionName | null, ColumnName[]];
 
 export function verifyPopoverMappingOptions(sections: MappingSection[]) {
   const expectedItemsCount = sections.reduce(
     (sum, [sectionName, columnNames]) =>
-      sum + [sectionName, ...columnNames].length,
+      sum + (sectionName ? 1 : 0) + columnNames.length,
     0,
   );
 
   H.popover().within(() => {
-    getPopoverItems().then($items => {
+    getPopoverItems().then(($items) => {
       let index = 0;
+      let offsetForSearch = 0;
+
+      if (index === 0 && $items[index].querySelector("input")) {
+        // Skip search box if it is the first item
+        ++index;
+        offsetForSearch = 1;
+      }
 
       for (const [sectionName, columnNames] of sections) {
-        const item = cy.wrap($items[index]);
-        item.scrollIntoView(); // the list is virtualized, we need to keep scrolling to see all the items
-        item.should("have.text", sectionName);
-        ++index;
+        if (sectionName) {
+          // the list is virtualized, we need to keep scrolling to see all the items
+          cy.wrap($items[index])
+            .scrollIntoView()
+            .should("have.text", sectionName);
+          ++index;
+        }
 
         for (const columnName of columnNames) {
-          const item = cy.wrap($items[index]);
-          item.scrollIntoView();
-          item.findByLabelText(columnName).should("be.visible");
+          cy.wrap($items[index])
+            .scrollIntoView()
+            .findByLabelText(columnName)
+            .should("be.visible");
           ++index;
         }
       }
 
-      expect($items.length).to.eq(expectedItemsCount);
+      expect($items.length).to.eq(expectedItemsCount + offsetForSearch);
     });
   });
 }
@@ -831,12 +813,12 @@ export function verifyDashcardRowsCount({
   queryBuilderCount,
 }: {
   dashcardIndex: number;
-  dashboardCount: string;
+  dashboardCount: number;
   queryBuilderCount: string;
 }) {
-  H.getDashboardCard(dashcardIndex)
-    .findByText(dashboardCount)
-    .should("be.visible");
+  H.getDashboardCard(dashcardIndex).within(() => {
+    H.assertTableRowsCount(dashboardCount);
+  });
   H.getDashboardCard(dashcardIndex)
     .findByTestId("legend-caption-title")
     .click();
@@ -856,8 +838,8 @@ export function verifyDashcardCellValues({
 
     // eslint-disable-next-line no-unsafe-element-filtering
     H.getDashboardCard(dashcardIndex)
-      .findByTestId("table-row")
-      .findAllByTestId("cell-data")
+      .findByRole("row")
+      .findAllByRole("gridcell")
       .eq(valueIndex)
       .should("have.text", value);
   }
@@ -869,9 +851,8 @@ export function verifyDashcardCellValues({
 
   for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
     const value = values[valueIndex];
-    const cellIndex = valueIndex + values.length; // values.length to skip header row
 
     // eslint-disable-next-line no-unsafe-element-filtering
-    cy.findAllByTestId("cell-data").eq(cellIndex).should("have.text", value);
+    cy.findAllByRole("gridcell").eq(valueIndex).should("have.text", value);
   }
 }

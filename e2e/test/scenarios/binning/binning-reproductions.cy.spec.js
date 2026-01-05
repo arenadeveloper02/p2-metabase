@@ -17,8 +17,8 @@ describe("binning related reproductions", () => {
     });
 
     H.startNewQuestion();
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").click();
       cy.findByText("16327").click();
     });
 
@@ -67,7 +67,7 @@ describe("binning related reproductions", () => {
       isSelected: true,
     });
 
-    cy.wait("@dataset").then(xhr => {
+    cy.wait("@dataset").then((xhr) => {
       expect(xhr.response.body.error).not.to.exist;
     });
 
@@ -89,8 +89,8 @@ describe("binning related reproductions", () => {
     );
 
     H.startNewQuestion();
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").click();
       cy.findByText("17975").click();
     });
 
@@ -110,6 +110,7 @@ describe("binning related reproductions", () => {
     H.popover()
       .findByRole("option", { name: "CREATED_AT" })
       .findByLabelText("Temporal bucket")
+      .realHover()
       .click();
     // eslint-disable-next-line no-unsafe-element-filtering
     H.popover().last().findByText("Quarter").click();
@@ -130,8 +131,8 @@ describe("binning related reproductions", () => {
 
     cy.icon("join_left_outer").click();
 
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").click();
       cy.findByText("18646").click();
     });
 
@@ -160,7 +161,7 @@ describe("binning related reproductions", () => {
     });
 
     H.getNotebookStep("summarize").findByText(
-      "18646 - Product → Created At: Month",
+      "18646 - Product → CREATED_AT: Month",
     );
 
     H.visualize();
@@ -176,8 +177,8 @@ describe("binning related reproductions", () => {
     // it is essential for this repro to find question following these exact steps
     // (for example, visiting `/collection/root` would yield different result)
     H.startNewQuestion();
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").click();
       cy.findByText("11439").click();
     });
 
@@ -188,6 +189,7 @@ describe("binning related reproductions", () => {
       cy.findAllByRole("listitem", { name: "Created At" })
         .eq(0)
         .findByLabelText("Temporal bucket")
+        .realHover()
         .click();
     });
 
@@ -298,7 +300,7 @@ describe("binning related reproductions", () => {
     });
   });
 
-  describe.skip("result metadata issues", () => {
+  describe("result metadata issues", { tags: "@skip" }, () => {
     /**
      * Issues that arise only when we save SQL question without running it first.
      * It doesn't load the necessary metadata, which results in the wrong binning results.
@@ -354,7 +356,7 @@ describe("binning related reproductions", () => {
         cy.findByText("LONGITUDE").click();
       });
 
-      cy.wait("@dataset").then(xhr => {
+      cy.wait("@dataset").then((xhr) => {
         expect(xhr.response.body.error).not.to.exist;
       });
 
@@ -368,8 +370,8 @@ describe("binning related reproductions", () => {
 
 function openSummarizeOptions(questionType) {
   H.startNewQuestion();
-  H.entityPickerModal().within(() => {
-    H.entityPickerModalTab("Collections").click();
+  H.miniPicker().within(() => {
+    cy.findByText("Our analytics").click();
     cy.findByText("16379").click();
   });
 

@@ -1,6 +1,6 @@
 import { popover } from "e2e/support/helpers/e2e-ui-elements-helpers";
 import { color as getColor } from "metabase/lib/colors";
-import { Icons } from "metabase/ui";
+import { Icons } from "metabase/ui/components/icons/Icon/icons";
 import { GOAL_LINE_DASH } from "metabase/visualizations/echarts/cartesian/option/goal-line.ts";
 import { TREND_LINE_DASH } from "metabase/visualizations/echarts/cartesian/option/trend-line.ts";
 import {
@@ -10,16 +10,25 @@ import {
 
 import { isFixedPositionElementVisible } from "./e2e-element-visibility-helpers";
 
+export function ensureChartIsActive() {
+  cy.findByTestId("debounced-frame-root").should(
+    "not.have.css",
+    "pointer-events",
+    "none",
+  );
+}
+
 export function echartsContainer() {
   return cy.findByTestId("chart-container");
 }
 
 export function echartsTriggerBlur() {
-  return echartsContainer().realHover({ position: "right" });
+  echartsContainer().realHover({ position: "right" });
+  cy.wait(700); // Waiting until tooltip disappears
 }
 
 export function ensureEchartsContainerHasSvg() {
-  return echartsContainer().should(root => {
+  return echartsContainer().should((root) => {
     // Check if there's an SVG child within the element
     expect(root.find("svg").length, "SVG exists").to.be.equal(1);
   });
@@ -58,6 +67,12 @@ export function echartsIcon(name, isSelected = false) {
   return echartsContainer().find(`image[href="${dataUri}"]`);
 }
 
+export function chartGridLines() {
+  return echartsContainer().find(
+    "path[stroke='var(--mb-color-cartesian-grid-line)'][fill='none']",
+  );
+}
+
 export function chartPathWithFillColor(color) {
   return echartsContainer().find(`path[fill="${color}"]`);
 }
@@ -67,7 +82,7 @@ export function sankeyEdge(color) {
 }
 
 export function chartPathsWithFillColors(colors) {
-  return colors.map(color => chartPathWithFillColor(color));
+  return colors.map((color) => chartPathWithFillColor(color));
 }
 
 const CIRCLE_PATH = "M1 0A1 1 0 1 1 1 -0.0001";
@@ -84,7 +99,7 @@ export function cartesianChartCircleWithColor(color) {
 }
 
 export function cartesianChartCircleWithColors(colors) {
-  return colors.map(color => cartesianChartCircleWithColor(color));
+  return colors.map((color) => cartesianChartCircleWithColor(color));
 }
 
 export function otherSeriesChartPaths() {
@@ -136,7 +151,7 @@ export function pieSliceWithColor(color) {
 
 export function echartsTooltip() {
   // ECharts may keep two dom instances of the tooltip
-  return cy.findAllByTestId("echarts-tooltip").should($elements => {
+  return cy.findAllByTestId("echarts-tooltip").should(($elements) => {
     // Use a custom function to check if the fixed-position tooltip is visible,
     // as Cypress's ":visible" or "be.visible" fails to identify a fixed-position tooltip as visible.
     const visibleTooltips = $elements
@@ -159,9 +174,9 @@ export function echartsTooltip() {
     // ensures that we are using fixed-positioned tooltips.
     expect(tooltipContainerStyle.position).to.equal("fixed");
 
-    // (metabase#52732): tooltip container must have the correct z-index (200)
-    // this assertion prevents the tooltip from being rendered below charts.
-    expect(Number(tooltipContainerStyle.zIndex)).to.equal(200);
+    // (metabase#52732): tooltip container must have the correct z-index (201)
+    // this assertion prevents the tooltip from being rendered below charts or modals.
+    expect(Number(tooltipContainerStyle.zIndex)).to.equal(201);
 
     // Return the visible tooltip
     return visibleTooltip;
@@ -223,7 +238,7 @@ export function assertEChartsTooltip({ header, rows, footer, blurAfter }) {
     }
 
     if (rows != null) {
-      rows.forEach(row => {
+      rows.forEach((row) => {
         const { name, ...rest } = row;
         assertTooltipRow(name, rest);
       });
@@ -241,7 +256,7 @@ export function assertEChartsTooltip({ header, rows, footer, blurAfter }) {
 
 export function assertEChartsTooltipNotContain(rows) {
   echartsTooltip().within(() => {
-    rows.forEach(row => {
+    rows.forEach((row) => {
       cy.findByText(row).should("not.exist");
     });
   });

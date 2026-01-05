@@ -28,10 +28,10 @@ describe("scenarios > question > null", () => {
     cy.findByText("13571").click();
 
     cy.log("'No Results since at least v0.34.3");
-    cy.findByTestId("detail-shortcut").click();
+    H.openObjectDetail(0);
     cy.findByRole("dialog").within(() => {
-      cy.findByText(/Discount/i);
-      cy.findByText("Empty");
+      cy.findByText(/Discount/i).should("be.visible");
+      cy.findByText("empty").should("be.visible");
     });
   });
 
@@ -91,7 +91,7 @@ describe("scenarios > question > null", () => {
       cy.findByTestId("dashcard-container").within(() => {
         cy.findByTestId("loading-indicator").should("not.exist");
         cy.findByTestId("legend-caption-title").should("have.text", "13626");
-        cy.findByText("TOTAL").should("be.visible");
+        cy.findByText("Total").should("be.visible");
         cy.findByText("0").should("be.visible");
       });
     });
@@ -136,7 +136,8 @@ describe("scenarios > question > null", () => {
     // Total of "39.72", and the next cell is the `discount` (which is empty)
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("39.72")
-      .closest(".test-TableInteractive-cellWrapper")
+      .closest("[role=gridcell]")
+      .parent()
       .next()
       .find("div")
       .should("be.empty")

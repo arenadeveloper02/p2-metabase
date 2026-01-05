@@ -3,12 +3,6 @@ const { H } = cy;
 import * as QSHelpers from "./shared/dashboard-filters-query-stages";
 
 /**
- * Empty section title element is rendered.
- * TODO: https://github.com/metabase/metabase/issues/47218
- */
-const NAMELESS_SECTION = "";
-
-/**
  * Abbreviations used for card aliases in this test suite:
  *  qbq = question-based question
  *  qbm = question-based model
@@ -78,7 +72,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
                 ],
               ], // TODO: https://github.com/metabase/metabase/issues/46845
               ["User", QSHelpers.PEOPLE_DATE_COLUMNS],
-              ["Summaries", ["Created At: Month", "Created At: Year"]],
+              ["Summaries", ["Created At: Month", "User → Created At: Year"]],
             ],
           );
           QSHelpers.verifyDashcardMappingOptions(
@@ -100,7 +94,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
                 ],
               ], // TODO: https://github.com/metabase/metabase/issues/46845
               ["User", QSHelpers.PEOPLE_DATE_COLUMNS],
-              ["Summaries", ["Created At: Month", "Created At: Year"]],
+              ["Summaries", ["Created At: Month", "User → Created At: Year"]],
             ],
           );
           QSHelpers.verifyNoDashcardMappingOptions(
@@ -130,7 +124,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
                 ],
               ], // TODO: https://github.com/metabase/metabase/issues/46845
               ["User", QSHelpers.PEOPLE_TEXT_COLUMNS],
-              ["Summaries", ["Category"]],
+              ["Summaries", ["Product → Category"]],
             ],
           );
           QSHelpers.verifyDashcardMappingOptions(
@@ -151,7 +145,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
                 ],
               ], // TODO: https://github.com/metabase/metabase/issues/46845
               ["User", QSHelpers.PEOPLE_TEXT_COLUMNS],
-              ["Summaries", ["Category"]],
+              ["Summaries", ["Product → Category"]],
             ],
           );
           QSHelpers.verifyNoDashcardMappingOptions(
@@ -215,21 +209,11 @@ describe("scenarios > dashboard > filters > query stages", () => {
           );
           QSHelpers.verifyDashcardMappingOptions(
             QSHelpers.QUESTION_BASED_MODEL_INDEX,
-            [
-              [
-                NAMELESS_SECTION,
-                ["Count", "Sum of Reviews - Created At: Month → Rating"],
-              ],
-            ],
+            [[null, ["Count", "Sum of Reviews - Created At: Month → Rating"]]],
           );
           QSHelpers.verifyDashcardMappingOptions(
             QSHelpers.MODEL_BASED_MODEL_INDEX,
-            [
-              [
-                NAMELESS_SECTION,
-                ["Count", "Sum of Reviews - Created At: Month → Rating"],
-              ],
-            ],
+            [[null, ["Count", "Sum of Reviews - Created At: Month → Rating"]]],
           );
         }
       });
@@ -269,8 +253,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
           });
         });
 
-        // TODO: https://github.com/metabase/metabase/issues/46774
-        it.skip("1st stage implicit join (joined data source)", () => {
+        it("1st stage implicit join (joined data source)", () => {
           QSHelpers.setup1stStageImplicitJoinFromJoinFilter();
 
           QSHelpers.verifyDashcardCellValues({
@@ -318,8 +301,7 @@ describe("scenarios > dashboard > filters > query stages", () => {
           });
         });
 
-        // TODO: https://github.com/metabase/metabase/issues/46774
-        it.skip("1st stage breakout", () => {
+        it("1st stage breakout", () => {
           QSHelpers.setup1stStageBreakoutFilter();
 
           QSHelpers.verifyDashcardCellValues({

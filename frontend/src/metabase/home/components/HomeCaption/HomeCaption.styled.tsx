@@ -1,7 +1,8 @@
+// eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
-import { color } from "metabase/lib/colors";
 import { breakpointMinExtraLarge } from "metabase/styled-components/theme";
+import { color } from "metabase/ui/utils/colors";
 
 interface CaptionProps {
   primary?: boolean;
@@ -10,7 +11,7 @@ interface CaptionProps {
 export const CaptionRoot = styled.div<CaptionProps>`
   display: flex;
   align-items: center;
-  color: ${props =>
+  color: ${(props) =>
     props.primary ? color("text-dark") : color("text-medium")};
   font-weight: bold;
   margin-bottom: 1.5rem;

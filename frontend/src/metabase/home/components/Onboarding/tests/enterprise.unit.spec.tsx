@@ -1,10 +1,9 @@
-import { screen, within } from "@testing-library/react";
+import { screen, within } from "__support__/ui";
 
 import { type SetupProps, setup as baseSetup } from "./setup";
 
 function setup(opts?: SetupProps) {
   baseSetup({
-    hasEnterprisePlugins: true,
     ...opts,
   });
 }

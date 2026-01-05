@@ -7,7 +7,7 @@ ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
 
 # dependencies
 # Explicitly upgrade sqlite-libs and libexpat to fix CVEs
-RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && \
+RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk font-noto-thai java-cacerts && \
     apk upgrade --no-cache sqlite-libs libexpat && \
     apk upgrade && \
     rm -rf /var/cache/apk/* && \

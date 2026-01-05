@@ -1,37 +1,37 @@
 import { Fragment, useMemo } from "react";
 import { c } from "ttag";
 
+import Link from "metabase/common/components/Link";
 import { SidesheetCardSection } from "metabase/common/components/Sidesheet";
-import Link from "metabase/core/components/Link";
+import { getIcon } from "metabase/lib/icon";
 import { useSelector } from "metabase/lib/redux";
-import { getQuestionWithParameters } from "metabase/query_builder/selectors";
+import { getQuestionWithoutComposing } from "metabase/query_builder/selectors";
 import { Flex, FixedSizeIcon as Icon } from "metabase/ui";
 
 import { getDataSourceParts } from "../../../ViewHeader/components/QuestionDataSource/utils";
 
 import type { QuestionSource } from "./types";
-import { getIconPropsForSource } from "./utils";
 
 export const QuestionSources = () => {
   /** Retrieve current question from the Redux store */
-  const questionWithParameters = useSelector(getQuestionWithParameters);
+  const underlyingQuestion = useSelector(getQuestionWithoutComposing);
 
   const sourcesWithIcons: QuestionSource[] = useMemo(() => {
-    const sources = questionWithParameters
+    const sources = underlyingQuestion
       ? (getDataSourceParts({
-          question: questionWithParameters,
+          question: underlyingQuestion,
           subHead: false,
           isObjectDetail: true,
           formatTableAsComponent: false,
-        }) as QuestionSource[])
+        }) as QuestionSource[]) // note: this type cast is horrendous
       : [];
-    return sources.map(source => ({
+    return sources.map((source) => ({
       ...source,
-      iconProps: getIconPropsForSource(source),
+      iconProps: getIcon({ model: source.model ?? "card" }),
     }));
-  }, [questionWithParameters]);
+  }, [underlyingQuestion]);
 
-  if (!questionWithParameters || !sourcesWithIcons.length) {
+  if (!underlyingQuestion || !sourcesWithIcons.length) {
     return null;
   }
 

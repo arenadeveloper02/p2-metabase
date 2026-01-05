@@ -1,13 +1,12 @@
 import { useCallback, useMemo } from "react";
 import { t } from "ttag";
-import _ from "underscore";
 import * as Yup from "yup";
 
 import { useCreateDashboardMutation } from "metabase/api";
 import FormCollectionPicker from "metabase/collections/containers/FormCollectionPicker/FormCollectionPicker";
 import type { FilterItemsInPersonalCollection } from "metabase/common/components/EntityPicker";
-import { FormFooter } from "metabase/core/components/FormFooter";
-import Collections from "metabase/entities/collections";
+import { FormFooter } from "metabase/common/components/FormFooter";
+import { Collections } from "metabase/entities/collections";
 import {
   Form,
   FormErrorMessage,
@@ -21,12 +20,15 @@ import { useSelector } from "metabase/lib/redux";
 import { Button, Stack } from "metabase/ui";
 import type { CollectionId, Dashboard } from "metabase-types/api";
 
-import { DASHBOARD_DESCRIPTION_MAX_LENGTH } from "../constants";
+import {
+  DASHBOARD_DESCRIPTION_MAX_LENGTH,
+  DASHBOARD_NAME_MAX_LENGTH,
+} from "../constants";
 
 const DASHBOARD_SCHEMA = Yup.object({
   name: Yup.string()
     .required(Errors.required)
-    .max(100, Errors.maxLength)
+    .max(DASHBOARD_NAME_MAX_LENGTH, Errors.maxLength)
     .default(""),
   description: Yup.string()
     .nullable()
@@ -36,8 +38,19 @@ const DASHBOARD_SCHEMA = Yup.object({
 });
 
 export interface CreateDashboardProperties {
+  /**
+   * Dashboard title
+   */
   name: string;
+
+  /**
+   * Dashboard description
+   */
   description: string | null;
+
+  /**
+   * @internal
+   */
   collection_id: CollectionId;
 }
 
@@ -56,7 +69,7 @@ export function CreateDashboardForm({
   filterPersonalCollections,
   collectionId,
 }: CreateDashboardFormOwnProps) {
-  const initialCollectionId = useSelector(state =>
+  const initialCollectionId = useSelector((state) =>
     Collections.selectors.getInitialCollectionId(state, { collectionId }),
   );
 
@@ -72,7 +85,7 @@ export function CreateDashboardForm({
 
   const handleCreate = useCallback(
     async (values: CreateDashboardProperties) => {
-      const { data: dashboard } = await handleCreateDashboard(values);
+      const dashboard = await handleCreateDashboard(values).unwrap();
       if (dashboard) {
         onCreate?.(dashboard);
       }
@@ -88,9 +101,9 @@ export function CreateDashboardForm({
       onSubmit={handleCreate}
     >
       {() => (
-        <Form as={Stack} spacing={0}>
+        <Form as={Stack} gap={0}>
           <FormTextInput
-            labelProps={{ mb: "xs", fw: 800 }}
+            labelProps={{ mb: "xs" }}
             name="name"
             label={t`Name`}
             placeholder={t`What is the name of your dashboard?`}
@@ -98,7 +111,7 @@ export function CreateDashboardForm({
             mt="md"
           />
           <FormTextarea
-            labelProps={{ mb: "xs", fw: 800 }}
+            labelProps={{ mb: "xs" }}
             name="description"
             label={t`Description`}
             placeholder={t`It's optional but oh, so helpful`}
@@ -112,6 +125,7 @@ export function CreateDashboardForm({
             name="collection_id"
             title={t`Which collection should this go in?`}
             filterPersonalCollections={filterPersonalCollections}
+            entityType="dashboard"
           />
           <FormFooter>
             <FormErrorMessage inline />

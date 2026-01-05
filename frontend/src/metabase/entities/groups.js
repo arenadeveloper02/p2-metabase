@@ -1,10 +1,6 @@
 import { assocIn } from "icepick";
 
-import {
-  CLEAR_MEMBERSHIPS,
-  CREATE_MEMBERSHIP,
-  DELETE_MEMBERSHIP,
-} from "metabase/admin/people/events";
+import { CLEAR_MEMBERSHIPS } from "metabase/admin/people/events";
 import {
   permissionApi,
   useGetPermissionsGroupQuery,
@@ -15,7 +11,7 @@ import { createEntity, entityCompatibleQuery } from "metabase/lib/entities";
 /**
  * @deprecated use "metabase/api" instead
  */
-const Groups = createEntity({
+export const Groups = createEntity({
   name: "groups",
   path: "/api/permissions/group",
 
@@ -61,8 +57,8 @@ const Groups = createEntity({
 
   actions: {
     clearMember:
-      async ({ id }) =>
-      async dispatch => {
+      ({ id }) =>
+      async (dispatch) => {
         await dispatch(
           entityCompatibleQuery(
             id,
@@ -75,31 +71,6 @@ const Groups = createEntity({
   },
 
   reducer: (state = {}, { type, payload, error }) => {
-    if (type === CREATE_MEMBERSHIP && !error) {
-      const { membership, group_id } = payload;
-      const members = state[group_id]?.members;
-      if (members) {
-        const updatedMembers = [...members, membership];
-        return assocIn(state, [group_id, "members"], updatedMembers);
-      } else {
-        return state;
-      }
-    }
-
-    if (type === DELETE_MEMBERSHIP && !error) {
-      const { membershipId, groupId } = payload;
-      const members = state[groupId]?.members;
-      if (members) {
-        return assocIn(
-          state,
-          [groupId, "members"],
-          members.filter(m => m.membership_id !== membershipId),
-        );
-      } else {
-        return state;
-      }
-    }
-
     if (type === CLEAR_MEMBERSHIPS && !error) {
       const { groupId } = payload;
       return assocIn(state, [groupId, "members"], []);
@@ -112,5 +83,3 @@ const Groups = createEntity({
 const useGetQuery = ({ id }) => {
   return useGetPermissionsGroupQuery(id);
 };
-
-export default Groups;

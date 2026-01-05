@@ -1,5 +1,10 @@
 import _ from "underscore";
 
+import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
+import {
+  convertLinkColumnToClickBehavior,
+  removeInternalClickBehaviors,
+} from "metabase/embedding-sdk/lib/links";
 import { ChartSettingColorPicker } from "metabase/visualizations/components/settings/ChartSettingColorPicker";
 import ChartSettingColorsPicker from "metabase/visualizations/components/settings/ChartSettingColorsPicker";
 import { ChartSettingFieldPicker } from "metabase/visualizations/components/settings/ChartSettingFieldPicker";
@@ -45,6 +50,14 @@ export function getComputedSettings(
       extra,
     );
   }
+
+  if (isEmbeddingSdk()) {
+    return _.compose(
+      removeInternalClickBehaviors,
+      convertLinkColumnToClickBehavior,
+    )(computedSettings);
+  }
+
   return computedSettings;
 }
 
@@ -185,7 +198,7 @@ export function getSettingsWidgets(
   extra = {},
 ) {
   return Object.keys(settingDefs)
-    .map(settingId =>
+    .map((settingId) =>
       getSettingWidget(
         settingDefs,
         settingId,
@@ -196,7 +209,7 @@ export function getSettingsWidgets(
         extra,
       ),
     )
-    .filter(widget => widget.widget);
+    .filter((widget) => widget.widget);
 }
 
 export function getPersistableDefaultSettings(settingsDefs, completeSettings) {

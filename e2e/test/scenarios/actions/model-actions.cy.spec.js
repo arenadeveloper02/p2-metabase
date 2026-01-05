@@ -89,7 +89,7 @@ describe(
     });
 
     it("should allow CRUD operations on model actions", () => {
-      cy.get("@modelId").then(id => {
+      cy.get("@modelId").then((id) => {
         cy.visit(`/model/${id}/detail`);
         cy.wait("@getModel");
       });
@@ -155,42 +155,12 @@ describe(
       });
     });
 
-    it("should allow to create an action with the New button", () => {
-      const QUERY = "UPDATE orders SET discount = {{ discount }}";
-      cy.visit("/");
-
-      cy.findByTestId("app-bar").findByText("New").click();
-      H.popover().findByText("Action").click();
-
-      cy.wait("@getDatabase");
-      H.fillActionQuery(QUERY);
-
-      cy.findByRole("dialog").within(() => {
-        cy.findByText(/New Action/)
-          .clear()
-          .type("Discount order");
-
-        cy.findByRole("button", { name: "Save" }).click();
-      });
-
-      H.modal().eq(1).findByText("Select a model").click();
-      H.entityPickerModal().within(() => {
-        cy.findByText("Order").click();
-      });
-
-      cy.findByRole("button", { name: "Create" }).click();
-
-      cy.get("@modelId").then(modelId => {
-        cy.url().should("include", `/model/${modelId}/detail/actions`);
-      });
-    });
-
     it("should respect permissions", () => {
       // Enabling actions for sample database as well
       // to test database picker behavior in the action editor
       H.setActionsEnabledForDB(SAMPLE_DB_ID);
 
-      H.setTokenFeatures("all");
+      H.activateToken("pro-self-hosted");
       cy.updatePermissionsGraph({
         [USER_GROUPS.ALL_USERS_GROUP]: {
           [WRITABLE_DB_ID]: {
@@ -206,7 +176,7 @@ describe(
         },
       });
 
-      cy.get("@modelId").then(modelId => {
+      cy.get("@modelId").then((modelId) => {
         cy.request("POST", "/api/action", {
           ...SAMPLE_QUERY_ACTION,
           model_id: modelId,
@@ -266,8 +236,7 @@ describe(
 
     it("should display parameters for variable template tags only", () => {
       cy.visit("/");
-      cy.findByTestId("app-bar").findByText("New").click();
-      H.popover().findByText("Action").click();
+      H.startNewAction();
 
       H.fillActionQuery("{{#1-orders-model}}");
       cy.findByLabelText("#1-orders-model").should("not.exist");
@@ -285,7 +254,7 @@ describe(
     it("should show detailed form errors for constraint violations when executing model actions", () => {
       const actionName = "Update";
 
-      cy.get("@modelId").then(modelId => {
+      cy.get("@modelId").then((modelId) => {
         H.createImplicitActions({ modelId });
 
         cy.visit(`/model/${modelId}/detail`);
@@ -301,9 +270,9 @@ describe(
         cy.wait("@executeAction");
 
         cy.findByLabelText("User ID").should("not.exist");
-        cy.findByLabelText("User ID: This User_id does not exist.").should(
-          "exist",
-        );
+        cy.findByLabelText(
+          'User ID: This value does not exist in table "people".',
+        ).should("exist");
 
         cy.findByText("Unable to update the record.").should("exist");
       });
@@ -311,7 +280,7 @@ describe(
   },
 );
 
-["postgres", "mysql"].forEach(dialect => {
+["postgres", "mysql"].forEach((dialect) => {
   describe(
     `Write actions on model detail page (${dialect})`,
     { tags: "@external" },
@@ -347,12 +316,12 @@ describe(
         H.queryWritableDB(
           `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 1`,
           dialect,
-        ).then(result => {
+        ).then((result) => {
           const row = result.rows[0];
           expect(row.score).to.equal(0);
         });
 
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           H.createAction({
             ...SAMPLE_WRITABLE_QUERY_ACTION,
             model_id: modelId,
@@ -375,7 +344,7 @@ describe(
         H.queryWritableDB(
           `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 1`,
           dialect,
-        ).then(result => {
+        ).then((result) => {
           const row = result.rows[0];
 
           expect(row.score).to.equal(22);
@@ -385,7 +354,7 @@ describe(
       it("should allow public sharing of actions and execution of public actions", () => {
         const IMPLICIT_ACTION_NAME = "Update";
 
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           H.createAction({
             ...SAMPLE_WRITABLE_QUERY_ACTION,
             model_id: modelId,
@@ -409,7 +378,7 @@ describe(
 
         cy.signOut();
 
-        cy.get("@queryActionPublicUrl").then(url => {
+        cy.get("@queryActionPublicUrl").then((url) => {
           cy.visit(url);
           cy.findByLabelText(TEST_PARAMETER.name).type("1");
           cy.button(SAMPLE_QUERY_ACTION.name).click();
@@ -422,14 +391,14 @@ describe(
           H.queryWritableDB(
             `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 1`,
             dialect,
-          ).then(result => {
+          ).then((result) => {
             const row = result.rows[0];
 
             expect(row.score).to.equal(22);
           });
         });
 
-        cy.get("@implicitActionPublicUrl").then(url => {
+        cy.get("@implicitActionPublicUrl").then((url) => {
           cy.visit(url);
 
           // team 2 has 10 points, let's give them more
@@ -447,7 +416,7 @@ describe(
           H.queryWritableDB(
             `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 2`,
             dialect,
-          ).then(result => {
+          ).then((result) => {
             const row = result.rows[0];
 
             expect(row.score).to.equal(16);
@@ -458,7 +427,7 @@ describe(
         });
 
         cy.signInAsAdmin();
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           cy.visit(`/model/${modelId}/detail/actions`);
           cy.wait("@getModel");
         });
@@ -468,14 +437,14 @@ describe(
 
         cy.signOut();
 
-        cy.get("@queryActionPublicUrl").then(url => {
+        cy.get("@queryActionPublicUrl").then((url) => {
           cy.visit(url);
           cy.findByRole("form").should("not.exist");
           cy.button(SAMPLE_QUERY_ACTION.name).should("not.exist");
           cy.findByText("Not found").should("be.visible");
         });
 
-        cy.get("@implicitActionPublicUrl").then(url => {
+        cy.get("@implicitActionPublicUrl").then((url) => {
           cy.visit(url);
           cy.findByRole("form").should("not.exist");
           cy.button(SAMPLE_QUERY_ACTION.name).should("not.exist");
@@ -486,7 +455,7 @@ describe(
       it("should allow query action execution from the model details page", () => {
         verifyScoreValue(0, dialect);
 
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           H.createAction({
             ...SAMPLE_WRITABLE_QUERY_ACTION,
             model_id: modelId,
@@ -580,7 +549,7 @@ describe(
       });
 
       it("should allow implicit action execution from the model details page", () => {
-        cy.get("@writableModelId").then(id => {
+        cy.get("@writableModelId").then((id) => {
           cy.visit(`/model/${id}/detail`);
           cy.wait("@getModel");
         });
@@ -622,7 +591,7 @@ describe(
         H.queryWritableDB(
           `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE team_name = 'Zebras'`,
           dialect,
-        ).then(result => {
+        ).then((result) => {
           expect(result.rows.length).to.equal(1);
 
           const row = result.rows[0];
@@ -632,7 +601,7 @@ describe(
       });
 
       it("should allow public sharing of query action and execution", () => {
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           H.createAction({
             ...SAMPLE_WRITABLE_QUERY_ACTION,
             model_id: modelId,
@@ -667,7 +636,7 @@ describe(
 
         cy.signOut();
 
-        cy.get("@queryActionPublicUrl").then(url => {
+        cy.get("@queryActionPublicUrl").then((url) => {
           cy.visit(url);
           cy.findByLabelText(TEST_PARAMETER.name).type("1");
           cy.findByLabelText("New Status").should("not.exist");
@@ -681,7 +650,7 @@ describe(
           H.queryWritableDB(
             `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 1`,
             dialect,
-          ).then(result => {
+          ).then((result) => {
             const row = result.rows[0];
 
             expect(row.score).to.equal(22);
@@ -690,7 +659,7 @@ describe(
       });
 
       it("should allow public sharing of implicit action and execution", () => {
-        cy.get("@writableModelId").then(id => {
+        cy.get("@writableModelId").then((id) => {
           cy.visit(`/model/${id}/detail`);
           cy.wait("@getModel");
         });
@@ -714,7 +683,7 @@ describe(
 
         cy.signOut();
 
-        cy.get("@updatePublicURL").then(url => {
+        cy.get("@updatePublicURL").then((url) => {
           cy.visit(url);
 
           // team 2 has 10 points, let's give them more
@@ -730,7 +699,7 @@ describe(
           H.queryWritableDB(
             `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 2`,
             dialect,
-          ).then(result => {
+          ).then((result) => {
             const row = result.rows[0];
 
             expect(row.score).to.equal(16);
@@ -746,7 +715,7 @@ describe(
           role,
           `GRANT SELECT ON ${WRITABLE_TEST_TABLE} TO ${role};`,
         );
-        H.setTokenFeatures("all");
+        H.activateToken("pro-self-hosted");
         H.queryWritableDB(sql);
 
         cy.request("PUT", `/api/user/${IMPERSONATED_USER_ID}`, {
@@ -782,12 +751,12 @@ describe(
          FROM ${WRITABLE_TEST_TABLE}
          WHERE id = 1`,
           dialect,
-        ).then(result => {
+        ).then((result) => {
           const row = result.rows[0];
           expect(row.score).to.equal(0);
         });
 
-        cy.get("@writableModelId").then(modelId => {
+        cy.get("@writableModelId").then((modelId) => {
           H.createAction({
             ...SAMPLE_WRITABLE_QUERY_ACTION,
             model_id: modelId,
@@ -813,7 +782,7 @@ describe(
          FROM ${WRITABLE_TEST_TABLE}
          WHERE id = 1`,
           dialect,
-        ).then(result => {
+        ).then((result) => {
           const row = result.rows[0];
           expect(row.score).to.equal(0);
         });
@@ -843,9 +812,11 @@ function openActionEditorFor(actionName, { isReadOnly = false } = {}) {
 }
 
 function assertQueryEditorDisabled() {
-  // Ace doesn't act as a normal input, so we can't use `should("be.disabled")`
-  // Instead we'd assert that a user can't type in the editor
-  H.fillActionQuery("QWERTY");
+  H.NativeEditor.get().click();
+  H.NativeEditor.get().should("not.be.focused");
+  H.NativeEditor.get().should("have.attr", "contenteditable", "false");
+
+  H.NativeEditor.type("QWERTY", { focus: false });
   cy.findByText("QWERTY").should("not.exist");
 }
 
@@ -858,7 +829,7 @@ function enableSharingFor(actionName, { publicUrlAlias }) {
     cy.wait("@enableActionSharing");
     cy.findByLabelText("Public action form URL")
       .invoke("val")
-      .then(url => {
+      .then((url) => {
         cy.wrap(url).as(publicUrlAlias);
       });
     cy.button("Cancel").click();
@@ -898,7 +869,7 @@ function verifyScoreValue(value, dialect) {
   H.queryWritableDB(
     `SELECT * FROM ${WRITABLE_TEST_TABLE} WHERE id = 1`,
     dialect,
-  ).then(result => {
+  ).then((result) => {
     const row = result.rows[0];
 
     expect(row.score).to.equal(value);

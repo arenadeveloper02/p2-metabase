@@ -2,13 +2,13 @@ import { useCallback, useMemo } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
-import Button from "metabase/core/components/Button";
-import Link from "metabase/core/components/Link";
-import Actions from "metabase/entities/actions";
-import Databases from "metabase/entities/databases";
-import { useConfirmation } from "metabase/hooks/use-confirmation";
+import Button from "metabase/common/components/Button";
+import Link from "metabase/common/components/Link";
+import { useConfirmation } from "metabase/common/hooks/use-confirmation";
+import { Actions } from "metabase/entities/actions";
+import { Databases } from "metabase/entities/databases";
 import { connect } from "metabase/lib/redux";
-import { parseTimestamp } from "metabase/lib/time";
+import { parseTimestamp } from "metabase/lib/time-dayjs";
 import * as Urls from "metabase/lib/urls";
 import type Question from "metabase-lib/v1/Question";
 import {
@@ -92,7 +92,7 @@ function ModelActionDetails({
   );
 
   const implicitActions = useMemo(
-    () => actions.filter(action => action.type === "implicit"),
+    () => actions.filter((action) => action.type === "implicit"),
     [actions],
   );
 
@@ -102,7 +102,7 @@ function ModelActionDetails({
       message: t`Disabling basic actions will also remove any buttons that use these actions. Are you sure you want to continue?`,
       confirmButtonText: t`Disable`,
       onConfirm: () => {
-        implicitActions.forEach(action => {
+        implicitActions.forEach((action) => {
           onDeleteAction(action);
         });
       },

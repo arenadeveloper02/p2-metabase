@@ -3,16 +3,23 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import { skipToken, useListRecentsQuery } from "metabase/api";
+import ExternalLink from "metabase/common/components/ExternalLink";
+import { ForwardRefLink } from "metabase/common/components/Link";
+import { DelayedLoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
 import { useDocsUrl } from "metabase/common/hooks";
 import { useFetchModels } from "metabase/common/hooks/use-fetch-models";
-import { DelayedLoadingAndErrorWrapper } from "metabase/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
-import ExternalLink from "metabase/core/components/ExternalLink";
 import { useSelector } from "metabase/lib/redux";
 import {
   PLUGIN_COLLECTIONS,
   PLUGIN_CONTENT_VERIFICATION,
 } from "metabase/plugins";
+import { getIsEmbeddingIframe } from "metabase/selectors/embed";
 import {
+  canUserCreateNativeQueries,
+  canUserCreateQueries,
+} from "metabase/selectors/user";
+import {
+  ActionIcon,
   Box,
   Button,
   Flex,
@@ -21,6 +28,7 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "metabase/ui";
 
 import {
@@ -34,6 +42,7 @@ import { ModelsVideo } from "./EmptyStates";
 import { ModelExplanationBanner } from "./ModelExplanationBanner";
 import { ModelsTable } from "./ModelsTable";
 import { RecentModels } from "./RecentModels";
+import { trackNewModelInitiated } from "./analytics";
 import type { ModelFilterSettings, ModelResult } from "./types";
 import { getMaxRecentModelCount, isRecentModel } from "./utils";
 
@@ -53,6 +62,13 @@ export const BrowseModels = () => {
   const isEmpty = !isLoading && !error && models.length === 0;
   const titleId = useMemo(() => _.uniqueId("browse-models"), []);
 
+  const hasDataAccess = useSelector(canUserCreateQueries);
+  const hasNativeWrite = useSelector(canUserCreateNativeQueries);
+  const isEmbeddingIframe = useSelector(getIsEmbeddingIframe);
+
+  const canCreateNewModel =
+    !isEmbeddingIframe && hasDataAccess && hasNativeWrite;
+
   return (
     <BrowseContainer aria-labelledby={titleId}>
       <BrowseHeader role="heading" data-testid="browse-models-header">
@@ -64,8 +80,8 @@ export const BrowseModels = () => {
             justify="space-between"
             align="center"
           >
-            <Title order={1} color="text-dark" id={titleId}>
-              <Group spacing="sm">
+            <Title order={2} c="text-dark" id={titleId}>
+              <Group gap="sm">
                 <Icon
                   size={24}
                   color="var(--mb-color-icon-primary)"
@@ -74,29 +90,47 @@ export const BrowseModels = () => {
                 {t`Models`}
               </Group>
             </Title>
-            {hasVerifiedModels && (
-              <ModelFilterControls
-                modelFilters={modelFilters}
-                setModelFilters={setModelFilters}
-              />
-            )}
+            <Group gap="xs">
+              {canCreateNewModel && (
+                <Tooltip label={t`Create a new model`} position="bottom">
+                  <ActionIcon
+                    aria-label={t`Create a new model`}
+                    size={32}
+                    variant="viewHeader"
+                    component={ForwardRefLink}
+                    to="/model/new"
+                    onClick={() => trackNewModelInitiated()}
+                  >
+                    <Icon name="add" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+              {hasVerifiedModels && (
+                <ModelFilterControls
+                  modelFilters={modelFilters}
+                  setModelFilters={setModelFilters}
+                />
+              )}
+            </Group>
           </Flex>
         </BrowseSection>
       </BrowseHeader>
       <BrowseMain>
         <BrowseSection>
-          <Stack mb="lg" spacing="md" w="100%">
+          <Stack mb="lg" gap="md" w="100%">
             {isEmpty ? (
-              <Stack spacing="lg" align="center" data-testid="empty-state">
-                <Box maw="45rem" w="100%">
-                  <ModelsVideo autoplay={0} />
-                </Box>
-                <Stack spacing="xs" maw="28rem">
+              <Stack gap="lg" align="center" data-testid="empty-state">
+                {showMetabaseLinks && (
+                  <Box maw="45rem" w="100%">
+                    <ModelsVideo autoplay={0} />
+                  </Box>
+                )}
+                <Stack gap="xs" maw="28rem">
                   <Title
-                    order={2}
-                    align="center"
+                    order={3}
+                    ta="center"
                   >{t`Create models to clean up and combine tables to make your data easier to explore`}</Title>
-                  <Text align="center">{t`Models are somewhat like virtual tables: do all your joins and custom columns once, save it as a model, then query it like a table.`}</Text>
+                  <Text ta="center">{t`Models are somewhat like virtual tables: do all your joins and custom columns once, save it as a model, then query it like a table.`}</Text>
                 </Stack>
                 {showMetabaseLinks && (
                   <Button variant="subtle" p={0}>
@@ -209,7 +243,7 @@ function useFilteredModels(modelFilters: ModelFilterSettings) {
     recentModels: (recentModelsResult.data ?? [])
       .filter(isRecentModel)
       .filter(
-        model => !filters.verified || model.moderated_status === "verified",
+        (model) => !filters.verified || model.moderated_status === "verified",
       )
       .slice(0, recentsCap),
   };

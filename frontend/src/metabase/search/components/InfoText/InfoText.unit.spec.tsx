@@ -1,5 +1,4 @@
-import { waitFor } from "@testing-library/react";
-import moment from "moment"; // eslint-disable-line no-restricted-imports -- deprecated usage
+import dayjs from "dayjs";
 
 import {
   setupCollectionByIdEndpoint,
@@ -8,9 +7,8 @@ import {
   setupUserRecipientsEndpoint,
   setupUsersEndpoints,
 } from "__support__/server-mocks";
-import { renderWithProviders, screen } from "__support__/ui";
+import { renderWithProviders, screen, waitFor } from "__support__/ui";
 import type { WrappedResult } from "metabase/search/types";
-import type { IconName } from "metabase/ui";
 import type { SearchModel, SearchResult } from "metabase-types/api";
 import {
   createMockCollection,
@@ -38,7 +36,7 @@ const MOCK_OTHER_USER = createMockUser({
 
 const CREATED_AT_TIME = "2022-01-01T00:00:00.000Z";
 const LAST_EDITED_TIME = "2023-01-01T00:00:00.000Z";
-const formatDuration = (timestamp: string) => moment(timestamp).fromNow();
+const formatDuration = (timestamp: string) => dayjs(timestamp).fromNow();
 
 const CREATED_AT_DURATION = formatDuration(CREATED_AT_TIME);
 const LAST_EDITED_DURATION = formatDuration(LAST_EDITED_TIME);
@@ -81,19 +79,10 @@ async function setup({
 
   const result = createSearchResult({ model, ...resultProps });
 
-  const getUrl = jest.fn(() => "a/b/c");
-  const getIcon = jest.fn(() => ({
-    name: "eye" as IconName,
-    size: 14,
-    width: 14,
-    height: 14,
-  }));
   const getCollection = jest.fn(() => result.collection);
 
   const wrappedResult: WrappedResult = {
     ...result,
-    getUrl,
-    getIcon,
     getCollection,
   };
 
@@ -111,8 +100,6 @@ async function setup({
   await waitForLoadingTextToBeRemoved();
 
   return {
-    getUrl,
-    getIcon,
     getCollection,
   };
 }
@@ -174,9 +161,25 @@ describe("InfoText", () => {
       );
     });
 
-    it("shows table's schema", async () => {
+    it("shows table's collection when the table is in a collection", async () => {
       await setup({
         model: "table",
+      });
+
+      const collectionLink = screen.getByText("Collection Name");
+      expect(collectionLink).toBeInTheDocument();
+      expect(collectionLink).toHaveAttribute(
+        "href",
+        `/collection/${MOCK_COLLECTION.id}-collection-name`,
+      );
+    });
+
+    it("shows table's schema when the table is not in a collection", async () => {
+      await setup({
+        model: "table",
+        resultProps: {
+          collection: createMockCollection({ id: undefined, name: undefined }),
+        },
       });
 
       const databaseLink = screen.getByText("Database Name");

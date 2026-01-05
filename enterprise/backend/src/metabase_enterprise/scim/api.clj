@@ -2,33 +2,13 @@
   "/api/ee/scim/ endpoints"
   (:require
    [metabase-enterprise.serialization.v2.backfill-ids :as serdes.backfill]
+   [metabase.api-keys.core :as api-key]
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
-   [metabase.models.api-key :as api-key]
-   [metabase.models.setting :refer [defsetting]]
-   [metabase.public-settings :as public-settings]
-   [metabase.util.i18n :refer [deferred-tru]]
    [metabase.util.secret :as u.secret]
    [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
-
-(defsetting scim-enabled
-  (deferred-tru "Is SCIM currently enabled?")
-  :visibility :admin
-  :type       :boolean
-  :audit      :getter
-  :export?    false)
-
-(defsetting scim-base-url
-  (deferred-tru "Base URL for SCIM endpoints")
-  :visibility :admin
-  :type       :string
-  :setter     :none
-  :audit      :never
-  :export?    false
-  :getter     (fn []
-                (str (public-settings/site-url) "/api/ee/scim/v2")))
 
 (defn- scim-api-key-name
   []
@@ -49,14 +29,21 @@
     (t2/delete! :model/ApiKey :scope :scim)
     (let [unhashed-key (api-key/generate-key)]
       (->
-       (t2/insert-returning-instance! :model/ApiKey {:user_id       nil
-                                                     :scope         :scim
-                                                     :name          (scim-api-key-name)
-                                                     :unhashed_key  unhashed-key
-                                                     :creator_id    user-id
-                                                     :updated_by_id user-id})
+       (t2/insert-returning-instance! :model/ApiKey {:user_id               nil
+                                                     :scope                 :scim
+                                                     :name                  (scim-api-key-name)
+                                                     ::api-key/unhashed-key unhashed-key
+                                                     :creator_id            user-id
+                                                     :updated_by_id         user-id})
        (assoc :unmasked_key (u.secret/expose unhashed-key))))))
 
+;; TODO (Cam 10/28/25) -- fix this endpoint route to use kebab-case for consistency with the rest of our REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-route-uses-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :get "/api_key"
   "Fetch the SCIM API key if one exists. Does *not* return an unmasked key, since we don't have access
   to that after it is created."
@@ -64,6 +51,13 @@
   (api/check-superuser)
   (api/check-404 (t2/select-one :model/ApiKey :scope :scim)))
 
+;; TODO (Cam 10/28/25) -- fix this endpoint route to use kebab-case for consistency with the rest of our REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-route-uses-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/api_key"
   "Create a new SCIM API key, or refresh one that already exists. When called for the first time,
   this is equivalent to enabling SCIM."

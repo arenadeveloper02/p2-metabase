@@ -2,8 +2,10 @@ const { H } = cy;
 import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
+  ADMIN_PERSONAL_COLLECTION_ID,
   ADMIN_USER_ID,
   FIRST_COLLECTION_ID,
+  NORMAL_PERSONAL_COLLECTION_ID,
   NORMAL_USER_ID,
   ORDERS_COUNT_QUESTION_ID,
 } from "e2e/support/cypress_sample_instance_data";
@@ -69,12 +71,12 @@ const TEST_NATIVE_QUESTION_NAME = "GithubUptimeisMagnificentlyHigh";
 const TEST_CREATED_AT_FILTERS = [
   ["Today", "thisday"],
   ["Yesterday", "past1days"],
-  ["Previous Week", "past1weeks"],
-  ["Previous 7 Days", "past7days"],
-  ["Previous 30 Days", "past30days"],
-  ["Previous Month", "past1months"],
-  ["Previous 3 Months", "past3months"],
-  ["Previous 12 Months", "past12months"],
+  ["Previous week", "past1weeks"],
+  ["Previous 7 days", "past7days"],
+  ["Previous 30 days", "past30days"],
+  ["Previous month", "past1months"],
+  ["Previous 3 months", "past3months"],
+  ["Previous 12 months", "past12months"],
 ];
 
 describe("scenarios > search", () => {
@@ -133,7 +135,7 @@ describe("scenarios > search", () => {
           { wrapId: true, idAlias: "modelId" },
         );
 
-        cy.get("@modelId").then(modelId => {
+        cy.get("@modelId").then((modelId) => {
           createModelIndex({
             modelId,
             pkName: "ID",
@@ -152,7 +154,7 @@ describe("scenarios > search", () => {
           });
 
           const regex = new RegExp(`${type}$`);
-          cy.findAllByTestId("search-result-item").each(result => {
+          cy.findAllByTestId("search-result-item").each((result) => {
             cy.wrap(result)
               .should("have.attr", "aria-label")
               .and("match", regex);
@@ -177,7 +179,7 @@ describe("scenarios > search", () => {
           });
 
           const regex = new RegExp(`${type}$`);
-          cy.findAllByTestId("search-result-item").each(result => {
+          cy.findAllByTestId("search-result-item").each((result) => {
             cy.wrap(result)
               .should("have.attr", "aria-label")
               .and("match", regex);
@@ -199,9 +201,9 @@ describe("scenarios > search", () => {
 
         cy.url().should("not.contain", "type");
 
-        cy.findAllByTestId("search-result-item").then($results => {
+        cy.findAllByTestId("search-result-item").then(($results) => {
           const uniqueResults = new Set(
-            $results.toArray().map(el => {
+            $results.toArray().map((el) => {
               const label = el.getAttribute("aria-label");
               return label.split(" ").slice(-1)[0];
             }),
@@ -387,7 +389,7 @@ describe("scenarios > search", () => {
         });
       });
 
-      ["normal", "sandboxed"].forEach(userType => {
+      ["normal", "sandboxed"].forEach((userType) => {
         it(`should allow ${userType} (non-admin) user to see users and filter by created_by`, () => {
           cy.signIn(userType);
           cy.visit("/");
@@ -440,7 +442,7 @@ describe("scenarios > search", () => {
             cy.findByTestId("qb-header-action-panel")
               .findByText("Save")
               .click();
-            cy.findByTestId("save-question-modal").within(modal => {
+            cy.findByTestId("save-question-modal").within((modal) => {
               cy.findByText("Save").click();
             });
           },
@@ -456,7 +458,7 @@ describe("scenarios > search", () => {
             cy.findByTestId("qb-header-action-panel")
               .findByText("Save")
               .click();
-            cy.findByTestId("save-question-modal").within(modal => {
+            cy.findByTestId("save-question-modal").within((modal) => {
               cy.findByText("Save").click();
             });
           },
@@ -634,7 +636,7 @@ describe("scenarios > search", () => {
         });
       });
 
-      ["normal", "sandboxed"].forEach(userType => {
+      ["normal", "sandboxed"].forEach((userType) => {
         it(`should allow ${userType} (non-admin) user to see users and filter by last_edited_by`, () => {
           cy.signIn(userType);
           cy.visit("/");
@@ -772,7 +774,7 @@ describe("scenarios > search", () => {
             cy.findByTestId("qb-header-action-panel")
               .findByText("Save")
               .click();
-            cy.findByTestId("save-question-modal").within(modal => {
+            cy.findByTestId("save-question-modal").within((modal) => {
               cy.findByText("Save").click();
             });
             cy.signOut();
@@ -860,7 +862,7 @@ describe("scenarios > search", () => {
 
     describe("verified filter", () => {
       beforeEach(() => {
-        H.setTokenFeatures("all");
+        H.activateToken("pro-self-hosted");
         H.createModerationReview({
           status: "verified",
           moderated_item_type: "card",
@@ -876,7 +878,7 @@ describe("scenarios > search", () => {
           cy.findByText('Results for "orders"').should("exist");
         });
 
-        cy.findAllByTestId("search-result-item").each(result => {
+        cy.findAllByTestId("search-result-item").each((result) => {
           cy.wrap(result).within(() => {
             cy.findByLabelText("verified_filled icon").should("exist");
           });
@@ -895,7 +897,7 @@ describe("scenarios > search", () => {
 
         cy.wait("@search");
 
-        cy.findAllByTestId("search-result-item").each(result => {
+        cy.findAllByTestId("search-result-item").each((result) => {
           cy.wrap(result).within(() => {
             cy.findByLabelText("verified_filled icon").should("exist");
           });
@@ -915,7 +917,7 @@ describe("scenarios > search", () => {
         let verifiedElementCount = 0;
         let unverifiedElementCount = 0;
         cy.findAllByTestId("search-result-item")
-          .each($el => {
+          .each(($el) => {
             if (!$el.find('[aria-label="verified_filled icon"]').length) {
               unverifiedElementCount++;
             } else {
@@ -1003,6 +1005,83 @@ describe("scenarios > search", () => {
       });
     });
 
+    describe("personal collection filter", () => {
+      beforeEach(() => {
+        cy.log("Create a question in admin's personal collection");
+        H.createQuestion({
+          name: "Admin Personal Question [keyword]",
+          query: { "source-table": ORDERS_ID, limit: 1 },
+          collection_id: ADMIN_PERSONAL_COLLECTION_ID,
+        });
+
+        cy.log("Create a question in normal user's personal collection");
+        cy.signInAsNormalUser();
+        H.createQuestion({
+          name: "Normal User Personal Question [keyword]",
+          query: { "source-table": ORDERS_ID, limit: 1 },
+          collection_id: NORMAL_PERSONAL_COLLECTION_ID,
+        });
+        cy.signInAsAdmin();
+      });
+
+      it("should hydrate personal collection filter", () => {
+        cy.visit("/search?q=keyword&filter_items_in_personal_collection=all");
+        cy.wait("@search");
+
+        cy.findByTestId("filter_items_in_personal_collection-search-filter")
+          .findByRole("switch")
+          .should("be.checked");
+
+        expectSearchResultItemNameContent({
+          itemNames: [
+            "Admin Personal Question [keyword]",
+            "Normal User Personal Question [keyword]",
+          ],
+        });
+      });
+
+      it("should not be exposed to non-admins", () => {
+        cy.signInAsNormalUser();
+        cy.visit("/search?q=keyword&filter_items_in_personal_collection=all");
+        cy.wait("@search");
+        expectSearchResultItemNameContent({
+          itemNames: ["Normal User Personal Question [keyword]"],
+        });
+        cy.findByTestId(
+          "filter_items_in_personal_collection-search-filter",
+        ).should("not.exist");
+      });
+
+      it("should include other users' personal collection items when filter is turned on", () => {
+        cy.visit("/search?q=keyword");
+        cy.wait("@search");
+
+        cy.log("Should only see own personal items when filter is off");
+        expectSearchResultItemNameContent({
+          itemNames: ["Admin Personal Question [keyword]"],
+        });
+
+        cy.log("Turn on personal collection filter");
+        cy.findByTestId("filter_items_in_personal_collection-search-filter")
+          .findByRole("switch")
+          .should("not.be.checked");
+        cy.findByTestId("filter_items_in_personal_collection-search-filter")
+          .click()
+          .findByRole("switch")
+          .should("be.checked");
+
+        cy.url().should("contain", "filter_items_in_personal_collection=all");
+
+        cy.log("Should see own and other users' items when filter is on");
+        expectSearchResultItemNameContent({
+          itemNames: [
+            "Admin Personal Question [keyword]",
+            "Normal User Personal Question [keyword]",
+          ],
+        });
+      });
+    });
+
     describe("trashed items filter", () => {
       it("should only show items in the trash", () => {
         cy.visit("/search?q=First");
@@ -1075,10 +1154,10 @@ function expectSearchResultItemNameContent(
   { itemNames },
   { strict } = { strict: true },
 ) {
-  cy.findAllByTestId("search-result-item-name").then($searchResultLabel => {
+  cy.findAllByTestId("search-result-item-name").then(($searchResultLabel) => {
     const searchResultLabelList = $searchResultLabel
       .toArray()
-      .map(el => el.textContent);
+      .map((el) => el.textContent);
 
     if (strict) {
       expect(searchResultLabelList).to.have.length(itemNames.length);

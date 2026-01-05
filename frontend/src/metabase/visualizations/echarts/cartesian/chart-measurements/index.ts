@@ -17,9 +17,12 @@ import type {
   Padding,
   RenderingContext,
 } from "metabase/visualizations/types";
-import { isCategory, isDate, isNumeric } from "metabase-lib/v1/types/utils/isa";
 
-import { isNumericAxis, isTimeSeriesAxis } from "../model/guards";
+import {
+  isCategoryAxis,
+  isNumericAxis,
+  isTimeSeriesAxis,
+} from "../model/guards";
 
 import type {
   ChartBoundsCoords,
@@ -54,8 +57,6 @@ const getEvenlySpacedIndices = (
   return Array.from(result);
 };
 
-const roundToHundredth = (value: number) => Math.ceil(value * 100) / 100;
-
 const getValuesToMeasure = (min: number, max: number): number[] => {
   if (min === max) {
     return [min];
@@ -89,7 +90,7 @@ const getYAxisTicksWidth = (
   };
 
   // extents need to be untransformed to get the value of the tick label
-  const [min, max] = axisModel.extent.map(extent =>
+  const [min, max] = axisModel.extent.map((extent) =>
     yAxisScaleTransforms.fromEChartsAxisValue(extent),
   );
 
@@ -121,17 +122,16 @@ const getYAxisTicksWidth = (
   // Note: This may not accurately reflect ECharts' internal logic for tick
   // formatting.
   const areDecimalTicksExpected = axisModel.extent.every(
-    value => value > -5 && value < 5,
+    (value) => value > -5 && value < 5,
   );
 
-  const measuredValues = valuesToMeasure.map(rawValue => {
+  const measuredValues = valuesToMeasure.map((rawValue) => {
     const isPercent =
       settings.column?.(axisModel.column).number_style === "percent";
 
     let value = rawValue;
-    if (isPercent) {
-      value = roundToHundredth(rawValue);
-    } else if (!areDecimalTicksExpected) {
+
+    if (!isPercent && !areDecimalTicksExpected) {
       value = Math.round(rawValue);
     }
 
@@ -166,7 +166,7 @@ const getXAxisTicksWidth = (
     family: fontFamily,
   };
 
-  const valuesToMeasure = [0, dataset.length - 1].map(index => {
+  const valuesToMeasure = [0, dataset.length - 1].map((index) => {
     if (isNumericAxis(axisModel)) {
       // extents need to be untransformed to get the value of the tick label
       return axisModel.fromEChartsAxisValue(
@@ -176,7 +176,7 @@ const getXAxisTicksWidth = (
     return dataset[index][X_AXIS_DATA_KEY];
   });
 
-  const [firstXTickWidth, lastXTickWidth] = valuesToMeasure.map(value =>
+  const [firstXTickWidth, lastXTickWidth] = valuesToMeasure.map((value) =>
     measureText(axisModel.formatter(value), fontStyle),
   );
 
@@ -294,27 +294,29 @@ const getXTicksToMeasure = (
   renderingContext: RenderingContext,
 ) => {
   const { fontSize } = renderingContext.theme.cartesian.label;
-  const dimensionColumn = chartModel.dimensionModel.column;
 
   // On continuous axes, we measure a limited number of evenly spaced ticks, including the start and end points.
-  if (isNumeric(dimensionColumn) || isDate(dimensionColumn)) {
+  if (
+    isNumericAxis(chartModel.xAxisModel) ||
+    isTimeSeriesAxis(chartModel.xAxisModel)
+  ) {
     return getEvenlySpacedIndices(
       chartModel.dataset.length,
       X_TICKS_TO_MEASURE_COUNT,
-    ).map(datumIndex => chartModel.dataset[datumIndex][X_AXIS_DATA_KEY]);
+    ).map((datumIndex) => chartModel.dataset[datumIndex][X_AXIS_DATA_KEY]);
   }
 
   // On category scales, when the dimension width is smaller than the tick font size,
   // meaning that even with 90-degree rotation the ticks will not fit,
   // we select the top N ticks based on character length for formatting and measurement.
-  if (isCategory(dimensionColumn) && dimensionWidth <= fontSize) {
+  if (isCategoryAxis(chartModel.xAxisModel) && dimensionWidth <= fontSize) {
     return chartModel.dataset
-      .map(datum => datum[X_AXIS_DATA_KEY])
+      .map((datum) => datum[X_AXIS_DATA_KEY])
       .sort((a, b) => String(b).length - String(a).length)
       .slice(0, X_TICKS_TO_MEASURE_COUNT);
   }
 
-  return chartModel.dataset.map(datum => datum[X_AXIS_DATA_KEY]);
+  return chartModel.dataset.map((datum) => datum[X_AXIS_DATA_KEY]);
 };
 
 const getMaxXTickWidth = (
@@ -336,7 +338,7 @@ const getMaxXTickWidth = (
   };
 
   return Math.max(
-    ...valueToMeasure.map(value =>
+    ...valueToMeasure.map((value) =>
       renderingContext.measureText(
         chartModel.xAxisModel.formatter(value),
         fontStyle,
@@ -496,7 +498,7 @@ export const getChartPadding = (
 
   // We handle non-categorical scatter plots differently, because echarts places
   // the tick labels on the very edge of the x-axis for scatter plots only.
-  const isScatterPlot = chartModel.seriesModels.some(seriesModel => {
+  const isScatterPlot = chartModel.seriesModels.some((seriesModel) => {
     const seriesSettings = settings.series(
       seriesModel.legacySeriesSettingsObjectKey,
     );
@@ -679,7 +681,7 @@ const getStackedBarTicksRotation = (
   renderingContext: RenderingContext,
 ) => {
   const barStack = chartModel.stackModels.find(
-    stackModel => stackModel.display === "bar",
+    (stackModel) => stackModel.display === "bar",
   );
 
   if (!barStack) {

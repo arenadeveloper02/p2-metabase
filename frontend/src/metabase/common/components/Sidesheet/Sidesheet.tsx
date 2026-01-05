@@ -5,7 +5,7 @@ import { t } from "ttag";
 import { uniqueId } from "underscore";
 
 import Animation from "metabase/css/core/animation.module.css";
-import { Modal, Stack } from "metabase/ui";
+import { Modal, type ModalOverlayProps, Stack } from "metabase/ui";
 
 import Styles from "./sidesheet.module.css";
 
@@ -20,6 +20,8 @@ interface SidesheetProps {
   /** use this if you want to enable interior scrolling of tab panels */
   removeBodyPadding?: boolean;
   withOverlay?: boolean;
+  overlayProps?: ModalOverlayProps;
+  closeOnEscape?: boolean;
 }
 
 const sizes: Record<SidesheetSize, string> = {
@@ -39,6 +41,8 @@ export function Sidesheet({
   children,
   removeBodyPadding,
   withOverlay = true,
+  overlayProps,
+  closeOnEscape = true,
 }: SidesheetProps) {
   const titleId = useMemo(() => uniqueId("sidesheet-title"), []);
   return (
@@ -46,16 +50,21 @@ export function Sidesheet({
       variant="sidesheet"
       opened={isOpen}
       onClose={onClose}
+      closeOnEscape={closeOnEscape}
       h="100dvh"
     >
-      {withOverlay && <Modal.Overlay data-testid="modal-overlay" />}
+      {withOverlay && (
+        <Modal.Overlay {...overlayProps} data-testid="modal-overlay" />
+      )}
       <Modal.Content
         transitionProps={{ duration: 0 }}
         px="none"
         w={sizes[size]}
         bg="bg-light"
         data-testid="sidesheet"
-        className={cx(Styles.SidesheetContent, Animation.slideLeft)}
+        classNames={{
+          content: cx(Styles.SidesheetContent, Animation.slideLeft),
+        }}
         aria-labelledby={titleId}
       >
         <Modal.Header bg="bg-light" px="xl">
@@ -76,7 +85,7 @@ export function Sidesheet({
           }}
         >
           <Stack
-            spacing="lg"
+            gap="lg"
             px={removeBodyPadding ? 0 : "xl"}
             pb={removeBodyPadding ? 0 : "xl"}
             mt={title ? "none" : "md"}

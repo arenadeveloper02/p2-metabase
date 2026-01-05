@@ -1,8 +1,8 @@
 (ns metabase.lib.drill-thru.distribution-test
-  "See also [[metabase.query-processor-test.drill-thru-e2e-test/distribution-drill-on-longitude-from-sql-source-card-test]]"
+  "See also [[metabase.query-processor.drill-thru-e2e-test/distribution-drill-on-longitude-from-sql-source-card-test]]"
   (:require
    #?@(:cljs ([metabase.test-runner.assert-exprs.approximately-equal]))
-   [clojure.test :refer [deftest is testing]]
+   [clojure.test :refer [deftest is testing use-fixtures]]
    [medley.core :as m]
    [metabase.lib.core :as lib]
    [metabase.lib.drill-thru.distribution :as lib.drill-thru.distribution]
@@ -12,6 +12,8 @@
    [metabase.lib.types.isa :as lib.types.isa]))
 
 #?(:cljs (comment metabase.test-runner.assert-exprs.approximately-equal/keep-me))
+
+(use-fixtures :each lib.drill-thru.tu/with-native-card-id)
 
 (deftest ^:parallel distribution-availability-test
   (testing "distribution is available only for header clicks on non-aggregate, non-breakout columns which are not PKs, JSON, comments or descriptions"
@@ -126,3 +128,17 @@
         (lib.drill-thru.tu/test-drill-application
          (test-case "PRODUCT_ID" [:field {}
                                   (lib.drill-thru.tu/field-key= "PRODUCT_ID" (meta/id :orders :product-id))]))))))
+
+(deftest ^:parallel apply-when-binning-supported
+  (testing "distribution drill is not available if binning is not supported"
+    (let [query     (-> (lib/query (meta/updated-metadata-provider update :features disj :binning)
+                                   (meta/table-metadata :orders))
+                        (lib/order-by (meta/field-metadata :orders :subtotal))
+                        (lib/limit 100))
+          subtotal-col (m/find-first (fn [col]
+                                       (= (:display-name col) "Subtotal"))
+                                     (lib/returned-columns query))
+          context   {:column     subtotal-col
+                     :column-ref (lib/ref subtotal-col)
+                     :value      nil}]
+      (is (nil? (lib.drill-thru.distribution/distribution-drill query -1 context))))))

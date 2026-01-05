@@ -7,12 +7,13 @@
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
    [metabase.driver.sql-jdbc.sync.describe-database :as sql-jdbc.describe-database]
+   [metabase.driver.sql-jdbc.sync.interface :as sql-jdbc.sync]
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.plugins.jdbc-proxy :as jdbc-proxy]
-   [metabase.public-settings :as public-settings]
    [metabase.query-processor :as qp]
    [metabase.sync.core :as sync]
    [metabase.sync.util :as sync-util]
+   [metabase.system.core :as system]
    [metabase.test :as mt]
    [metabase.test.data.interface :as tx]
    [metabase.test.data.redshift :as redshift.tx]
@@ -85,7 +86,7 @@
                                  "LIMIT"
                                  "  2000"]]
                        (-> line
-                           (str/replace #"\Q{{site-uuid}}\E" (public-settings/site-uuid))
+                           (str/replace #"\Q{{site-uuid}}\E" (system/site-uuid))
                            (str/replace #"\Q{{schema}}\E" (redshift.tx/unique-session-schema))))]
         (is (= expected
                (sql->lines
@@ -137,36 +138,24 @@
 (deftest ^:parallel test-external-table
   (mt/test-driver :redshift
     (testing "expects spectrum schema to exist"
-      (is (=? [{:description     nil
-                :table_id        (mt/id :extsales)
-                :semantic_type    nil
+      (is (=? [{:table_id        (mt/id :extsales)
                 :name            "buyerid"
-                :settings        nil
                 :source          :fields
                 :field_ref       [:field (mt/id :extsales :buyerid) nil]
-                :nfc_path        nil
-                :parent_id       nil
                 :id              (mt/id :extsales :buyerid)
                 :visibility_type :normal
                 :display_name    "Buyerid"
                 :base_type       :type/Integer
-                :effective_type  :type/Integer
-                :coercion_strategy nil}
-               {:description     nil
-                :table_id        (mt/id :extsales)
-                :semantic_type    nil
+                :effective_type  :type/Integer}
+               {:table_id        (mt/id :extsales)
                 :name            "salesid"
-                :settings        nil
                 :source          :fields
                 :field_ref       [:field (mt/id :extsales :salesid) nil]
-                :nfc_path        nil
-                :parent_id       nil
                 :id              (mt/id :extsales :salesid)
                 :visibility_type :normal
                 :display_name    "Salesid"
                 :base_type       :type/Integer
-                :effective_type  :type/Integer
-                :coercion_strategy nil}]
+                :effective_type  :type/Integer}]
               ;; in different Redshift instances, the fingerprint on these columns is different.
               (map #(dissoc % :fingerprint)
                    (get-in (qp/process-query (mt/mbql-query extsales
@@ -201,7 +190,7 @@
 
 (defn- execute! [format-string & args]
   (let [sql  (apply format format-string args)
-        spec (sql-jdbc.conn/connection-details->spec :redshift @redshift.tx/db-connection-details)]
+        spec (sql-jdbc.conn/connection-details->spec :redshift (tx/dbdef->connection-details :redshift))]
     (log/info (u/format-color 'blue "[redshift] %s" sql))
     (try
       (jdbc/execute! spec sql)
@@ -495,3 +484,82 @@
                               :target [:variable [:template-tag "date"]]
                               :value  "2024-07-02"}]
                 :middleware {:format-rows? false}})))))))
+
+(deftest ^:parallel dont-query-pg-enum-test
+  (testing "Make sure redshift doesn't try to grab postgres enums. (#56992)"
+    (mt/test-driver
+      :redshift
+      (is (= 1
+             (->> (mt/native-query {:query "SELECT usename FROM pg_user limit 1;"})
+                  qp/process-query
+                  mt/rows
+                  count))))))
+
+(deftest database-type->base-type-external-table-types-test
+  (doseq [[database-type exp-base-type] [["tinyint" :type/Integer]
+                                         ["smallint" :type/Integer]
+                                         ["mediumint" :type/Integer]
+                                         [:mediumint :type/Integer]
+                                         [:MEDIUMINT :type/Integer]
+                                         ["tinytext" :type/Text]
+                                         ["mediumtext" :type/Text]
+                                         ["longtext" :type/Text]
+                                         ["varchar(100)" :type/Text]
+                                         ["varchar(100)" :type/Text]
+                                         ["int(11) unsigned" :type/Integer]
+                                         ["int(10)" :type/Integer]
+                                         ["tinyint(1)" :type/Integer]
+                                         ["BIGINTEGER" :type/BigInteger]
+                                         ["double(10,20)" :type/Float]
+                                         ["float(10)" :type/Float]
+                                         ["datetime" :type/DateTime]
+                                         ["year" :type/Integer]
+                                         ;; Iceberg table types https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg-supported-data-types.html
+                                         ["string" :type/Text]
+                                         [:string :type/Text]
+                                         [:STRING :type/Text]
+                                         ["boolean" :type/Boolean]
+                                         ["int" :type/Integer]
+                                         ["long" :type/BigInteger]
+                                         ["double" :type/Float]
+                                         ["decimal(2, 10)" :type/Decimal]
+                                         ["binary" :type/*]
+                                         ["date" :type/Date]
+                                         ["time" nil]
+                                         ["timestamp" :type/DateTime]
+                                         ["timestamptz" :type/DateTimeWithTZ]
+
+                                         ;; MySQL federated table enum types
+                                         ["enum('A','B')" :type/Text]
+                                         ["enum('open','closed')" :type/Text]
+                                         ["enum('active','inactive')" :type/Text]
+                                         ;; nonsense
+                                         ["fadlsjfldskajfl" nil]]]
+    (testing (format "database-type %s" (pr-str database-type))
+      (is (= exp-base-type
+             (sql-jdbc.sync/database-type->base-type :redshift database-type))))))
+
+(deftest ^:parallel type->database-type-test
+  (testing "type->database-type multimethod returns correct Redshift types"
+    (are [base-type expected] (= expected (driver/type->database-type :redshift base-type))
+      :type/TextLike           [[:varchar 65535]]
+      :type/Text               [[:varchar 65535]]
+      :type/Integer            [:integer]
+      :type/Float              [(keyword "double precision")]
+      :type/Number             [:bigint]
+      :type/Boolean            [:boolean]
+      :type/Date               [:date]
+      :type/DateTime           [:timestamp]
+      :type/DateTimeWithTZ     [:timestamp-with-time-zone]
+      :type/Time               [:time])))
+
+(deftest ^:parallel alternate-config-options-test
+  (testing "Can configure with either db or dbname"
+    (let [options {:host "test.example.com"}]
+      (is (= {:classname "com.amazon.redshift.jdbc42.Driver", :subprotocol "redshift", :subname "//test.example.com:/test-db", :ssl true, :OpenSourceSubProtocolOverride false}
+             (sql-jdbc.conn/connection-details->spec :redshift (assoc options :db "test-db"))))
+      (is (= {:classname "com.amazon.redshift.jdbc42.Driver", :subprotocol "redshift", :subname "//test.example.com:/test-db", :ssl true, :OpenSourceSubProtocolOverride false}
+             (sql-jdbc.conn/connection-details->spec :redshift (assoc options :dbname "test-db"))))
+      (is (= {:classname "com.amazon.redshift.jdbc42.Driver", :subprotocol "redshift", :subname "//test.example.com:/test-db", :ssl true, :OpenSourceSubProtocolOverride false}
+             (sql-jdbc.conn/connection-details->spec :redshift (assoc options :dbname "test-dbname" :db "test-db")))
+          ":db should take precedence"))))

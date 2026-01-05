@@ -10,7 +10,6 @@ import {
 } from "__support__/server-mocks";
 import {
   mockGetBoundingClientRect,
-  mockScrollBy,
   renderWithProviders,
   screen,
   waitForLoaderToBeRemoved,
@@ -26,7 +25,7 @@ import {
   createMockModelResult,
   createMockRecentModel,
 } from "metabase/browse/models/test-utils";
-import type { DataPickerValue } from "metabase/common/components/DataPicker";
+import type { DataPickerValue } from "metabase/common/components/Pickers/DataPicker";
 import { checkNotNull } from "metabase/lib/types";
 import type { IconName } from "metabase/ui";
 import {
@@ -34,11 +33,7 @@ import {
   createQueryWithClauses,
 } from "metabase-lib/test-helpers";
 import Question from "metabase-lib/v1/Question";
-import type {
-  CardType,
-  CollectionItemModel,
-  RecentItem,
-} from "metabase-types/api";
+import type { CardType, RecentItem } from "metabase-types/api";
 import {
   createMockCard,
   createMockCollection,
@@ -100,29 +95,29 @@ const dataPickerValueMap: Record<
   }
 > = {
   table: {
-    tabIcon: "table",
-    tabDisplayName: "Tables",
+    tabIcon: "folder",
+    tabDisplayName: "Data",
     recentItem: TEST_RECENT_TABLE,
     itemPickerData: checkNotNull(MOCK_DATABASE.tables).map(
-      table => table.display_name,
+      (table) => table.display_name,
     ),
-    pickerColIdx: 2, // tables are always level 2 in the data picker
+    pickerColIdx: 3, // tables are always level 3 in the data picker
   },
   card: {
     tabIcon: "folder",
-    tabDisplayName: "Collections",
+    tabDisplayName: "Data",
     recentItem: TEST_RECENT_CARD,
     itemPickerData: ["card"],
   },
   dataset: {
     tabIcon: "folder",
-    tabDisplayName: "Collections",
+    tabDisplayName: "Data",
     recentItem: TEST_RECENT_MODEL,
     itemPickerData: ["dataset"],
   },
   metric: {
     tabIcon: "folder",
-    tabDisplayName: "Collections",
+    tabDisplayName: "Data",
     recentItem: TEST_RECENT_METRIC,
     itemPickerData: ["metric"],
   },
@@ -146,8 +141,6 @@ function setup({
   modelsFilterList = undefined,
   hasRecents = true,
 }: SetupOpts) {
-  mockScrollBy();
-
   setupDatabasesEndpoints([MOCK_DATABASE]);
   setupRecentViewsAndSelectionsEndpoints(
     hasRecents
@@ -161,9 +154,9 @@ function setup({
     ["selections"],
   );
 
-  const collectionItems = TEST_ENTITY_TYPES.map(entityType =>
+  const collectionItems = TEST_ENTITY_TYPES.map((entityType) =>
     createMockCollectionItem({
-      model: entityType as CollectionItemModel,
+      model: entityType,
       collection: TEST_COLLECTION,
       collection_id: TEST_COLLECTION.id,
       name: entityType,
@@ -219,7 +212,7 @@ function createSummarizedQuestion(type: CardType) {
 describe("Notebook", () => {
   it.each<CardType>(["question", "model"])(
     "should have regular copy for the summarize step for %s queries",
-    type => {
+    (type) => {
       setup({
         question: createSummarizedQuestion(type),
       });
@@ -254,7 +247,7 @@ describe("Notebook", () => {
 
   it.each<CardType>(["question", "model"])(
     "should be able to remove the summarize step for %s queries",
-    type => {
+    (type) => {
       setup({
         question: createSummarizedQuestion(type),
       });
@@ -309,7 +302,6 @@ describe("Notebook", () => {
         });
       });
 
-      // eslint-disable-next-line jest/expect-expect
       it("should show tabs if more than one type is chosen", async () => {
         const models: DataPickerValue["model"][] = ["dataset", "card"];
 
@@ -325,7 +317,7 @@ describe("Notebook", () => {
           const { pickerColIdx = 1, itemPickerData } =
             dataPickerValueMap[model];
 
-          await userEvent.click(screen.getByText("Our analytics"));
+          await userEvent.click(await screen.findByText("Our analytics"));
 
           assertDataInPickerColumn({
             columnIndex: pickerColIdx,
@@ -343,21 +335,20 @@ describe("Notebook", () => {
 
         expect(await screen.findByTestId("tabs-view")).toBeInTheDocument();
 
-        for (const model of TEST_ENTITY_TYPES) {
-          const { tabDisplayName, tabIcon } = dataPickerValueMap[model];
-
-          await goToDataPickerTab({
-            name: tabDisplayName,
-            iconName: tabIcon,
-          });
-        }
+        await goToDataPickerTab({
+          name: "Data",
+          iconName: "folder",
+        });
+        await goToDataPickerTab({
+          name: "Recents",
+          iconName: "clock",
+        });
       });
     });
 
-    describe.each<DataPickerValue["model"]>(TEST_ENTITY_TYPES)(
+    describe.each<DataPickerValue["model"]>(["metric", "card", "dataset"])(
       "when filtering with %s",
-      entityType => {
-        // eslint-disable-next-line jest/expect-expect
+      (entityType) => {
         it(`should show the Collection item picker when modelsFilterList=[${entityType}]`, async () => {
           setup({
             question: createSummarizedQuestion("question"),
@@ -403,6 +394,9 @@ describe("Notebook", () => {
 
 const goToEntityModal = async () => {
   await userEvent.click(screen.getByText("Orders"));
+  const popover = await screen.findByTestId("mini-picker");
+  await userEvent.click(await within(popover).findByText("Sample Database"));
+  await userEvent.click(await within(popover).findByText("Browse all"));
 
   expect(screen.getByTestId("entity-picker-modal")).toBeInTheDocument();
 
@@ -417,7 +411,7 @@ const goToDataPickerTab = async ({
   name: string;
   iconName: IconName;
 }) => {
-  const tabsView = within(screen.getByTestId("tabs-view"));
+  const tabsView = within(await screen.findByTestId("tabs-view"));
 
   const tabButton = tabsView.getByRole("tab", {
     name: `${iconName} icon ${name}`,
@@ -439,7 +433,7 @@ const assertDataInPickerColumn = ({
   columnIndex: number;
   data: string[];
 }) => {
-  data.forEach(d => {
+  data.forEach((d) => {
     expect(
       within(screen.getByTestId(`item-picker-level-${columnIndex}`)).getByText(
         d,
@@ -449,7 +443,7 @@ const assertDataInPickerColumn = ({
 };
 
 const assertDataInRecents = ({ data }: { data: string[] }) => {
-  data.forEach(d => {
+  data.forEach((d) => {
     expect(
       within(screen.getByRole("tabpanel", { name: /Recents/ })).getByText(d),
     ).toBeInTheDocument();

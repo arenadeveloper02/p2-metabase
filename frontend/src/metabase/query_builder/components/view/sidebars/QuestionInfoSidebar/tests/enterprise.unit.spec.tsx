@@ -13,7 +13,6 @@ import { setup } from "./setup";
 const setupEnterprise = (opts: SetupOpts) => {
   return setup({
     ...opts,
-    hasEnterprisePlugins: true,
   });
 };
 
@@ -48,7 +47,7 @@ describe("QuestionInfoSidebar > enterprise", () => {
         await setup();
         const tabs = await screen.findAllByRole("tab");
         expect(tabs).toHaveLength(3);
-        expect(tabs.map(tab => tab.textContent)).toEqual([
+        expect(tabs.map((tab) => tab.textContent)).toEqual([
           "Overview",
           "History",
           "Relationships",
@@ -61,7 +60,7 @@ describe("QuestionInfoSidebar > enterprise", () => {
         setup({ user: { is_superuser: true } });
         const tabs = await screen.findAllByRole("tab");
         expect(tabs).toHaveLength(4);
-        expect(tabs.map(tab => tab.textContent)).toEqual([
+        expect(tabs.map((tab) => tab.textContent)).toEqual([
           "Overview",
           "History",
           "Relationships",

@@ -86,7 +86,7 @@ describe("issue 16886", () => {
   });
 
   it("shouldn't remove parts of the query when choosing 'Run selected text' (metabase#16886)", () => {
-    H.startNewNativeQuestion().as("editor");
+    H.startNewNativeQuestion();
     H.NativeEditor.type(ORIGINAL_QUERY);
     cy.realPress("Home");
     Cypress._.range(SELECTED_TEXT.length).forEach(() =>
@@ -97,7 +97,7 @@ describe("issue 16886", () => {
 
     cy.findByTestId("scalar-value").invoke("text").should("eq", "1");
 
-    cy.get("@editor").contains(ORIGINAL_QUERY);
+    H.NativeEditor.get().contains(ORIGINAL_QUERY);
   });
 });
 
@@ -311,7 +311,7 @@ describe("issue 20044", () => {
   });
 });
 
-describe("issue 20625", { tags: "@quarantine" }, () => {
+describe("issue 20625", { tags: "@skip" }, () => {
   beforeEach(() => {
     H.restore();
     cy.signInAsAdmin();
@@ -457,7 +457,7 @@ describe("issue 21550", () => {
 
     cy.icon("snippet").click();
     cy.wait("@rootCollection");
-    cy.findByTestId("sidebar-content").findByText("Create a snippet").click();
+    cy.findByTestId("sidebar-content").findByText("Create snippet").click();
 
     H.modal().within(() => {
       cy.findByLabelText("Enter some SQL here so you can reuse it later").type(
@@ -473,7 +473,7 @@ describe("issue 21550", () => {
       cy.icon("chevrondown").click({ force: true });
     });
 
-    cy.get("pre").then($pre => {
+    cy.get("pre").then(($pre) => {
       const preWidth = $pre[0].getBoundingClientRect().width;
       const clientWidth = $pre[0].clientWidth;
       const BORDERS = 2; // 1px left and right
@@ -482,10 +482,9 @@ describe("issue 21550", () => {
   });
 });
 
-describe("issue 21597", { tags: "@external" }, () => {
+describe("issue 31926", { tags: "@external" }, () => {
   const databaseName = "Sample Database";
   const databaseCopyName = `${databaseName} copy`;
-  const secondDatabaseId = SAMPLE_DB_ID + 1;
 
   beforeEach(() => {
     H.restore();
@@ -493,13 +492,13 @@ describe("issue 21597", { tags: "@external" }, () => {
   });
 
   it("display the relevant error message in save question modal (metabase#21597)", () => {
-    cy.intercept("POST", "/api/card").as("saveNativeQuestion");
+    cy.intercept({ method: "POST", url: "/api/card" });
 
     // Second DB (copy)
     H.addPostgresDatabase(databaseCopyName);
 
     // Create a native query and run it
-    H.startNewNativeQuestion().as("editor");
+    H.startNewNativeQuestion();
     H.NativeEditor.type("SELECT COUNT(*) FROM PRODUCTS WHERE {{FILTER}}");
 
     cy.findByTestId("variable-type-select").click();
@@ -525,19 +524,67 @@ describe("issue 21597", { tags: "@external" }, () => {
     H.popover().within(() => {
       cy.findByText(databaseCopyName).click();
     });
-    cy.findByTestId("native-query-editor-container").icon("play").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.contains(`Can\'t find field with ID: ${PRODUCTS.CATEGORY}`);
+    // run button disabled
+    cy.findAllByTestId("run-button").filter(":visible").should("be.disabled");
+
+    // Try to save the native query
+    // save button disabled
+    cy.findByTestId("qb-save-button").should(
+      "have.attr",
+      "data-disabled",
+      "true",
+    );
+  });
+});
+
+describe("issue 21597", { tags: "@external" }, () => {
+  /*
+   *
+   * Greetings and welcome to this weird test. It has a history! A long legacy! Allow me to explain:
+   *
+   * This test was originally using changing the DB on a native query with field filters to trigger an error that
+   * would show up in the save modal.
+   *
+   * PR#54453 fixes this error by removing the field filters that refer to the old database, which means that it won't
+   * save.
+   *
+   * So in order to trigger an error, we are intercepting the POST /api/card and manually responding with an error.
+   *
+   * We then assert that the message makes it to the save modal.
+   *
+   * The End
+   */
+  beforeEach(() => {
+    H.restore();
+    cy.signInAsAdmin();
+  });
+
+  it("display the relevant error message in save question modal (metabase#21597)", () => {
+    const message =
+      'Invalid Field Filter: Field 164574 "PRODUCTS"."CATEGORY" belongs to Database 2276 "sample-dataset", but the query is against Database 2275 "test-data"';
+    cy.intercept({ method: "POST", url: "/api/card" }, (request) => {
+      request.reply({
+        body: {
+          message: message,
+          _status: 400,
+        },
+        statusCode: 400,
+      });
+    }).as("saveNativeQuestion");
+
+    // Create a native query and run it
+    H.startNewNativeQuestion();
+    H.NativeEditor.type("SELECT 1");
 
     // Try to save the native query
     cy.findByTestId("qb-header-action-panel").findByText("Save").click();
-    cy.findByTestId("save-question-modal").within(modal => {
-      cy.findByPlaceholderText("What is the name of your question?").type("Q");
+    H.modal().within(() => {
+      cy.findByPlaceholderText("What is the name of your question?").type(
+        "The question name",
+      );
       cy.findByText("Save").click();
       cy.wait("@saveNativeQuestion");
-      cy.findByText(
-        `Invalid Field Filter: Field ${PRODUCTS.CATEGORY} "PRODUCTS"."CATEGORY" belongs to Database ${SAMPLE_DB_ID} "${databaseName}", but the query is against Database ${secondDatabaseId} "${databaseCopyName}"`,
-      );
+      cy.findByText(message);
     });
   });
 });
@@ -575,7 +622,6 @@ describe("issue 23510", () => {
 
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Open Editor").click();
-    cy.icon("reference").click();
 
     cy.findByTestId("sidebar-content").within(() => {
       cy.findByText("ORDERS");
@@ -593,16 +639,16 @@ describe("issue 30680", () => {
     cy.signInAsAdmin();
   });
 
-  it("should not render native editor buttons when 'Metadata' tab is open (metabase#30680)", () => {
+  it("should not render native editor buttons when 'Columns' tab is open (metabase#30680)", () => {
     H.startNewNativeModel({ query: "select 1" });
-    cy.findByTestId("editor-tabs-metadata").should("be.disabled");
+    cy.findByTestId("editor-tabs-columns").should("be.disabled");
 
     H.runNativeQuery();
-    cy.findByTestId("editor-tabs-metadata").should("not.be.disabled");
-    cy.findByTestId("editor-tabs-metadata-name").click();
+    cy.findByTestId("editor-tabs-columns").should("not.be.disabled");
+    cy.findByTestId("editor-tabs-columns-name").click();
 
     cy.findByTestId("sidebar-content").should("exist");
-    cy.findByTestId("native-query-editor-sidebar").should("not.exist");
+    cy.findByTestId("native-query-editor-action-buttons").should("not.exist");
   });
 });
 
@@ -621,6 +667,10 @@ describe("issue 34330", () => {
   });
 
   it("should only call the autocompleter with all text typed (metabase#34330)", () => {
+    cy.findByTestId("query-visualization-root")
+      .findByText("Here's where your results will appear")
+      .should("be.visible");
+
     H.NativeEditor.type("SEAT", { delay: 10 });
     H.NativeEditor.completion("SEATS").should("be.visible");
 
@@ -736,7 +786,7 @@ describe("issue 35785", () => {
 
     cy.findByTestId("qb-header").findByRole("button", { name: "Save" }).click();
 
-    cy.findByTestId("save-question-modal").within(modal => {
+    cy.findByTestId("save-question-modal").within((modal) => {
       cy.findByText("Save").click();
     });
 
@@ -783,7 +833,7 @@ describe("issue 22991", () => {
     cy.signInAsNormalUser();
 
     H.startNewNativeQuestion();
-    cy.get("@questionId").then(questionId => {
+    cy.get("@questionId").then((questionId) => {
       // can't use cy.type because it does not simulate the bug
       H.NativeEditor.type(`select * from {{${questionId}}}`);
     });

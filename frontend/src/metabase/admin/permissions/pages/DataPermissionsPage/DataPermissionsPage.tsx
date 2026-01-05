@@ -3,19 +3,19 @@ import type { Route } from "react-router";
 import { useAsync } from "react-use";
 import _ from "underscore";
 
-import { useTableListQuery } from "metabase/common/hooks";
-import Databases from "metabase/entities/databases";
-import Groups from "metabase/entities/groups";
+import { skipToken, useGetDatabaseMetadataQuery } from "metabase/api";
+import { Databases } from "metabase/entities/databases";
+import { Groups } from "metabase/entities/groups";
 import { isAdminGroup, isDefaultGroup } from "metabase/lib/groups";
 import { useDispatch, useSelector } from "metabase/lib/redux";
 import { getSetting } from "metabase/selectors/settings";
 import { PermissionsApi } from "metabase/services";
 import { Center, Loader } from "metabase/ui";
 import type Database from "metabase-lib/v1/metadata/Database";
-import type { DatabaseId, Group } from "metabase-types/api";
+import type { DatabaseId, Group, PermissionsGraph } from "metabase-types/api";
 
 import { DataPermissionsHelp } from "../../components/DataPermissionsHelp";
-import PermissionsPageLayout from "../../components/PermissionsPageLayout/PermissionsPageLayout";
+import { PermissionsPageLayout } from "../../components/PermissionsPageLayout/PermissionsPageLayout";
 import {
   LOAD_DATA_PERMISSIONS_FOR_GROUP,
   restoreLoadedPermissions,
@@ -41,11 +41,10 @@ function DataPermissionsPage({
   groups,
 }: DataPermissionsPageProps) {
   const isDirty = useSelector(getIsDirty);
-  const diff = useSelector(state => getDiff(state, { databases, groups }));
-  const showSplitPermsModal = useSelector(state =>
+  const diff = useSelector((state) => getDiff(state, { databases, groups }));
+  const showSplitPermsModal = useSelector((state) =>
     getSetting(state, "show-updated-permission-modal"),
   );
-
   const dispatch = useDispatch();
 
   const resetPermissions = () => dispatch(restoreLoadedPermissions());
@@ -67,15 +66,16 @@ function DataPermissionsPage({
     await dispatch({ type: LOAD_DATA_PERMISSIONS_FOR_GROUP, payload: result });
   }, []);
 
-  const { isLoading: isLoadingTables } = useTableListQuery({
-    query: {
-      dbId: params.databaseId,
-      include_hidden: true,
-      remove_inactive: true,
-      skip_fields: true,
-    },
-    enabled: params.databaseId !== undefined,
-  });
+  const { isLoading: isLoadingTables } = useGetDatabaseMetadataQuery(
+    params.databaseId !== undefined
+      ? {
+          id: params.databaseId,
+          include_hidden: true,
+          remove_inactive: true,
+          skip_fields: true,
+        }
+      : skipToken,
+  );
 
   if (isLoadingAllUsers || isLoadingAdminstrators || isLoadingTables) {
     return (
@@ -90,7 +90,7 @@ function DataPermissionsPage({
       tab="data"
       onLoad={resetPermissions}
       onSave={savePermissions}
-      diff={diff}
+      diff={diff as PermissionsGraph}
       isDirty={isDirty}
       route={route}
       helpContent={<DataPermissionsHelp />}

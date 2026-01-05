@@ -69,7 +69,7 @@ describe(
       selectDatabase(additionalPG);
 
       cy.log("Delete previously persisted database.");
-      cy.get("@postgresID").then(databaseId => {
+      cy.get("@postgresID").then((databaseId) => {
         cy.request("DELETE", `/api/database/${databaseId}`);
       });
 
@@ -115,7 +115,8 @@ describe(
     it("selecting a database in native editor for model actions should not persist the database", () => {
       [SAMPLE_DB_ID, PG_DB_ID].forEach(enableModelActionsForDatabase);
 
-      startNewAction();
+      cy.visit("/");
+      H.startNewAction();
       assertNoDatabaseSelected();
 
       selectDatabase("Sample Database");
@@ -129,7 +130,8 @@ describe(
       selectDatabase(postgresName);
       cy.wait("@persistDatabase");
 
-      startNewAction();
+      cy.visit("/");
+      H.startNewAction();
       assertNoDatabaseSelected();
     });
 
@@ -190,7 +192,7 @@ describe(
 
       cy.signOut();
       cy.signInAsAdmin();
-      H.setTokenFeatures("all");
+      H.activateToken("pro-self-hosted");
       cy.updatePermissionsGraph({
         [DATA_GROUP]: {
           [SAMPLE_DB_ID]: {
@@ -249,12 +251,12 @@ describe("scenatios > question > native > mysql", { tags: "@external" }, () => {
 
   it("can write a native MySQL query with a field filter", () => {
     // Write Native query that includes a filter
-    H.startNewNativeQuestion().as("editor");
+    H.startNewNativeQuestion();
 
     cy.findByTestId("gui-builder-data").click();
     cy.findByLabelText(MYSQL_DB_NAME).click();
 
-    cy.get("@editor").type(
+    H.NativeEditor.type(
       "SELECT TOTAL, CATEGORY FROM ORDERS LEFT JOIN PRODUCTS ON ORDERS.PRODUCT_ID = PRODUCTS.ID [[WHERE PRODUCTS.ID = {{id}}]];",
       {
         parseSpecialCharSequences: false,
@@ -279,12 +281,12 @@ describe("scenatios > question > native > mysql", { tags: "@external" }, () => {
   });
 
   it("can save a native MySQL query", () => {
-    H.startNewNativeQuestion().as("editor");
+    H.startNewNativeQuestion();
 
     cy.findByTestId("gui-builder-data").click();
     cy.findByLabelText(MYSQL_DB_NAME).click();
 
-    cy.get("@editor").type("SELECT * FROM ORDERS");
+    H.NativeEditor.type("SELECT * FROM ORDERS");
     cy.findByTestId("native-query-editor-container").icon("play").click();
 
     cy.wait("@dataset");
@@ -295,7 +297,7 @@ describe("scenatios > question > native > mysql", { tags: "@external" }, () => {
 
     // Save the query
     H.saveQuestion("sql count", { wrapId: true });
-    cy.url().should("match", /\/dashboard\/\d+-[a-z0-9-]*#edit$/);
+    cy.url().should("match", /\/dashboard\/\d+-[a-z0-9-]*$/);
   });
 });
 
@@ -319,18 +321,21 @@ describe("scenarios > question > native > mongo", { tags: "@mongo" }, () => {
     cy.signInAsNormalUser();
 
     cy.visit("/");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("New").click();
+    cy.findByTestId("app-bar").findByLabelText("New").click();
     // Reproduces metabase#20499 issue
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Native query").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText(MONGO_DB_NAME).click();
+    H.popover().findByText("Native query").click();
+    H.popover().findByText(MONGO_DB_NAME).click();
+    cy.log("Ensure the database was selected");
+    cy.findAllByTestId("gui-builder-data")
+      .first()
+      .should("contain", MONGO_DB_NAME);
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Select a table").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Orders").click();
+    cy.findAllByTestId("gui-builder-data")
+      .should("have.length", 2)
+      .last()
+      .findByText("Select a table")
+      .click();
+    H.popover().findByText("Orders").click();
   });
 
   it("can save a native MongoDB query", () => {
@@ -338,28 +343,14 @@ describe("scenarios > question > native > mongo", { tags: "@mongo" }, () => {
       parseSpecialCharSequences: false,
     });
     cy.findByTestId("native-query-editor-container").icon("play").click();
-
     cy.wait("@dataset");
 
     cy.findByTextEnsureVisible("18,760");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Save").click();
-
-    cy.findByTextEnsureVisible("Save new question");
-
-    cy.findByTestId("save-question-modal").within(modal => {
-      cy.findByLabelText("Name").clear().should("be.empty").type("mongo count");
-
-      cy.findByText("Save").should("not.be.disabled").click();
-    });
-
+    H.saveQuestion("mongo count");
     cy.wait("@createQuestion");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Not now").click();
-
-    cy.url().should("match", /\/question\/\d+-[a-z0-9-]*$/);
+    cy.location("pathname").should("match", /\/question\/\d+-[a-z0-9-]*$/);
   });
 });
 
@@ -376,12 +367,6 @@ function startNativeQuestion() {
 function startNativeModel() {
   cy.visit("/model/new");
   cy.findByRole("heading", { name: "Use a native query" }).click();
-}
-
-function startNewAction() {
-  cy.visit("/");
-  cy.findByTestId("app-bar").findByText("New").click();
-  H.popover().findByTextEnsureVisible("Action").click();
 }
 
 function assertNoDatabaseSelected() {

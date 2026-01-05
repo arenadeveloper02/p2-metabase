@@ -3,17 +3,17 @@
    [clj-http.client :as http]
    [clojure.java.jdbc :as jdbc]
    [clojure.test :refer :all]
-   [metabase.driver.postgres-test :as postgres-test]
+   [metabase.api.response :as api.response]
+   [metabase.api.routes.common :as api.routes.common]
+   [metabase.driver :as driver]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
-   [metabase.http-client :as client]
-   [metabase.models.database :as database]
-   [metabase.request.core :as request]
-   [metabase.server.middleware.auth :as mw.auth]
    [metabase.sync.core :as sync]
    [metabase.sync.sync-metadata]
    [metabase.test :as mt]
+   [metabase.test.data.interface :as tx]
    [metabase.test.fixtures :as fixtures]
-   [metabase.util :as u]
+   [metabase.test.http-client :as client]
+   [metabase.warehouses.models.database :as database]
    [toucan2.core :as t2]))
 
 (use-fixtures :once (fixtures/initialize :db :web-server))
@@ -22,11 +22,11 @@
   (testing "POST /api/notify/db/:id"
     (testing "endpoint requires MB_API_KEY set"
       (mt/with-temporary-setting-values [api-key nil]
-        (is (= (-> mw.auth/key-not-set-response :body str)
+        (is (= (-> @#'api.routes.common/key-not-set-response :body str)
                (client/client :post 403 "notify/db/100")))))
     (testing "endpoint requires authentication"
       (mt/with-temporary-setting-values [api-key "test-api-key"] ;; set in :test but not in :dev
-        (is (= (get request/response-forbidden :body)
+        (is (= (get api.response/response-forbidden :body)
                (client/client :post 403 "notify/db/100")))))))
 
 (def ^:private api-headers {:headers {"x-metabase-apikey" "test-api-key"
@@ -45,7 +45,7 @@
       (testing "table ID must exist or we get a 404"
         (is (= {:status 404
                 :body   "Not found."}
-               (try (http/post (client/build-url (format "notify/db/%d" (:id (mt/db))) {})
+               (try (http/post (client/build-url (format "notify/db/%d" (mt/id)) {})
                                (merge {:accept       :json
                                        :content-type :json
                                        :form-params  {:table_id Integer/MAX_VALUE}}
@@ -55,7 +55,7 @@
       (testing "table name must exist or we get a 404"
         (is (= {:status 404
                 :body   "Not found."}
-               (try (http/post (client/build-url (format "notify/db/%d" (:id (mt/db))) {})
+               (try (http/post (client/build-url (format "notify/db/%d" (mt/id)) {})
                                (merge {:accept       :json
                                        :content-type :json
                                        :form-params  {:table_name "IncorrectToucanFact"}}
@@ -70,7 +70,7 @@
                        ([payload] (post-api payload 200))
                        ([payload expected-code]
                         (mt/with-temporary-setting-values [api-key "test-api-key"]
-                          (mt/client :post expected-code (format "notify/db/%d" (u/the-id (mt/db)))
+                          (mt/client :post expected-code (format "notify/db/%d" (mt/id))
                                      {:request-options api-headers}
                                      (merge {:synchronous? true}
                                             payload)))))]
@@ -110,7 +110,7 @@
     (testing "Ensure we have the ability to add a single new table"
       (let [db-name "add_new_table_sync_test_table"
             details (mt/dbdef->connection-details :postgres :db {:database-name db-name})]
-        (postgres-test/drop-if-exists-and-create-db! db-name)
+        (tx/drop-if-exists-and-create-db! driver/*driver* db-name)
         (mt/with-temp [:model/Database database {:engine :postgres :details (assoc details :dbname db-name)}]
           (let [spec     (sql-jdbc.conn/connection-details->spec :postgres details)
                 exec!    (fn [spec statements] (doseq [statement statements] (jdbc/execute! spec [statement])))
@@ -165,7 +165,7 @@
       (with-no-attached-data-warehouses
         (let [db-name (str (gensym "attached_datawarehouse"))]
           (try
-            (postgres-test/drop-if-exists-and-create-db! db-name)
+            (tx/drop-if-exists-and-create-db! driver/*driver* db-name)
             (let [details (mt/dbdef->connection-details :postgres :db {:database-name db-name})]
               (mt/with-temp [:model/Database database {:engine :postgres
                                                        :details (assoc details :dbname db-name)
@@ -211,4 +211,4 @@
                     (let [tables (tableset database)]
                       (is (= #{"public.foo" "public.bar" "public.fern"} tables)))))))
             (finally
-              (postgres-test/drop-if-exists-and-create-db! db-name :pg/just-drop))))))))
+              (tx/drop-if-exists-and-create-db! driver/*driver* db-name :just-drop))))))))

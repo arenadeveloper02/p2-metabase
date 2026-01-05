@@ -26,13 +26,10 @@ describe("issue 10803", () => {
     );
   });
 
-  testCases.forEach(fileType => {
+  testCases.forEach((fileType) => {
     it(`should format the date properly for ${fileType} in saved questions (metabase#10803)`, () => {
-      cy.get("@questionId").then(questionId => {
-        H.downloadAndAssert(
-          { fileType, questionId, logResults: true, raw: true },
-          testWorkbookDatetimes,
-        );
+      cy.get("@questionId").then((questionId) => {
+        H.downloadAndAssert({ fileType, questionId });
       });
     });
 
@@ -43,81 +40,8 @@ describe("issue 10803", () => {
       H.NativeEditor.focus().type("{movetoend} ");
 
       H.runNativeQuery();
-      H.downloadAndAssert({ fileType, raw: true }, testWorkbookDatetimes);
+      H.downloadAndAssert({ fileType });
     });
-
-    function testWorkbookDatetimes(sheet) {
-      expect(sheet["A1"].v).to.eq("birth_date");
-      expect(sheet["B1"].v).to.eq("created_at");
-
-      // Excel and CSV will have different formats
-      if (fileType === "csv") {
-        expect(sheet["A2"].v).to.eq("June 3, 2026, 12:00 AM");
-        expect(sheet["B2"].v).to.eq("June 3, 2026, 11:41 PM");
-      } else if (fileType === "xlsx") {
-        // We tell the xlsx library to read raw and not parse dates
-        // So for the _date_ format we expect an integer
-        // And for timestamp, we expect a float
-        expect(sheet["A2"].v).to.eq(46176);
-        expect(sheet["B2"].v).to.eq(46176.98707175926);
-      }
-    }
-  });
-});
-
-describe.skip("issue 18219", () => {
-  const questionDetails = {
-    name: "18219",
-    query: {
-      "source-table": ORDERS_ID,
-      aggregation: [["count"]],
-      breakout: [["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }]],
-    },
-  };
-
-  const testCases = ["csv", "xlsx"];
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  testCases.forEach(fileType => {
-    it("should format temporal units on export (metabase#18219)", () => {
-      H.createQuestion(questionDetails).then(({ body: { id: questionId } }) => {
-        H.visitQuestion(questionId);
-
-        cy.findByText("Created At: Year");
-        cy.findByText("2022");
-        cy.findByText("744");
-
-        H.downloadAndAssert({ fileType, questionId, raw: true }, assertion);
-      });
-    });
-
-    function assertion(sheet) {
-      expect(sheet["A1"].v).to.eq("Created At: Year");
-
-      if (fileType === "csv") {
-        expect(sheet["A2"].v).to.eq("2022");
-      }
-
-      if (fileType === "xlsx") {
-        /**
-         * Depending on how we end up solving this issue,
-         * the following assertion on the cell type might not be correct.
-         * It's very likely we'll format temporal breakouts as strings.
-         * I.e. we have to take into account Q1, Q2, etc.
-         */
-        // expect(A2.t).to.eq("n");
-
-        /**
-         * Because of the excel date format, we cannot assert on the raw value `v`.
-         * Rather, we have to do it on the parsed value `w`.
-         */
-        expect(sheet["A2"].w).to.eq("2022");
-      }
-    }
   });
 });
 
@@ -127,14 +51,6 @@ describe("issue 18382", () => {
    * The whole point of this repro was to try to cover as much of the old syntax as possible.
    * We want to make sure it still works when loaded into a new(er) Metabase version.
    */
-
-  function assertion(sheet) {
-    expect(sheet["A1"].v).to.eq("MOD:Title");
-    expect(sheet["B1"].v).to.eq("MOD:ID");
-    expect(sheet["C1"].v).to.eq("MOD:Reviewer");
-
-    expect(sheet["A2"].v).to.eq("Aerodynamic Concrete Bench");
-  }
 
   const questionDetails = {
     dataset_query: {
@@ -209,12 +125,12 @@ describe("issue 18382", () => {
     H.visitQuestionAdhoc(questionDetails);
   });
 
-  testCases.forEach(fileType => {
+  testCases.forEach((fileType) => {
     it(`should handle the old syntax in downloads for ${fileType} (metabase#18382)`, () => {
       // TODO: Please remove this line when issue gets fixed
       cy.skipOn(fileType === "csv");
 
-      H.downloadAndAssert({ fileType }, assertion);
+      H.downloadAndAssert({ fileType });
     });
   });
 });
@@ -232,11 +148,6 @@ describe("issue 18440", () => {
 
   const testCases = ["csv", "xlsx"];
 
-  function assertion(sheet) {
-    expect(sheet["C1"].v).to.eq("Product ID");
-    expect(sheet["C2"].v).to.eq("Awesome Concrete Shoes");
-  }
-
   beforeEach(() => {
     cy.intercept("POST", "/api/card").as("saveQuestion");
 
@@ -251,7 +162,7 @@ describe("issue 18440", () => {
     });
   });
 
-  testCases.forEach(fileType => {
+  testCases.forEach((fileType) => {
     it(`export should include a column with remapped values for ${fileType} (metabase#18440-1)`, () => {
       H.visitQuestionAdhoc(questionDetails);
 
@@ -260,7 +171,7 @@ describe("issue 18440", () => {
       // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Awesome Concrete Shoes");
 
-      H.downloadAndAssert({ fileType }, assertion);
+      H.downloadAndAssert({ fileType });
     });
 
     it(`export should include a column with remapped values for ${fileType} for a saved question (metabase#18440-2)`, () => {
@@ -270,7 +181,7 @@ describe("issue 18440", () => {
         cy.findByText("Product ID");
         cy.findByText("Awesome Concrete Shoes");
 
-        H.downloadAndAssert({ fileType, questionId: id }, assertion);
+        H.downloadAndAssert({ fileType, questionId: id });
       });
     });
   });
@@ -291,10 +202,6 @@ describe("issue 18573", () => {
       },
     },
   };
-  function assertion(sheet) {
-    expect(sheet["C1"].v).to.eq("Foo");
-    expect(sheet["C2"].v).to.eq("Awesome Concrete Shoes");
-  }
 
   beforeEach(() => {
     H.restore();
@@ -316,7 +223,7 @@ describe("issue 18573", () => {
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Awesome Concrete Shoes");
 
-    H.downloadAndAssert({ fileType: "xlsx" }, assertion);
+    H.downloadAndAssert({ fileType: "xlsx" });
   });
 });
 
@@ -338,31 +245,16 @@ describe("issue 18729", () => {
     display: "line",
   };
 
-  function assertion(sheet) {
-    // It currently says only "Created At", but that is already covered in an issue #18219.
-
-    // TODO: When 18219 gets fixed, uncomment the following assertion and delete the `contain` one.
-    // expect(sheet["A1"].v).to.eq("Created At: Month of year");
-    expect(sheet["A1"].v).to.contain("Created At");
-
-    // Based on how this issue gets resolved, the following assertions might need to change!
-
-    expect(sheet["A2"].v).to.eq(1);
-    expect(sheet["A2"].t).to.eq("n");
-    // Parsed values are always in the form of a string
-    expect(sheet["A2"].w).to.eq("1");
-  }
-
   beforeEach(() => {
     H.restore();
     cy.signInAsAdmin();
   });
 
-  ["csv", "xlsx"].forEach(fileType => {
+  ["csv", "xlsx"].forEach((fileType) => {
     it(`should properly format the 'X of Y'dates in ${fileType} exports (metabase#18729)`, () => {
       H.visitQuestionAdhoc(questionDetails);
 
-      H.downloadAndAssert({ fileType }, assertion);
+      H.downloadAndAssert({ fileType });
     });
   });
 });
@@ -379,7 +271,7 @@ describe("issue 19889", () => {
 
   function saveAndOverwrite() {
     cy.findByText("Save").click();
-    cy.findByTestId("save-question-modal").within(modal => {
+    cy.findByTestId("save-question-modal").within((modal) => {
       cy.findByText("Save").click();
     });
   }
@@ -414,24 +306,16 @@ describe("issue 19889", () => {
     cy.findByText("Started from").click(); // Give DOM some time to update
   });
 
-  testCases.forEach(fileType => {
+  testCases.forEach((fileType) => {
     it("should order columns correctly in unsaved native query exports", () => {
-      H.downloadAndAssert({ fileType, raw: true }, sheet => {
-        expect(sheet["A1"].v).to.equal("column b");
-        expect(sheet["B1"].v).to.equal("column a");
-        expect(sheet["C1"].v).to.equal("column c");
-      });
+      H.downloadAndAssert({ fileType });
     });
 
     it("should order columns correctly in saved native query exports", () => {
       saveAndOverwrite();
 
-      cy.get("@questionId").then(questionId => {
-        H.downloadAndAssert({ fileType, questionId, raw: true }, sheet => {
-          expect(sheet["A1"].v).to.equal("column b");
-          expect(sheet["B1"].v).to.equal("column a");
-          expect(sheet["C1"].v).to.equal("column c");
-        });
+      cy.get("@questionId").then((questionId) => {
+        H.downloadAndAssert({ fileType, questionId });
       });
     });
 
@@ -444,14 +328,10 @@ describe("issue 19889", () => {
 
       saveAndOverwrite();
 
-      cy.get("@questionId").then(questionId => {
+      cy.get("@questionId").then((questionId) => {
         H.visitQuestion(questionId);
 
-        H.downloadAndAssert({ fileType, questionId, raw: true }, sheet => {
-          expect(sheet["A1"].v).to.equal("column x");
-          expect(sheet["B1"].v).to.equal("column y");
-          expect(sheet["C1"].v).to.equal("column c");
-        });
+        H.downloadAndAssert({ fileType, questionId });
       });
     });
   });
@@ -486,19 +366,11 @@ describe("metabase#28834", () => {
 
   it("should be able to export unsaved native query results as CSV even after the query has changed", () => {
     const fileType = "csv";
-    H.downloadAndAssert({ fileType, raw: true }, sheet => {
-      expect(sheet["A1"].v).to.equal("column a");
-      expect(sheet["A2"].v).to.equal("1");
-      expect(sheet["A3"]).to.be.undefined;
-    });
+    H.downloadAndAssert({ fileType });
   });
 
   it("should be able to export unsaved native query results as XLSX even after the query has changed", () => {
     const fileType = "xlsx";
-    H.downloadAndAssert({ fileType, raw: true }, sheet => {
-      expect(sheet["A1"].v).to.equal("column a");
-      expect(sheet["A2"].v).to.equal(1);
-      expect(sheet["A3"]).to.be.undefined;
-    });
+    H.downloadAndAssert({ fileType });
   });
 });

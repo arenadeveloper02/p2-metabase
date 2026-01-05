@@ -4,11 +4,10 @@
    [clojure.string :as str]
    [clojure.test :refer :all]
    [metabase.driver :as driver]
-   [metabase.driver.common.parameters :as params]
-   [metabase.driver.common.parameters.values :as params.values]
+   ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.driver.common.parameters :as params]
+   ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.driver.common.parameters.values :as params.values]
    [metabase.driver.ddl.interface :as ddl.i]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
-   [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
@@ -16,10 +15,10 @@
    [metabase.permissions.models.data-permissions :as data-perms]
    [metabase.permissions.models.permissions :as perms]
    [metabase.permissions.models.permissions-group :as perms-group]
-   [metabase.public-settings :as public-settings]
    [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.permissions :as qp.perms]
-   [metabase.query-processor.store :as qp.store]
+   ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
+   [metabase.system.core :as system]
    [metabase.test :as mt]
    [metabase.util :as u]
    [toucan2.core :as t2])
@@ -83,7 +82,49 @@
     (is (= "100"
            (#'params.values/value-for-tag
             {:name "id", :id test-uuid, :display-name "ID", :type :text, :required true, :default "100"}
-            [{:type :category, :target [:variable [:template-tag {:id test-uuid}]], :value nil}])))))
+            [{:type :category, :target [:variable [:template-tag {:id test-uuid}]], :value nil}]))))
+
+  (testing "BigInteger value"
+    (is (= 9223372036854775808
+           (#'params.values/value-for-tag
+            {:name "id", :id test-uuid, :display-name "ID", :type :number}
+            [{:type :category, :target [:variable [:template-tag {:id test-uuid}]], :value "9223372036854775808"}])))))
+
+(deftest ^:parallel variable-multiple-values-test
+  (testing "Allows multiple bindings of the same tag"
+    (testing "if only one has a value set"
+      (is (= "2"
+             (#'params.values/value-for-tag
+              {:name "id", :display-name "ID", :type :text, :required true, :default "100"}
+              [{:type :category, :target [:variable [:template-tag "id"]], :value "2"}
+               {:type :category, :target [:variable [:template-tag "id"]], :value nil}
+               {:type :category, :target [:variable [:template-tag "id"]], :value nil}]))))
+    (testing "if all values are equal"
+      (is (= "2"
+             (#'params.values/value-for-tag
+              {:name "id", :display-name "ID", :type :text, :required true, :default "100"}
+              [{:type :category, :target [:variable [:template-tag "id"]], :value "2"}
+               {:type :category, :target [:variable [:template-tag "id"]], :value "2"}
+               {:type :category, :target [:variable [:template-tag "id"]], :value nil}]))))
+    (testing "if no values are given"
+      (testing "required tags use their defaults"
+        (is (= "100"
+               (#'params.values/value-for-tag
+                {:name "id", :display-name "ID", :type :text, :required true, :default "100"}
+                [{:type :category, :target [:variable [:template-tag "id"]], :value nil}
+                 {:type :category, :target [:variable [:template-tag "id"]], :value nil}]))))
+      (testing "optional tags get no value"
+        (is (= params/no-value
+               (#'params.values/value-for-tag
+                {:name "id", :display-name "ID", :type :text, :required false, :default "100"}
+                [{:type :category, :target [:variable [:template-tag "id"]], :value nil}
+                 {:type :category, :target [:variable [:template-tag "id"]], :value nil}]))))))
+  (testing "Throws if multiple real values are set"
+    (is (thrown-with-msg? Exception #"Multiple conflicting values"
+                          (#'params.values/value-for-tag
+                           {:name "id", :display-name "ID", :type :text, :required true, :default "100"}
+                           [{:type :category, :target [:variable [:template-tag "id"]], :value "2"}
+                            {:type :category, :target [:variable [:template-tag "id"]], :value "8"}])))))
 
 (defn- value-for-tag
   "Call the private function and de-recordize the field"
@@ -323,7 +364,7 @@
 (deftest ^:parallel field-filter-errors-test
   (testing "error conditions for field filter (:dimension) parameters"
     (testing "Should throw an Exception if Field does not exist"
-      (let [query (assoc (mt/native-query "SELECT * FROM table WHERE {{x}}")
+      (let [query (assoc (mt/native-query {:query "SELECT * FROM table WHERE {{x}}"})
                          :template-tags {"x" {:name         "x"
                                               :display-name "X"
                                               :type         :dimension
@@ -341,13 +382,13 @@
                                           [{:database (meta/id)
                                             :type     "native"
                                             :native   {:query test-query}}])
-          (is (= {:card-id 1, :query test-query, :params nil}
-                 (value-for-tag
-                  {:name         "card-template-tag-test"
-                   :display-name "Card template tag test"
-                   :type         :card
-                   :card-id      1}
-                  []))))))))
+          (is (=? {:card-id 1, :query test-query, :params nil}
+                  (value-for-tag
+                   {:name         "card-template-tag-test"
+                    :display-name "Card template tag test"
+                    :type         :card
+                    :card-id      1}
+                   []))))))))
 
 (deftest ^:parallel card-query-test-2
   (mt/with-test-user :rasta
@@ -401,7 +442,7 @@
                                       []))))
                     (testing "query hits persisted table"
                       (let [persisted-schema (ddl.i/schema-name {:id (mt/id)}
-                                                                (public-settings/site-uuid))
+                                                                (system/site-uuid))
                             update-query     (format "update %s.%s set name = name || ' from cached table'"
                                                      persisted-schema (:table_name pi))
                             model-query (format "select c_orig.name, c_cached.name
@@ -462,8 +503,8 @@
                                  (ex-data e)))
                              (take-while some? (iterate ex-cause e)))]
           (testing "should be a card Query error"
-            (is (= true
-                   (boolean (:card-query-error? exc-data)))))
+            (is (true?
+                 (boolean (:card-query-error? exc-data)))))
           (testing "card-id"
             (is (= 1
                    (:card-id exc-data))))
@@ -484,11 +525,11 @@
                                                                              {:order-by [[:asc $id]] :limit 2})}
                          :model/Card       card-2 {:collection_id (u/the-id collection)
                                                    :dataset_query (mt/native-query
-                                                                    {:query         "SELECT * FROM {{card}}"
-                                                                     :template-tags {"card" {:name         "card"
-                                                                                             :display-name "card"
-                                                                                             :type         :card
-                                                                                             :card-id      card-1-id}}})}]
+                                                                   {:query         "SELECT * FROM {{card}}"
+                                                                    :template-tags {"card" {:name         "card"
+                                                                                            :display-name "card"
+                                                                                            :type         :card
+                                                                                            :card-id      card-1-id}}})}]
             (perms/grant-collection-read-permissions! (perms-group/all-users) collection)
             (mt/with-test-user :rasta
               (binding [qp.perms/*card-id* (u/the-id card-2)]
@@ -500,7 +541,7 @@
 (deftest ^:parallel card-query-errors-test
   (testing "error conditions for :card parameters"
     (testing "should throw an Exception if Card does not exist"
-      (let [query (assoc (mt/native-query "SELECT * FROM table WHERE {{x}}")
+      (let [query (assoc (mt/native-query {:query "SELECT * FROM table WHERE {{x}}"})
                          :template-tags {"x" {:name         "x"
                                               :display-name "X"
                                               :type         :card
@@ -510,7 +551,7 @@
              (query->params-map query)))))))
 
 (defn- query-with-snippet [& {:as snippet-properties}]
-  (assoc (mt/native-query "SELECT * FROM {{expensive-venues}}")
+  (assoc (mt/native-query {:query "SELECT * FROM {{expensive-venues}}"})
          :template-tags {"expensive-venues" (merge
                                              {:type         :snippet
                                               :name         "expensive-venues"
@@ -528,7 +569,7 @@
          clojure.lang.ExceptionInfo
          (query->params-map (query-with-snippet :snippet-id Integer/MAX_VALUE))))))
 
-(deftest snippet-happy-path-test
+(deftest ^:parallel snippet-happy-path-test
   (testing "Snippet parsing should work correctly for a valid Snippet"
     (mt/with-temp [:model/NativeQuerySnippet {snippet-id :id} {:name    "expensive-venues"
                                                                :content "venues WHERE price = 4"}]
@@ -536,14 +577,27 @@
                                                                               :content    "venues WHERE price = 4"})}]
         (is (= expected
                (query->params-map (query-with-snippet :snippet-id snippet-id))))
-
         (testing "`:snippet-name` property in query shouldn't have to match `:name` of Snippet in DB"
           (is (= expected
                  (query->params-map (query-with-snippet :snippet-id snippet-id, :snippet-name "Old Name")))))))))
 
+(deftest ^:parallel snippet-happy-path-mock-metadata-provider-test
+  (testing "Snippet parsing should work correctly for a valid Snippet"
+    (qp.store/with-metadata-provider (lib.tu/mock-metadata-provider
+                                      meta/metadata-provider
+                                      {:native-query-snippets [{:id      1
+                                                                :content "venues WHERE price = 4"}]})
+      (let [expected {"expensive-venues" (params/map->ReferencedQuerySnippet {:snippet-id 1
+                                                                              :content    "venues WHERE price = 4"})}]
+        (is (= expected
+               (query->params-map (query-with-snippet :snippet-id 1))))
+        (testing "`:snippet-name` property in query shouldn't have to match `:name` of Snippet in DB"
+          (is (= expected
+                 (query->params-map (query-with-snippet :snippet-id 1, :snippet-name "Old Name")))))))))
+
 (deftest ^:parallel invalid-param-test
   (testing "Should throw an Exception if we try to pass with a `:type` we don't understand"
-    (let [query (assoc (mt/native-query "SELECT * FROM table WHERE {{x}}")
+    (let [query (assoc (mt/native-query {:query "SELECT * FROM table WHERE {{x}}"})
                        :template-tags {"x" {:name "x"
                                             :type :writer}})]
       (is (thrown?
@@ -582,7 +636,7 @@
   (testing "Parsing a Card reference should return a `ReferencedCardQuery` record that includes its parameters (#12236)"
     (qp.store/with-metadata-provider (lib.tu/mock-metadata-provider
                                       meta/metadata-provider
-                                      {:cards [(assoc ((lib.tu/mock-cards) :orders)
+                                      {:cards [(assoc (:orders (lib.tu/mock-cards))
                                                       :id 1
                                                       :dataset-query (lib.tu.macros/mbql-query orders
                                                                        {:filter      [:between $total 30 60]
@@ -761,22 +815,9 @@
 (deftest ^:parallel handle-dashboard-parameters-without-values-test
   (testing "dash params for a template tag may have no :value or :default (#38012)"
     (mt/dataset test-data
-      (qp.store/with-metadata-provider (lib.tu/metadata-provider-with-cards-for-queries
-                                        meta/metadata-provider
-                                        [(lib.tu.macros/mbql-query orders)
-                                         (lib/with-template-tags
-                                           (lib/native-query meta/metadata-provider
-                                                             "SELECT * FROM Orders WHERE {{createdAt}}")
-                                           {"createdAt"
-                                            {:type         :dimension
-                                             :dimension    #_[:field (meta/id :orders :created-at)]
-                                             (lib/ref (meta/field-metadata :orders :created-at))
-                                             :name         "createdAt"
-                                             :id           "4636d745-1467-4a70-ba20-2a08069d77ff"
-                                             :display-name "CreatedAt"
-                                             :widget-type  :date/all-options}})])
+      (qp.store/with-metadata-provider meta/metadata-provider
         (let [template-tags {"createdAt" {:type         :dimension
-                                          :dimension    [:field (meta/id :orders :created-at) {}]
+                                          :dimension    [:field (meta/id :orders :created-at) nil]
                                           :name         "createdAt"
                                           :id           "4636d745-1467-4a70-ba20-2a08069d77ff"
                                           :display-name "CreatedAt"
@@ -837,11 +878,11 @@
                                               :dataset_query (mt/mbql-query venues {:limit 2})}
                  :model/Card {card-2-id :id} {:collection_id nil
                                               :dataset_query (mt/native-query
-                                                               {:query         "SELECT * FROM {{card}}"
-                                                                :template-tags {"card" {:name         "card"
-                                                                                        :display-name "card"
-                                                                                        :type         :card
-                                                                                        :card-id      card-1-id}}})}]
+                                                              {:query         "SELECT * FROM {{card}}"
+                                                               :template-tags {"card" {:name         "card"
+                                                                                       :display-name "card"
+                                                                                       :type         :card
+                                                                                       :card-id      card-1-id}}})}]
     ;; even tho Card 2 references Card 1, we don't want to include it in the set of referenced Card IDs, since you
     ;; should only need permissions for Card 2 to be able to run the query (see #15131)
     (testing (format "Card 1 ID = %d, Card 2 ID = %d" card-1-id card-2-id)

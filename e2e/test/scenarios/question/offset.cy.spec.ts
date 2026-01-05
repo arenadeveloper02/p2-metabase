@@ -1,5 +1,6 @@
 const { H } = cy;
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import type { StructuredQuestionDetails } from "e2e/support/helpers";
 import { uuid } from "metabase/lib/uuid";
 import type {
   Aggregation,
@@ -72,12 +73,12 @@ describe("scenarios > question > offset", () => {
       H.enterCustomColumnDetails({ formula: prefix });
 
       cy.log("does not suggest offset() in custom columns");
-      cy.findByTestId("expression-suggestions-list-item").should("not.exist");
+      H.CustomExpressionEditor.completions().should("not.exist");
 
       H.enterCustomColumnDetails({ formula: expression });
       cy.realPress("Tab");
 
-      H.popover().within(() => {
+      H.expressionEditorWidget().within(() => {
         cy.button("Done").should("be.disabled");
         cy.findByText("OFFSET is not supported in custom columns").should(
           "exist",
@@ -86,7 +87,7 @@ describe("scenarios > question > offset", () => {
     });
 
     // Skipped because we want to disable offset() in custom columns for now
-    it.skip("suggests and allows using offset()", () => {
+    it("suggests and allows using offset()", { tags: "@skip" }, () => {
       const expression = "Offset([Total], -1)";
       const prefixLength = 3;
       const prefix = expression.substring(0, prefixLength);
@@ -146,61 +147,65 @@ describe("scenarios > question > offset", () => {
     });
 
     // Skipped because we want to disable offset() in custom columns for now
-    it.skip("does not allow to use offset-based column in other clauses (metabase#42764)", () => {
-      const offsettedColumnName = "xyz";
-      const expression = `Offset([${offsettedColumnName}], -1)`;
-      const prefixLength = "Offset([x".length;
-      const prefix = expression.substring(0, prefixLength);
-      const query: StructuredQuery = {
-        "source-table": ORDERS_ID,
-        expressions: {
-          [offsettedColumnName]: [
-            "offset",
-            createOffsetOptions(offsettedColumnName),
-            ORDERS_TOTAL_FIELD_REF,
-            -1,
-          ],
-        },
-        "order-by": [["asc", ORDERS_ID_FIELD_REF]],
-        limit: 5,
-      };
+    it(
+      "does not allow to use offset-based column in other clauses (metabase#42764)",
+      { tags: "@skip" },
+      () => {
+        const offsettedColumnName = "xyz";
+        const expression = `Offset([${offsettedColumnName}], -1)`;
+        const prefixLength = "Offset([x".length;
+        const prefix = expression.substring(0, prefixLength);
+        const query: StructuredQuery = {
+          "source-table": ORDERS_ID,
+          expressions: {
+            [offsettedColumnName]: [
+              "offset",
+              createOffsetOptions(offsettedColumnName),
+              ORDERS_TOTAL_FIELD_REF,
+              -1,
+            ],
+          },
+          "order-by": [["asc", ORDERS_ID_FIELD_REF]],
+          limit: 5,
+        };
 
-      H.createQuestion({ query }, { visitQuestion: true });
+        H.createQuestion({ query }, { visitQuestion: true });
 
-      cy.log("custom column drills");
-      const rowIndex = 1;
-      const columnIndex = 9;
-      const columnsCount = 10;
-      const cellIndex = rowIndex * columnsCount + columnIndex;
-      // eslint-disable-next-line no-unsafe-element-filtering
-      cy.findAllByRole("gridcell").eq(cellIndex).click();
-      cy.get(H.POPOVER_ELEMENT).should("not.exist");
+        cy.log("custom column drills");
+        const rowIndex = 1;
+        const columnIndex = 9;
+        const columnsCount = 10;
+        const cellIndex = rowIndex * columnsCount + columnIndex;
+        // eslint-disable-next-line no-unsafe-element-filtering
+        cy.findAllByRole("gridcell").eq(cellIndex).click();
+        cy.get(H.POPOVER_ELEMENT).should("not.exist");
 
-      H.openNotebook();
+        H.openNotebook();
 
-      cy.log("custom column expressions");
-      H.getNotebookStep("expression").icon("add").click();
-      verifyInvalidColumnName(offsettedColumnName, prefix, expression);
-      H.popover().button("Cancel").click();
+        cy.log("custom column expressions");
+        H.getNotebookStep("expression").icon("add").click();
+        verifyInvalidColumnName(offsettedColumnName, prefix, expression);
+        H.popover().button("Cancel").click();
 
-      cy.log("custom filter expressions");
-      cy.icon("filter").click();
-      H.popover().findByText("Custom Expression").click();
-      verifyInvalidColumnName(offsettedColumnName, prefix, expression);
-      H.popover().button("Cancel").click();
-      cy.realPress("Escape");
+        cy.log("custom filter expressions");
+        cy.icon("filter").click();
+        H.popover().findByText("Custom Expression").click();
+        verifyInvalidColumnName(offsettedColumnName, prefix, expression);
+        H.popover().button("Cancel").click();
+        cy.realPress("Escape");
 
-      cy.log("custom aggregation expressions");
-      cy.icon("sum").click();
-      H.popover().findByText("Custom Expression").click();
-      verifyInvalidColumnName(offsettedColumnName, prefix, expression);
-      H.popover().button("Cancel").click();
-      cy.realPress("Escape");
+        cy.log("custom aggregation expressions");
+        cy.icon("sum").click();
+        H.popover().findByText("Custom Expression").click();
+        verifyInvalidColumnName(offsettedColumnName, prefix, expression);
+        H.popover().button("Cancel").click();
+        cy.realPress("Escape");
 
-      cy.log("sort clause");
-      H.getNotebookStep("sort").icon("add").click();
-      H.popover().should("not.contain", offsettedColumnName);
-    });
+        cy.log("sort clause");
+        H.getNotebookStep("sort").icon("add").click();
+        H.popover().should("not.contain", offsettedColumnName);
+      },
+    );
   });
 
   describe("filters", () => {
@@ -220,12 +225,12 @@ describe("scenarios > question > offset", () => {
       H.enterCustomColumnDetails({ formula: prefix });
 
       cy.log("does not suggest offset() in filter expressions");
-      cy.findByTestId("expression-suggestions-list-item").should("not.exist");
+      H.CustomExpressionEditor.completions().should("not.exist");
 
       H.enterCustomColumnDetails({ formula: expression });
       cy.realPress("Tab");
 
-      H.popover().within(() => {
+      H.expressionEditorWidget().within(() => {
         cy.button("Done").should("be.disabled");
         cy.findByText("OFFSET is not supported in custom filters").should(
           "exist",
@@ -254,17 +259,17 @@ describe("scenarios > question > offset", () => {
       H.enterCustomColumnDetails({ formula: prefix, blur: false });
 
       cy.log("suggests offset() in aggregation expressions");
-      cy.findByTestId("expression-suggestions-list-item")
-        .should("exist")
-        .and("have.text", "Offset");
+      H.CustomExpressionEditor.completions().should("be.visible");
+      H.CustomExpressionEditor.completion("Offset").should("exist");
 
       H.enterCustomColumnDetails({ formula: expression, blur: false });
       cy.realPress("Tab");
 
-      H.popover().within(() => {
+      H.expressionEditorWidget().within(() => {
         cy.button("Done").should("be.disabled");
 
-        cy.findByPlaceholderText("Something nice and descriptive")
+        H.CustomExpressionEditor.nameInput()
+          .clear()
           .type("My expression")
           .blur();
 
@@ -285,27 +290,31 @@ describe("scenarios > question > offset", () => {
       );
     });
 
-    it.skip("does not preview sql without a breakout (metabase#47819)", () => {
-      cy.intercept("POST", "/api/dataset/native").as("sqlPreview");
+    it(
+      "does not preview sql without a breakout (metabase#47819)",
+      { tags: "@skip" },
+      () => {
+        cy.intercept("POST", "/api/dataset/native").as("sqlPreview");
 
-      const query: StructuredQuery = {
-        "source-table": ORDERS_ID,
-        aggregation: [OFFSET_SUM_TOTAL_AGGREGATION],
-        limit: 5,
-      };
+        const query: StructuredQuery = {
+          "source-table": ORDERS_ID,
+          aggregation: [OFFSET_SUM_TOTAL_AGGREGATION],
+          limit: 5,
+        };
 
-      H.createQuestion({ query }, { visitQuestion: true });
+        H.createQuestion({ query }, { visitQuestion: true });
 
-      H.openNotebook();
+        H.openNotebook();
 
-      cy.findByLabelText("View SQL").click();
-      cy.wait("@sqlPreview");
+        cy.findByLabelText("View SQL").click();
+        cy.wait("@sqlPreview");
 
-      cy.findByTestId("native-query-preview-sidebar").should(
-        "not.contain",
-        "Error generating the query.",
-      );
-    });
+        cy.findByTestId("native-query-preview-sidebar").should(
+          "not.contain",
+          "Error generating the query.",
+        );
+      },
+    );
 
     it("works with a single breakout", () => {
       const query: StructuredQuery = {
@@ -418,8 +427,8 @@ describe("scenarios > question > offset", () => {
       const breakoutName = "Created At";
 
       H.startNewQuestion();
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Tables").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Sample Database").click();
         cy.findByText("Orders").click();
       });
       addCustomAggregation({
@@ -462,8 +471,8 @@ describe("scenarios > question > offset", () => {
       ];
 
       H.startNewQuestion();
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Tables").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Sample Database").click();
         cy.findByText("Orders").click();
       });
       addCustomAggregation({
@@ -522,9 +531,9 @@ describe("scenarios > question > offset", () => {
       addCustomAggregation({ formula, name, isFirst: true });
 
       cy.findAllByTestId("notebook-cell-item").findByText(name).click();
-      cy.findByTestId("expression-editor-textfield").should("contain", formula);
+      H.CustomExpressionEditor.value().should("equal", formula);
 
-      cy.on("uncaught:exception", error => {
+      cy.on("uncaught:exception", (error) => {
         // this check is intended to catch possible normalization errors if BE or FE code changes
         // does not run by default
         expect(error.message.includes("Error normalizing")).to.be.false;
@@ -1178,7 +1187,6 @@ describe("scenarios > question > offset", () => {
     const segmentName = "Orders < 100";
     H.createSegment({
       name: segmentName,
-      // @ts-expect-error convert helper to ts
       description: "All orders with a total under $100.",
       table_id: ORDERS_ID,
       definition: {
@@ -1237,7 +1245,7 @@ describe("scenarios > question > offset", () => {
 
   it("should work with metrics (metabase#47854)", () => {
     const metricName = "Count of orders";
-    const ORDERS_SCALAR_METRIC: H.StructuredQuestionDetails = {
+    const ORDERS_SCALAR_METRIC: StructuredQuestionDetails = {
       name: metricName,
       type: "metric",
       description: "A metric",

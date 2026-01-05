@@ -1,6 +1,6 @@
 (ns metabase.models.resolution
   (:require
-   [metabase.plugins.classloader :as classloader]
+   [metabase.classloader.core :as classloader]
    [methodical.core :as methodical]
    [toucan2.model :as t2.model]))
 
@@ -12,79 +12,111 @@
   and other important code that should be loaded for side effects (such as method implementations).
 
   Tests will check to make sure new models get included in this map."
-  '{:model/Action                            metabase.models.action
-    :model/ApiKey                            metabase.models.api-key
-    :model/ApplicationPermissionsRevision    metabase.models.application-permissions-revision
-    :model/AuditLog                          metabase.models.audit-log
-    :model/BookmarkOrdering                  metabase.models.bookmark
-    :model/CacheConfig                       metabase.models.cache-config
-    :model/Card                              metabase.models.card
-    :model/CardBookmark                      metabase.models.bookmark
+  '{:model/Action                            metabase.actions.models
+    :model/ApiKey                            metabase.api-keys.models.api-key
+    :model/ApplicationPermissionsRevision    metabase.permissions.models.application-permissions-revision
+    :model/AuditLog                          metabase.audit-app.models.audit-log
+    :model/AuthIdentity metabase.auth-identity.models.auth-identity
+    :model/BookmarkOrdering                  metabase.bookmarks.models.bookmark
+    :model/CacheConfig                       metabase.cache.models.cache-config
+    :model/Card                              metabase.queries.models.card
+    :model/CardBookmark                      metabase.bookmarks.models.bookmark
     :model/Channel                           metabase.channel.models.channel
     :model/ChannelTemplate                   metabase.channel.models.channel
-    :model/CloudMigration                    metabase.models.cloud-migration
-    :model/Collection                        metabase.models.collection
-    :model/CollectionBookmark                metabase.models.bookmark
-    :model/CollectionPermissionGraphRevision metabase.models.collection-permission-graph-revision
-    :model/ConnectionImpersonation           metabase-enterprise.advanced-permissions.models.connection-impersonation
-    :model/Dashboard                         metabase.models.dashboard
-    :model/DashboardBookmark                 metabase.models.bookmark
-    :model/DashboardCard                     metabase.models.dashboard-card
-    :model/DashboardCardSeries               metabase.models.dashboard-card-series
-    :model/DashboardTab                      metabase.models.dashboard-tab
+    :model/CloudMigration                    metabase.cloud-migration.models.cloud-migration
+    :model/Collection                        metabase.collections.models.collection
+    :model/CollectionBookmark                metabase.bookmarks.models.bookmark
+    :model/CollectionPermissionGraphRevision metabase.permissions.models.collection-permission-graph-revision
+    :model/Comment                           metabase.comments.models.comment
+    :model/CommentReaction                   metabase.comments.models.comment-reaction
+    :model/ConnectionImpersonation           metabase-enterprise.impersonation.model
+    :model/ContentTranslation                metabase.content-translation.models
+    :model/Dashboard                         metabase.dashboards.models.dashboard
+    :model/DashboardBookmark                 metabase.bookmarks.models.bookmark
+    :model/DashboardCard                     metabase.dashboards.models.dashboard-card
+    :model/DashboardCardSeries               metabase.dashboards.models.dashboard-card-series
+    :model/DashboardTab                      metabase.dashboards.models.dashboard-tab
     :model/DataPermissions                   metabase.permissions.models.data-permissions
-    :model/Database                          metabase.models.database
-    :model/Dimension                         metabase.models.dimension
-    :model/Field                             metabase.models.field
-    :model/FieldUsage                        metabase.models.field-usage
-    :model/FieldValues                       metabase.models.field-values
-    :model/GroupTableAccessPolicy            metabase-enterprise.sandbox.models.group-table-access-policy
-    :model/HTTPAction                        metabase.models.action
-    :model/ImplicitAction                    metabase.models.action
-    :model/LegacyMetric                      metabase.models.legacy-metric
-    :model/LegacyMetricImportantField        metabase.models.legacy-metric-important-field
-    :model/LoginHistory                      metabase.models.login-history
-    :model/ModelIndex                        metabase.models.model-index
-    :model/ModelIndexValue                   metabase.models.model-index
-    :model/ModerationReview                  metabase.models.moderation-review
-    :model/NativeQuerySnippet                metabase.models.native-query-snippet
-    :model/Notification                      metabase.models.notification
-    :model/NotificationHandler               metabase.models.notification
-    :model/NotificationRecipient             metabase.models.notification
-    :model/NotificationSubscription          metabase.models.notification
-    :model/ParameterCard                     metabase.models.parameter-card
+    :model/Database                          metabase.warehouses.models.database
+    :model/DatabaseRouter                    metabase-enterprise.database-routing.model
+    :model/Dependency                        metabase-enterprise.dependencies.models.dependency
+    :model/Dimension                         metabase.warehouse-schema.models.dimension
+    :model/Document                          metabase.documents.models.document
+    :model/DocumentBookmark                  metabase.bookmarks.models.bookmark
+    :model/Field                             metabase.warehouse-schema.models.field
+    :model/FieldUserSettings                 metabase.warehouse-schema.models.field-user-settings
+    :model/FieldValues                       metabase.warehouse-schema.models.field-values
+    :model/Glossary                          metabase.glossary.models.glossary
+    :model/Sandbox                           metabase-enterprise.sandbox.models.sandbox
+    :model/HTTPAction                        metabase.actions.models
+    :model/ImplicitAction                    metabase.actions.models
+    :model/LoginHistory                      metabase.login-history.models.login-history
+    :model/Metabot                           metabase-enterprise.metabot-v3.models.metabot
+    :model/MetabotConversation               metabase-enterprise.metabot-v3.models.metabot-conversation
+    :model/MetabotMessage                    metabase-enterprise.metabot-v3.models.metabot-message
+    :model/MetabotPrompt                     metabase-enterprise.metabot-v3.models.metabot-prompt
+    :model/ModelIndex                        metabase.indexed-entities.models.model-index
+    :model/ModelIndexValue                   metabase.indexed-entities.models.model-index
+    :model/ModerationReview                  metabase.content-verification.models.moderation-review
+    :model/NativeQuerySnippet                metabase.native-query-snippets.models.native-query-snippet
+    :model/Notification                      metabase.notification.models
+    :model/NotificationCard                  metabase.notification.models
+    :model/NotificationHandler               metabase.notification.models
+    :model/NotificationRecipient             metabase.notification.models
+    :model/NotificationSubscription          metabase.notification.models
+    :model/ParameterCard                     metabase.queries.models.parameter-card
     :model/Permissions                       metabase.permissions.models.permissions
     :model/PermissionsGroup                  metabase.permissions.models.permissions-group
     :model/PermissionsGroupMembership        metabase.permissions.models.permissions-group-membership
     :model/PermissionsRevision               metabase.permissions.models.permissions-revision
-    :model/PersistedInfo                     metabase.models.persisted-info
-    :model/Pulse                             metabase.models.pulse
-    :model/PulseCard                         metabase.models.pulse-card
-    :model/PulseChannel                      metabase.models.pulse-channel
-    :model/PulseChannelRecipient             metabase.models.pulse-channel-recipient
-    :model/Query                             metabase.models.query
-    :model/QueryAction                       metabase.models.action
-    :model/QueryAnalysis                     metabase.models.query-analysis
-    :model/QueryCache                        metabase.models.query-cache
-    :model/QueryExecution                    metabase.models.query-execution
-    :model/QueryField                        metabase.models.query-field
-    :model/QueryTable                        metabase.models.query-table
-    :model/RecentViews                       metabase.models.recent-views
-    :model/Revision                          metabase.models.revision
+    :model/PersistedInfo                     metabase.model-persistence.models.persisted-info
+    :model/PythonLibrary                     metabase-enterprise.transforms-python.models.python-library
+    :model/Pulse                             metabase.pulse.models.pulse
+    :model/PulseCard                         metabase.pulse.models.pulse-card
+    :model/PulseChannel                      metabase.pulse.models.pulse-channel
+    :model/PulseChannelRecipient             metabase.pulse.models.pulse-channel-recipient
+    :model/Query                             metabase.queries.models.query
+    :model/QueryAction                       metabase.actions.models
+    :model/QueryCache                        metabase.cache.models.query-cache
+    :model/QueryExecution                    metabase.queries.models.query-execution
+    :model/QueryField                        metabase.queries.models.query-field
+    :model/QueryTable                        metabase.queries.models.query-table
+    :model/RecentViews                       metabase.activity-feed.models.recent-views
+    :model/RemoteSyncObject                  metabase-enterprise.remote-sync.models.remote-sync-object
+    :model/RemoteSyncTask                    metabase-enterprise.remote-sync.models.remote-sync-task
+    :model/Revision                          metabase.revisions.models.revision
     :model/SearchIndexMetadata               metabase.search.models.search-index-metadata
-    :model/Secret                            metabase.models.secret
-    :model/Segment                           metabase.models.segment
-    :model/Session                           metabase.models.session
-    :model/Setting                           metabase.models.setting
-    :model/Table                             metabase.models.table
-    :model/TablePrivileges                   metabase.models.table-privileges
-    :model/TaskHistory                       metabase.models.task-history
+    :model/Secret                            metabase.secrets.models.secret
+    :model/Segment                           metabase.segments.models.segment
+    :model/SemanticSearchTokenTracking       metabase-enterprise.semantic-search.models.token-tracking
+    :model/Session                           metabase.session.models.session
+    :model/Setting                           metabase.settings.models.setting
+    :model/SupportAccessGrantLog metabase-enterprise.support-access-grants.models.support-access-grant-log
+    :model/Table                             metabase.warehouse-schema.models.table
+    :model/TaskHistory                       metabase.task-history.models.task-history
+    :model/Tenant                            metabase-enterprise.tenants.model
     :model/Timeline                          metabase.timeline.models.timeline
     :model/TimelineEvent                     metabase.timeline.models.timeline-event
-    :model/User                              metabase.models.user
-    :model/UserKeyValue                      metabase.models.user-key-value
-    :model/UserParameterValue                metabase.models.user-parameter-value
-    :model/ViewLog                           metabase.models.view-log})
+    :model/Transform                         metabase-enterprise.transforms.models.transform
+    :model/TransformJob                      metabase-enterprise.transforms.models.transform-job
+    :model/TransformJobRun                   metabase-enterprise.transforms.models.job-run
+    :model/TransformJobTransformTag          metabase-enterprise.transforms.models.transform-job-transform-tag
+    :model/TransformRun                      metabase-enterprise.transforms.models.transform-run
+    :model/TransformRunCancelation           metabase-enterprise.transforms.models.transform-run-cancelation
+    :model/TransformTag                      metabase-enterprise.transforms.models.transform-tag
+    :model/TransformTransformTag             metabase-enterprise.transforms.models.transform-transform-tag
+    :model/Undo                              metabase-enterprise.action-v2.models.undo
+    :model/User                              metabase.users.models.user
+    :model/UserKeyValue                      metabase.user-key-value.models.user-key-value
+    :model/UserParameterValue                metabase.users.models.user-parameter-value
+    :model/ViewLog                           metabase.view-log.models.view-log})
+
+;;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;;; !!                                                                                                !!
+;;; !!                 DO NOT ADD ANY MORE MODEL NAMESPACES UNDER `metabase.models.*`                 !!
+;;; !!                                                                                                !!
+;;; !!   Please read https://metaboat.slack.com/archives/CKZEMT1MJ/p1738972144181069 for more info    !!
+;;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 (methodical/defmethod t2.model/resolve-model :before :default
   "Ensure the namespace for given model is loaded. This is a safety mechanism as we are moving to toucan2 and we don't

@@ -11,7 +11,7 @@
    [malli.transform :as mtx]
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
-   [metabase.db :as mdb]
+   [metabase.app-db.core :as mdb]
    [metabase.util.i18n :refer [deferred-tru]]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
@@ -32,6 +32,12 @@
                                          (date-part :month month)]})]
     results))
 
+;; TODO (Cam 10/28/25) -- fix this endpoint route to use kebab-case for consistency with the rest of our REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-route-uses-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :get "/query_execution/:yyyy-mm"
   "Fetch rows for the month specified by `:yyyy-mm` from the query_execution logs table.
   Must be a superuser."

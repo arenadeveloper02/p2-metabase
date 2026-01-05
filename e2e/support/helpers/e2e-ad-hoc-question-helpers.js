@@ -11,11 +11,15 @@ const {
 } = SAMPLE_DB_TABLES;
 
 export function adhocQuestionHash(question) {
-  if (question.display) {
+  const questionWithDisplay = {
+    display: "table",
     // without "locking" the display, the QB will run its picking logic and override the setting
-    question = Object.assign({}, question, { displayIsLocked: true });
-  }
-  return btoa(decodeURIComponent(encodeURIComponent(JSON.stringify(question))));
+    displayIsLocked: question.display != null,
+    ...question,
+  };
+  return btoa(
+    decodeURIComponent(encodeURIComponent(JSON.stringify(questionWithDisplay))),
+  );
 }
 
 function newCardHash(type) {
@@ -73,6 +77,7 @@ function newNativeCardHash(
     query = "",
     collection_id = null,
     display = "scalar",
+    visualization_settings = {},
   } = {},
 ) {
   const card = {
@@ -84,7 +89,7 @@ function newNativeCardHash(
     },
     display,
     parameters: [],
-    visualization_settings: {},
+    visualization_settings,
     type,
   };
 
@@ -97,17 +102,14 @@ function newNativeCardHash(
  * @example
  * H.startNewNativeQuestion({ query: "SELECT * FROM ORDERS" });
  * @param {object} [config]
- * @param {number} [config.database]
+ * @param {number | null} [config.database]
  * @param {string} config.query
  * @param {number} [config.collection_id]
  * @param {string} [config.display]
  */
 export function startNewNativeQuestion(config) {
   const hash = newNativeCardHash("question", config);
-
   cy.visit("/question#" + hash);
-
-  return NativeEditor.get();
 }
 
 /**
@@ -124,7 +126,7 @@ export function startNewNativeModel(config) {
 /**
  * Visit any valid query in an ad-hoc manner.
  *
- * @param {object} question
+ * @param {import("./api").QuestionDetails} question
  * @param {{callback?: function, mode: (undefined|"notebook")}} config
  */
 export function visitQuestionAdhoc(
@@ -132,6 +134,8 @@ export function visitQuestionAdhoc(
   { callback, mode, autorun = true, skipWaiting = false } = {},
 ) {
   const questionMode = mode === "notebook" ? "/notebook" : "";
+
+  cy.intercept("POST", "/api/dataset/query_metadata").as("queryMetadata");
 
   const [url, alias] = getInterceptDetails(question, mode, autorun);
 
@@ -142,8 +146,12 @@ export function visitQuestionAdhoc(
   runQueryIfNeeded(question, autorun);
 
   if (mode !== "notebook" && !skipWaiting) {
-    cy.wait("@" + alias).then(xhr => callback && callback(xhr));
+    cy.wait("@queryMetadata");
+    return cy.wait("@" + alias).then((xhr) => callback && callback(xhr));
   }
+
+  // Ensure chainability
+  return cy.wrap(null);
 }
 
 /**
@@ -151,7 +159,7 @@ export function visitQuestionAdhoc(
  *
  * @param {Object} config
  * @param {number} [config.database=SAMPLE_DB_ID]
- * @param {number} config.table
+ * @param {number | TableId} config.table
  * @param {("notebook"|undefined)} [config.mode]
  * @param {number} [config.limit]
  * @param {function} [config.callback]

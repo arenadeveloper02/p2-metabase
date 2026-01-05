@@ -2,9 +2,14 @@ import { dissoc } from "icepick";
 import { t } from "ttag";
 
 import { useGetDefaultCollectionId } from "metabase/collections/hooks";
-import ModalContent from "metabase/components/ModalContent";
-import { CopyDashboardFormConnected } from "metabase/dashboard/containers/CopyDashboardForm";
-import { CopyQuestionForm } from "metabase/questions/components/CopyQuestionForm";
+import { useEscapeToCloseModal } from "metabase/common/hooks/use-escape-to-close-modal";
+import {
+  CopyDashboardFormConnected,
+  type CopyDashboardFormProperties,
+} from "metabase/dashboard/containers/CopyDashboardForm";
+import { DocumentCopyForm } from "metabase/documents/components/DocumentCopyForm/DocumentCopyForm";
+import { CopyCardForm } from "metabase/questions/components/CopyCardForm/CopyCardForm";
+import { Modal } from "metabase/ui";
 
 interface EntityCopyModalProps {
   entityType: string;
@@ -14,7 +19,7 @@ interface EntityCopyModalProps {
   onClose: () => void;
   onSaved: (newEntityObject?: any) => void;
   overwriteOnInitialValuesChange?: boolean;
-  onValuesChange?: (values: Record<string, unknown>) => void;
+  onValuesChange?: (values: CopyDashboardFormProperties) => void;
   form?: any;
 }
 
@@ -44,10 +49,14 @@ const EntityCopyModal = ({
     name: resolvedObject.name + " - " + t`Duplicate`,
   };
 
+  useEscapeToCloseModal(onClose);
+
   return (
-    <ModalContent
+    <Modal
       title={title || t`Duplicate "${resolvedObject.name}"`}
+      opened
       onClose={onClose}
+      closeOnEscape={false}
     >
       {entityType === "dashboards" && (
         <CopyDashboardFormConnected
@@ -56,10 +65,11 @@ const EntityCopyModal = ({
           onSaved={onSaved}
           initialValues={initialValues}
           {...props}
+          originalDashboardId={resolvedObject.id}
         />
       )}
-      {entityType === "questions" && (
-        <CopyQuestionForm
+      {entityType === "cards" && (
+        <CopyCardForm
           onSubmit={copy}
           onCancel={onClose}
           onSaved={onSaved}
@@ -68,7 +78,16 @@ const EntityCopyModal = ({
           {...props}
         />
       )}
-    </ModalContent>
+      {entityType === "documents" && (
+        <DocumentCopyForm
+          onSubmit={copy}
+          onCancel={onClose}
+          onSaved={onSaved}
+          initialValues={initialValues}
+          {...props}
+        />
+      )}
+    </Modal>
   );
 };
 

@@ -1,25 +1,24 @@
 (ns ^:mb/driver-tests metabase-enterprise.advanced-permissions.common-test
   (:require
    [clojure.test :refer :all]
-   [metabase-enterprise.advanced-permissions.api.util-test
-    :as advanced-perms.api.tu]
-   [metabase-enterprise.advanced-permissions.common
-    :as advanced-permissions.common]
-   [metabase.api.database :as api.database]
+   [metabase-enterprise.advanced-permissions.common :as advanced-permissions.common]
+   [metabase-enterprise.impersonation.util-test :as advanced-perms.api.tu]
    [metabase.driver :as driver]
-   [metabase.models.database :as database]
    [metabase.permissions.models.data-permissions :as data-perms]
    [metabase.permissions.models.permissions :as perms]
    [metabase.permissions.models.permissions-group :as perms-group]
-   [metabase.sync.concurrent :as sync.concurrent]
    [metabase.test :as mt]
    [metabase.test.data.sql :as sql.tx]
    [metabase.test.fixtures :as fixtures]
-   [metabase.upload-test :as upload-test]
+   [metabase.upload.impl-test :as upload-test]
    [metabase.util :as u]
+   [metabase.util.quick-task :as quick-task]
+   [metabase.warehouse-schema.models.field-values :as field-values]
+   [metabase.warehouses-rest.api :as api.database]
+   [metabase.warehouses.models.database :as database]
    [toucan2.core :as t2]))
 
-(use-fixtures :once (fixtures/initialize :db :test-users))
+(use-fixtures :once (fixtures/initialize :db :test-users :row-lock))
 
 (deftest current-user-test
   (testing "GET /api/user/current returns additional fields if advanced-permissions is enabled"
@@ -28,22 +27,22 @@
                 (-> (mt/user-http-request user :get 200 "user/current")
                     :permissions))]
         (testing "admins should have full advanced permisions"
-          (is (= {:can_access_setting      true
-                  :can_access_subscription true
-                  :can_access_monitoring   true
-                  :can_access_data_model   true
-                  :is_group_manager        false
-                  :can_access_db_details   true}
-                 (user-permissions :crowberto))))
+          (is (=? {:can_access_setting        true
+                   :can_access_subscription   true
+                   :can_access_monitoring     true
+                   :can_access_data_model     true
+                   :is_group_manager          false
+                   :can_access_db_details     true}
+                  (user-permissions :crowberto))))
 
         (testing "non-admin users should only have subscriptions enabled by default"
-          (is (= {:can_access_setting      false
-                  :can_access_subscription true
-                  :can_access_monitoring   false
-                  :can_access_data_model   false
-                  :is_group_manager        false
-                  :can_access_db_details   false}
-                 (user-permissions :rasta))))
+          (is (=? {:can_access_setting        false
+                   :can_access_subscription   true
+                   :can_access_monitoring     false
+                   :can_access_data_model     false
+                   :is_group_manager          false
+                   :can_access_db_details     false}
+                  (user-permissions :rasta))))
 
         (testing "can_access_data_model is true if a user has any data model perms"
           (let [[id-1 id-2 id-3 id-4] (map u/the-id (database/tables (mt/db)))]
@@ -60,6 +59,23 @@
           (mt/with-all-users-data-perms-graph! {(mt/id) {:details :yes}}
             (is (partial= {:can_access_db_details true}
                           (user-permissions :rasta)))))))))
+
+(deftest current-user-query-permissions-published-table-test
+  (testing "GET /api/user/current can_create_queries respects published tables"
+    (mt/with-premium-features #{:data-studio}
+      (letfn [(user-permissions [user]
+                (-> (mt/user-http-request user :get 200 "user/current")
+                    :permissions))]
+        (testing "user with collection permission on published table should have can_create_queries true"
+          (mt/with-temp [:model/Collection collection {}
+                         :model/Table      _table     {:db_id         (mt/id)
+                                                       :is_published  true
+                                                       :collection_id (:id collection)}]
+            (perms/grant-collection-read-permissions! (perms-group/all-users) (:id collection))
+            (mt/with-no-data-perms-for-all-users!
+              (is (partial= {:can_create_queries        true
+                             :can_create_native_queries false}
+                            (user-permissions :rasta))))))))))
 
 (deftest new-database-view-data-permission-level-test
   (mt/with-additional-premium-features #{:sandboxes :advanced-permissions}
@@ -89,8 +105,8 @@
 
         (testing "A new database defaults to `:blocked` if the group has a sandbox for any table"
           (mt/with-temp [:model/Table {table-id :id} {:db_id db-id}
-                         :model/GroupTableAccessPolicy _ {:group_id group-id
-                                                          :table_id table-id}
+                         :model/Sandbox _ {:group_id group-id
+                                           :table_id table-id}
                          :model/Database {db-id-2 :id} {}]
             (is (= :blocked (perm-value db-id-2)))))))))
 
@@ -116,8 +132,8 @@
 
         (testing "A new table defaults to `:blocked` if the group has a sandbox for any existing table"
           (data-perms/set-table-permission! group-id table-id-1 :perms/view-data :unrestricted)
-          (mt/with-temp [:model/GroupTableAccessPolicy _ {:group_id group-id
-                                                          :table_id table-id-1}
+          (mt/with-temp [:model/Sandbox _ {:group_id group-id
+                                           :table_id table-id-1}
                          :model/Table {table-id-3 :id} {:db_id db-id :schema "PUBLIC"}]
             (is (nil? (perm-value nil)))
             (is (= :unrestricted (perm-value table-id-1)))
@@ -146,10 +162,10 @@
           (data-perms/set-database-permission! all-users-group-id db-id :perms/view-data :unrestricted)
           (mt/with-temp [:model/Card                   {card-id :id}  {}
                          :model/Table                  {table-id :id} {:db_id db-id}
-                         :model/GroupTableAccessPolicy _              {:table_id             table-id
-                                                                       :group_id             all-users-group-id
-                                                                       :card_id              card-id
-                                                                       :attribute_remappings {"foo" 1}}]
+                         :model/Sandbox _              {:table_id             table-id
+                                                        :group_id             all-users-group-id
+                                                        :card_id              card-id
+                                                        :attribute_remappings {"foo" 1}}]
             (is (= :blocked (advanced-permissions.common/new-group-view-data-permission-level db-id)))))))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -586,6 +602,8 @@
 (deftest table-rescan-values-test
   (mt/with-temp [:model/Table {table-id :id} {:db_id (mt/id) :schema "PUBLIC"}]
     (testing "POST /api/table/:id/rescan_values"
+      ;; Manually activate Field values since they are not created during sync (#53387)
+      (field-values/get-or-create-full-field-values! (t2/select-one :model/Field :id (mt/id :venues :price)))
       (testing "A non-admin can trigger a rescan of field values if they have data model perms for the table"
         (mt/with-all-users-data-perms-graph! {(mt/id) {:data-model {:schemas {"PUBLIC" {table-id :none}}}}}
           (mt/user-http-request :rasta :post 403 (format "table/%d/rescan_values" table-id)))
@@ -594,9 +612,9 @@
           (mt/user-http-request :rasta :post 200 (format "table/%d/rescan_values" table-id))))
 
       (testing "A non-admin with no data access can trigger a re-scan of field values if they have data model perms"
-        (t2/delete! :model/FieldValues :field_id (mt/id :venues :price))
-        (is (= nil (t2/select-one-fn :values :model/FieldValues, :field_id (mt/id :venues :price))))
-        (with-redefs [sync.concurrent/submit-task! (fn [task] (task))]
+        (t2/update! :model/FieldValues :field_id (mt/id :venues :price) {:values [10 20 30 40]})
+        (is (= [10 20 30 40] (t2/select-one-fn :values :model/FieldValues, :field_id (mt/id :venues :price))))
+        (with-redefs [quick-task/submit-task! (fn [task] (task))]
           (mt/with-all-users-data-perms-graph! {(mt/id) {:view-data      :blocked
                                                          :create-queries :no
                                                          :data-model     {:schemas {"PUBLIC" {(mt/id :venues) :all}}}}}
@@ -720,6 +738,8 @@
                    :model/Table       {table-id :id}  {:db_id db-id}
                    :model/Field       {field-id :id}  {:table_id table-id}
                    :model/FieldValues {values-id :id} {:field_id field-id, :values [1 2 3 4]}]
+      ;; Manually activate Field values since they are not created during sync (#53387)
+      (field-values/get-or-create-full-field-values! (t2/select-one :model/Field :id (mt/id :venues :price)))
       (with-redefs [api.database/*rescan-values-async* false]
         (testing "A non-admin can trigger a sync of the DB schema if they have DB details permissions"
           (mt/with-all-users-data-perms-graph! {db-id {:details :yes}}
@@ -744,8 +764,8 @@
             (mt/user-http-request :rasta :post 200 (format "database/%d/rescan_values" (mt/id)))))
 
         (testing "A non-admin with no data access can trigger a re-scan of field values if they have DB details perms"
-          (t2/delete! :model/FieldValues :field_id (mt/id :venues :price))
-          (is (= nil (t2/select-one-fn :values :model/FieldValues, :field_id (mt/id :venues :price))))
+          (t2/update! :model/FieldValues :field_id (mt/id :venues :price) {:values [10 20 30 40]})
+          (is (= [10 20 30 40] (t2/select-one-fn :values :model/FieldValues, :field_id (mt/id :venues :price))))
           (mt/with-all-users-data-perms-graph! {(mt/id) {:view-data      :blocked
                                                          :create-queries :no
                                                          :details        :yes}}
@@ -797,23 +817,49 @@
                            (mt/user-http-request :rasta :post 200 execute-path
                                                  {:parameters {"id" 1}})))))
                 (testing "Fails with access to the DB blocked"
-                  (mt/with-all-users-data-perms-graph! {(u/the-id (mt/db)) {:view-data      :blocked
-                                                                            :create-queries :no
-                                                                            :details        :yes}}
+                  (mt/with-all-users-data-perms-graph! {(mt/id) {:view-data      :blocked
+                                                                 :create-queries :no
+                                                                 :details        :yes}}
                     (mt/with-actions-enabled
                       (is (partial= {:message "You don't have permissions to do that."}
                                     (mt/user-http-request :rasta :post 403 execute-path
                                                           {:parameters {"id" 1}}))))))))))))))
 
+(defmacro with-all-users-as-settings-managers [& body]
+  `(try
+     (perms/grant-application-permissions! (perms-group/all-users) :setting)
+     (do ~@body)
+     (finally
+       (perms/revoke-application-permissions! (perms-group/all-users) :setting))))
+
 (deftest settings-managers-can-have-uploads-db-access-revoked
-  (perms/grant-application-permissions! (perms-group/all-users) :setting)
-  (testing "Upload DB can be set with the right permission"
-    (mt/with-all-users-data-perms-graph! {(mt/id) {:details :yes}}
-      (mt/user-http-request :rasta :put 204 "setting/" {:uploads-settings {:db_id (mt/id) :schema_name nil :table_prefix nil}})))
-  (testing "Upload DB cannot be set without the right permission"
-    (mt/with-all-users-data-perms-graph! {(mt/id) {:details :no}}
-      (mt/user-http-request :rasta :put 403 "setting/" {:uploads-settings {:db_id (mt/id) :schema_name nil :table_prefix nil}})))
-  (perms/revoke-application-permissions! (perms-group/all-users) :setting))
+  (mt/with-premium-features #{:advanced-permissions}
+    (with-all-users-as-settings-managers
+      (mt/user-http-request :crowberto :put 204 "setting/" {:uploads-settings {}})
+      (testing "Upload DB can be set with the right permission"
+        (mt/with-all-users-data-perms-graph! {(mt/id) {:details :yes}}
+          (mt/user-http-request :rasta :put 204 "setting/" {:uploads-settings {:db_id (mt/id) :schema_name nil :table_prefix nil}})))
+      (testing "Upload DB cannot be set without the right permission"
+        (mt/with-all-users-data-perms-graph! {(mt/id) {:details :no}}
+          (mt/user-http-request :rasta :put 403 "setting/" {:uploads-settings {:db_id (mt/id) :schema_name nil :table_prefix nil}}))))))
+
+(deftest settings-managers-can-enable-and-disable-uploads-on-dwh
+  (mt/with-premium-features #{:advanced-permissions}
+    (with-all-users-as-settings-managers
+      (mt/with-temp [:model/Database {db-id :id} {:is_attached_dwh true}
+                     :model/PermissionsGroup {group-id :id} {}
+                     :model/User {user-id :id} {}
+                     :model/PermissionsGroupMembership {} {:user_id user-id
+                                                           :group_id group-id}]
+        (mt/with-no-data-perms-for-all-users!
+          (mt/with-restored-data-perms-for-groups! [group-id]
+            (testing "Can enable uploads on DWH"
+              (mt/user-http-request user-id :put 204 "setting/" {:uploads-settings {:db_id db-id :schema_name nil :table_prefix nil}}))
+            (testing "Can disable uploads on DWH"
+              (mt/user-http-request user-id :put 204 "setting/" {:uploads-settings {}}))
+            (testing "Admins can do this too"
+              (mt/user-http-request :crowberto :put 204 "setting/" {:uploads-settings {:db_id db-id :schema_name nil :table_prefix nil}})
+              (mt/user-http-request :crowberto :put 204 "setting/" {:uploads-settings {}}))))))))
 
 (deftest upload-csv-test
   (mt/test-drivers (mt/normal-drivers-with-feature :uploads :schemas)
@@ -855,7 +901,7 @@
             [table-a (upload-test/create-upload-table! :schema-name schema-name)]
             (upload-test/with-upload-table!
               [table-b (upload-test/create-upload-table! :schema-name schema-name)]
-              (let [db-id       (u/the-id (mt/db))
+              (let [db-id       (mt/id)
                     append-csv! #(upload-test/update-csv-with-defaults!
                                   action
                                   :table-id (:id table-a)
@@ -882,7 +928,7 @@
                        action)
         (upload-test/with-upload-table!
           [table-a (upload-test/create-upload-table!)]
-          (let [db-id       (u/the-id (mt/db))
+          (let [db-id       (mt/id)
                 append-csv! #(upload-test/update-csv-with-defaults!
                               action
                               :table-id (:id table-a)
@@ -900,7 +946,7 @@
     (testing "GET /api/database and GET /api/database/:id responses should include can_upload depending on unrestricted data access to the upload schema"
       (mt/with-model-cleanup [:model/Table]
         (let [schema-name (sql.tx/session-schema driver/*driver*)
-              db-id       (u/the-id (mt/db))]
+              db-id       (mt/id)]
           (upload-test/with-upload-table! [table (upload-test/create-upload-table! :schema-name schema-name)]
             (mt/with-temp [:model/Table {} {:db_id db-id :schema "some_schema"}]
               (doseq [[schema-perms can-upload?] {:query-builder               true

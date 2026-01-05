@@ -1,13 +1,13 @@
 import { onlyOn } from "@cypress/skip-test";
-import _ from "underscore";
 
-const { H } = cy;
 import { USERS, USER_GROUPS } from "e2e/support/cypress_data";
 import {
   ORDERS_COUNT_QUESTION_ID,
   ORDERS_DASHBOARD_ID,
   ORDERS_QUESTION_ID,
 } from "e2e/support/cypress_sample_instance_data";
+
+const { H } = cy;
 
 const PERMISSIONS = {
   curate: ["admin", "normal", "nodata"],
@@ -25,7 +25,7 @@ describe(
 
     Object.entries(PERMISSIONS).forEach(([permission, userGroup]) => {
       context(`${permission} access`, () => {
-        userGroup.forEach(user => {
+        userGroup.forEach((user) => {
           onlyOn(permission === "curate", () => {
             describe(`${user} user`, () => {
               beforeEach(() => {
@@ -97,6 +97,19 @@ describe(
                       .parents("li")
                       .should("have.attr", "aria-selected", "true");
                   });
+
+                  if (user === "admin") {
+                    H.openQuestionActions();
+                    cy.findByTestId("move-button").click();
+                    H.entityPickerModal().within(() => {
+                      cy.findByRole("button", {
+                        name: /Orders in a dashboard/,
+                      }).should("exist");
+                      cy.findByRole("button", { name: /Bobby Table/ }).should(
+                        "not.exist",
+                      );
+                    });
+                  }
                 });
 
                 it("should be able to move the question to a collection created on the go", () => {
@@ -210,7 +223,7 @@ describe(
                       );
 
                       // Simulate a couple gets, so that the dashboards appears in recents for various users
-                      cy.get("@dashboardId").then(dashboardId => {
+                      cy.get("@dashboardId").then((dashboardId) => {
                         cy.request(`/api/dashboard/${dashboardId}`);
                         cy.request(`/api/dashboard/${ORDERS_DASHBOARD_ID}`);
                       });
@@ -296,7 +309,9 @@ describe(
                     H.openQuestionActions();
                     cy.findByTestId("add-to-dashboard-button").click();
 
-                    findSelectedPickerItem("Orders in a dashboard");
+                    H.entityPickerModalTab("Dashboards").click();
+
+                    findActivePickerItem("Orders in a dashboard");
                   });
 
                   it("should handle lost access", () => {
@@ -343,9 +358,7 @@ describe(
 
                     cy.wait("@mostRecentlyViewedDashboard");
 
-                    H.entityPickerModal()
-                      .button(/Orders in a dashboard/)
-                      .should("be.disabled");
+                    findInactivePickerItem("Orders in a dashboard");
                   });
                 });
               });
@@ -367,9 +380,8 @@ describe(
                   .findByText("First collection")
                   .should("be.visible");
 
-                findPickerItem("Orders in a dashboard").then($button => {
-                  expect($button).to.have.attr("disabled");
-                });
+                findInactivePickerItem("Orders in a dashboard");
+
                 H.entityPickerModal().within(() => {
                   cy.findByPlaceholderText(/Search/).type(
                     "Orders in a dashboard{Enter}",
@@ -425,9 +437,51 @@ describe(
   },
 );
 
-H.describeWithSnowplow("send snowplow question events", () => {
-  const NUMBERS_OF_GOOD_SNOWPLOW_EVENTS_BEFORE_MODEL_CONVERSION = 2;
+describe("question moving", () => {
+  beforeEach(() => {
+    H.restore();
+    cy.signInAsAdmin();
+    cy.intercept("PUT", `/api/card/${ORDERS_QUESTION_ID}`).as("updateQuestion");
+    H.visitQuestion(ORDERS_QUESTION_ID);
+  });
 
+  it("should move a question between collections", () => {
+    H.appBar().findByText("Our analytics").should("be.visible");
+    cy.findByTestId("qb-header-action-panel")
+      .icon("ellipsis")
+      .closest("button")
+      .click();
+    H.popover().findByTestId("move-button").click();
+    H.modal().findByText("Second collection").click();
+    H.modal().button("Move").click();
+    cy.wait("@updateQuestion").its("response.statusCode").should("eq", 200);
+    cy.findAllByRole("status").contains("Question moved to Second collection");
+    H.appBar().findByText("Second collection").should("be.visible");
+    H.modal().should("not.exist");
+  });
+
+  it("should show an error when moving a question fails", () => {
+    cy.intercept("PUT", `/api/card/${ORDERS_QUESTION_ID}`, {
+      statusCode: 400,
+      body: { message: "Sorry buddy, only cool kids in this collection" },
+    }).as("updateQuestion");
+
+    H.appBar().findByText("Our analytics").should("be.visible");
+    cy.findByTestId("qb-header-action-panel")
+      .icon("ellipsis")
+      .closest("button")
+      .click();
+    H.popover().findByTestId("move-button").click();
+    H.modal().findByText("Second collection").click();
+    H.modal().button("Move").click();
+    cy.wait("@updateQuestion");
+    H.modal()
+      .findByText("Sorry buddy, only cool kids in this collection")
+      .should("be.visible");
+  });
+});
+
+describe("send snowplow question events", () => {
   beforeEach(() => {
     H.restore();
     H.resetSnowplow();
@@ -442,20 +496,15 @@ H.describeWithSnowplow("send snowplow question events", () => {
   it("should send event when clicking `Turn into a model`", () => {
     H.visitQuestion(ORDERS_QUESTION_ID);
     H.openQuestionActions();
-    H.expectGoodSnowplowEvents(
-      NUMBERS_OF_GOOD_SNOWPLOW_EVENTS_BEFORE_MODEL_CONVERSION,
-    );
     H.popover().within(() => {
       cy.findByText("Turn into a model").click();
     });
-    H.expectGoodSnowplowEvents(
-      NUMBERS_OF_GOOD_SNOWPLOW_EVENTS_BEFORE_MODEL_CONVERSION + 1,
-    );
+    H.expectUnstructuredSnowplowEvent({ event: "turn_into_model_clicked" });
   });
 });
 
 function assertRequestNot403(xhr_alias) {
-  cy.wait("@" + xhr_alias).then(xhr => {
+  cy.wait("@" + xhr_alias).then((xhr) => {
     expect(xhr.status).not.to.eq(403);
   });
 }
@@ -476,26 +525,17 @@ function turnIntoModel() {
 }
 
 function findPickerItem(name) {
-  return cy
-    .findByTestId("entity-picker-modal")
-    .findByText(name)
-    .closest("button");
+  return cy.findByTestId("entity-picker-modal").findByText(name).parents("a");
 }
 
 function findActivePickerItem(name) {
-  return findPickerItem(name).then($button => {
+  return findPickerItem(name).then(($button) => {
     expect($button).to.have.attr("data-active", "true");
   });
 }
 
-function findSelectedPickerItem(name) {
-  return findPickerItem(name).then($button => {
-    expect($button).to.have.attr("aria-selected", "true");
-  });
-}
-
 function findInactivePickerItem(name) {
-  return findPickerItem(name).then($button => {
+  return findPickerItem(name).then(($button) => {
     expect($button).not.to.have.attr("data-active", "true");
   });
 }

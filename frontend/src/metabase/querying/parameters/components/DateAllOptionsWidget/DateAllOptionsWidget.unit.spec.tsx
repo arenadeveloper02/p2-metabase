@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 
-import { render, screen, within } from "__support__/ui";
+import { renderWithProviders, screen, within } from "__support__/ui";
 
 import { DateAllOptionsWidget } from "./DateAllOptionsWidget";
 
@@ -10,14 +10,16 @@ type SetupOpts = {
 
 function setup({ value }: SetupOpts = {}) {
   const onChange = jest.fn();
-  render(<DateAllOptionsWidget value={value} onChange={onChange} />);
+  renderWithProviders(
+    <DateAllOptionsWidget value={value} onChange={onChange} />,
+  );
   return { onChange };
 }
 
 describe("DateAllOptionsWidget", () => {
   it('should allow to select a "specific" filter', async () => {
     const { onChange } = setup();
-    await userEvent.click(screen.getByText("Specific dates…"));
+    await userEvent.click(screen.getByText("Fixed date range…"));
     await userEvent.click(screen.getByText("On"));
     const panel = screen.getByRole("tabpanel", { name: "On" });
     const input = within(panel).getByLabelText("Date");
@@ -36,7 +38,7 @@ describe("DateAllOptionsWidget", () => {
 
   it('should allow to select a "relative" filter', async () => {
     const { onChange } = setup();
-    await userEvent.click(screen.getByText("Relative dates…"));
+    await userEvent.click(screen.getByText("Relative date range…"));
     await userEvent.click(screen.getByText("Current"));
     const panel = screen.getByRole("tabpanel", { name: "Current" });
     await userEvent.click(within(panel).getByText("Week"));

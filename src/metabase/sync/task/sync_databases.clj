@@ -9,9 +9,10 @@
    [clojurewerkz.quartzite.schedule.cron :as cron]
    [clojurewerkz.quartzite.triggers :as triggers]
    [java-time.api :as t]
-   [metabase.audit :as audit]
-   [metabase.config :as config]
-   [metabase.driver.h2 :as h2]
+   [metabase.audit-app.core :as audit]
+   [metabase.config.core :as config]
+   [metabase.database-routing.core :as database-routing]
+   [metabase.driver.settings :as driver.settings]
    [metabase.driver.util :as driver.u]
    [metabase.lib.schema.id :as lib.schema.id]
    [metabase.models.interface :as mi]
@@ -19,7 +20,7 @@
    [metabase.sync.field-values :as sync.field-values]
    [metabase.sync.schedules :as sync.schedules]
    [metabase.sync.sync-metadata :as sync-metadata]
-   [metabase.task :as task]
+   [metabase.task.core :as task]
    [metabase.util :as u]
    [metabase.util.cron :as u.cron]
    [metabase.util.log :as log]
@@ -28,7 +29,11 @@
    [metabase.util.malli.schema :as ms]
    [toucan2.core :as t2])
   (:import
-   (org.quartz CronTrigger JobDetail JobKey TriggerKey)))
+   (org.quartz
+    CronTrigger
+    JobDetail
+    JobKey
+    TriggerKey)))
 
 (set! *warn-on-reflection* true)
 
@@ -76,19 +81,22 @@
     (if-let [ex (try
                   ;; it's okay to allow testing H2 connections during sync. We only want to disallow you from testing them for the
                   ;; purposes of creating a new H2 database.
-                  (binding [h2/*allow-testing-h2-connections* true]
+                  (binding [driver.settings/*allow-testing-h2-connections* true]
                     (driver.u/can-connect-with-details? (:engine database) (:details database) :throw-exceptions))
                   nil
                   (catch Throwable e
                     e))]
       (log/warnf ex "Cannot sync Database %s: %s" (:name database) (ex-message ex))
-      (do
-        (sync-metadata/sync-db-metadata! database)
-        ;; only run analysis if this is a "full sync" database
-        (when (:is_full_sync database)
-          (let [results (analyze/analyze-db! database)]
-            (when (and (:refingerprint database) (should-refingerprint-fields? results))
-              (analyze/refingerprint-db! database))))))))
+      (database-routing/with-database-routing-off
+        (let [metadata-results (sync-metadata/sync-db-metadata! database)
+              analyze-results (when (:is_full_sync database)
+                                (analyze/analyze-db! database))
+              refingerprint-results (when (and (:refingerprint database)
+                                               (should-refingerprint-fields? analyze-results))
+                                      (analyze/refingerprint-db! database))]
+          (cond-> {:metadata-results metadata-results}
+            analyze-results (assoc :analyze-results analyze-results)
+            refingerprint-results (assoc :refingerprint-results refingerprint-results)))))))
 
 (defn- sync-and-analyze-database!
   "The sync and analyze database job, as a function that can be used in a test"
@@ -104,7 +112,7 @@
                            :job-context (pr-str job-context)}))))
       (sync-and-analyze-database*! database-id))))
 
-(jobs/defjob ^{org.quartz.DisallowConcurrentExecution true
+(task/defjob ^{org.quartz.DisallowConcurrentExecution true
                :doc "Sync and analyze the database"}
   SyncAndAnalyzeDatabase [job-context]
   (sync-and-analyze-database! job-context))
@@ -122,7 +130,7 @@
         (sync.field-values/update-field-values! database)
         (log/infof "Skipping update, automatic Field value updates are disabled for Database %d." database-id)))))
 
-(jobs/defjob ^{org.quartz.DisallowConcurrentExecution true
+(task/defjob ^{org.quartz.DisallowConcurrentExecution true
                :doc "Update field values"}
   UpdateFieldValues [job-context]
   (update-field-values! job-context))
@@ -295,13 +303,14 @@
       :else
       nil)))
 
-;; called [[from metabase.models.database/schedule-tasks!]] from the post-insert and the pre-update
+;; called [[from metabase.warehouses.models.database/schedule-tasks!]] from the post-insert and the pre-update
 (mu/defn check-and-schedule-tasks-for-db!
   "Schedule a new Quartz job for `database` and `task-info` if it doesn't already exist or is incorrect."
   [database :- (ms/InstanceOf :model/Database)]
-  (if (= audit/audit-db-id (:id database))
-    (log/info (u/format-color :red "Not scheduling tasks for audit database"))
-    (doseq [task all-tasks]
+  (doseq [task all-tasks]
+    (if (and (= audit/audit-db-id (:id database))
+             (= task sync-analyze-task-info))
+      (log/info (u/format-color :red "Not scheduling sync task for audit database"))
       (update-db-trigger-if-needed! database task))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -334,7 +343,11 @@
                 (try
                   (t2/update! :model/Database (u/the-id db)
                               (sync.schedules/schedule-map->cron-strings
-                               (sync.schedules/default-randomized-schedule)))
+                               ;; TODO (edpaget): this can go away after this patch is deployed to cloud
+                               (if (= sync.schedules/old-sample-metadata-sync-schedule-cron-string
+                                      (:metadata_sync_schedule db))
+                                 (sync.schedules/default-randomized-schedule {:excluded-minute 43})
+                                 (sync.schedules/default-randomized-schedule))))
                   (inc counter)
                   (catch Exception e
                     (log/warnf e "Error updating database %d for randomized schedules" (u/the-id db))
@@ -343,6 +356,8 @@
               {:select [:*]
                :from   [:metabase_database]
                :where  [:or
+                        [:and [:= :is_sample true]
+                         [:= :metadata_sync_schedule sync.schedules/old-sample-metadata-sync-schedule-cron-string]]
                         [:in
                          :metadata_sync_schedule
                          sync.schedules/default-metadata-sync-schedule-cron-strings]

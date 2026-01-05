@@ -1,5 +1,8 @@
-import type { DashboardNightModeControls } from "metabase/dashboard/types/display-options";
-import type { DisplayTheme } from "metabase/public/lib/types";
+import type {
+  DisplayTheme,
+  EmbedResourceDownloadOptions,
+} from "metabase/public/lib/types";
+import type { ClickActionModeGetter } from "metabase/visualizations/types";
 
 type EmbedBackground = boolean;
 
@@ -14,8 +17,7 @@ export type EmbedFont = string | null;
 
 export type EmbedThemeControls = {
   theme: DisplayTheme;
-  setTheme: (theme: DisplayTheme) => void;
-} & DashboardNightModeControls;
+};
 
 export type EmbedDisplayParams = {
   background: EmbedBackground;
@@ -25,6 +27,9 @@ export type EmbedDisplayParams = {
   hideParameters: EmbedHideParameters;
   font: EmbedFont;
   theme: DisplayTheme;
-  downloadsEnabled: boolean;
+  getClickActionMode: ClickActionModeGetter | undefined;
+  downloadsEnabled: EmbedResourceDownloadOptions;
   withFooter: boolean;
+  // TODO: (Kelvin 2025-11-17) move this to a new type in EMB-1025
+  withSubscriptions: boolean;
 };

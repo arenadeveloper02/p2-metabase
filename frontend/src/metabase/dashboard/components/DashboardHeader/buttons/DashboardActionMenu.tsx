@@ -1,14 +1,21 @@
-import { type JSX, type MouseEvent, forwardRef, useState } from "react";
+import { type MouseEvent, forwardRef, useState } from "react";
 import { Link, type LinkProps, withRouter } from "react-router";
 import type { WithRouterProps } from "react-router/lib/withRouter";
 import { c, t } from "ttag";
 
-import Button from "metabase/core/components/Button";
-import Tooltip from "metabase/core/components/Tooltip";
-import type { HeaderButtonProps } from "metabase/dashboard/components/DashboardHeader/DashboardHeaderButtonRow/types";
+import { ToolbarButton } from "metabase/common/components/ToolbarButton";
+import { useDashboardContext } from "metabase/dashboard/context/context";
 import { useRefreshDashboard } from "metabase/dashboard/hooks";
+import { useRegisterShortcut } from "metabase/palette/hooks/useRegisterShortcut";
 import { PLUGIN_MODERATION } from "metabase/plugins";
 import { Icon, Menu } from "metabase/ui";
+
+type DashboardActionMenuProps = {
+  canResetFilters: boolean;
+  onResetFilters: () => void;
+  canEdit: boolean;
+  openSettingsSidebar: () => void;
+};
 
 // Fixes this bug: https://github.com/mantinedev/mantine/issues/5571#issue-2082430353
 // Hover states get weird when using Link directly. Since Link does not take the standard
@@ -23,48 +30,67 @@ ForwardRefLink.displayName = "ForwardRefLink";
 const DashboardActionMenuInner = ({
   canResetFilters,
   onResetFilters,
-  onFullscreenChange,
-  isFullscreen,
-  dashboard,
   canEdit,
   location,
   openSettingsSidebar,
-}: HeaderButtonProps & WithRouterProps): JSX.Element => {
+}: DashboardActionMenuProps & WithRouterProps) => {
+  const { dashboard, isFullscreen, onFullscreenChange, onChangeLocation } =
+    useDashboardContext();
   const [opened, setOpened] = useState(false);
 
   const { refreshDashboard } = useRefreshDashboard({
-    dashboardId: dashboard.id,
-    parameterQueryParams: location.query,
-    refetchData: false,
+    dashboardId: dashboard?.id ?? null,
+    parameterQueryParams: location?.query,
   });
 
   const moderationItems = PLUGIN_MODERATION.useDashboardMenuItems(
-    dashboard,
+    dashboard ?? undefined,
     refreshDashboard,
   );
+
+  // solely for the dependency list below, so we don't ever have an undefined
+  const pathname = location?.pathname ?? "";
+  useRegisterShortcut(
+    [
+      {
+        id: "dashboard-send-to-trash",
+        perform: () => {
+          if (pathname) {
+            onChangeLocation(`${pathname}/archive`);
+          }
+        },
+      },
+    ],
+    [pathname],
+  );
+
+  if (!dashboard) {
+    return null;
+  }
 
   return (
     <Menu position="bottom-end" opened={opened} onChange={setOpened}>
       <Menu.Target>
         <div>
-          <Tooltip tooltip={t`Move, trash, and more…`} isEnabled={!opened}>
-            <Button
-              onlyIcon
-              icon="ellipsis"
-              aria-label={t`Move, trash, and more…`}
-            />
-          </Tooltip>
+          <ToolbarButton
+            icon="ellipsis"
+            aria-label={t`Move, trash, and more…`}
+            tooltipLabel={t`Move, trash, and more…`}
+          />
         </div>
       </Menu.Target>
       <Menu.Dropdown>
         {canResetFilters && (
-          <Menu.Item icon={<Icon name="revert" />} onClick={onResetFilters}>
+          <Menu.Item
+            leftSection={<Icon name="revert" />}
+            onClick={onResetFilters}
+          >
             {t`Reset all filters`}
           </Menu.Item>
         )}
 
         <Menu.Item
-          icon={<Icon name="expand" />}
+          leftSection={<Icon name="expand" />}
           onClick={(e: MouseEvent) =>
             onFullscreenChange(!isFullscreen, !e.altKey)
           }
@@ -75,7 +101,7 @@ const DashboardActionMenuInner = ({
         {canEdit && (
           <>
             <Menu.Item
-              icon={<Icon name="gear" />}
+              leftSection={<Icon name="gear" />}
               onClick={openSettingsSidebar}
             >
               {t`Edit settings`}
@@ -90,7 +116,7 @@ const DashboardActionMenuInner = ({
             <Menu.Divider />
 
             <Menu.Item
-              icon={<Icon name="move" />}
+              leftSection={<Icon name="move" />}
               component={ForwardRefLink}
               to={`${location?.pathname}/move`}
             >{c("A verb, not a noun").t`Move`}</Menu.Item>
@@ -98,7 +124,7 @@ const DashboardActionMenuInner = ({
         )}
 
         <Menu.Item
-          icon={<Icon name="clone" />}
+          leftSection={<Icon name="clone" />}
           component={ForwardRefLink}
           to={`${location?.pathname}/copy`}
         >{c("A verb, not a noun").t`Duplicate`}</Menu.Item>
@@ -107,7 +133,7 @@ const DashboardActionMenuInner = ({
           <>
             <Menu.Divider />
             <Menu.Item
-              icon={<Icon name="trash" />}
+              leftSection={<Icon name="trash" />}
               component={ForwardRefLink}
               to={`${location?.pathname}/archive`}
             >{t`Move to trash`}</Menu.Item>

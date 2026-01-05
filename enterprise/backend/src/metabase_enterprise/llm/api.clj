@@ -4,8 +4,13 @@
    [metabase-enterprise.llm.tasks.describe-question :refer [describe-question]]
    [metabase.analyze.query-results :as qr]
    [metabase.api.macros :as api.macros]
+   [metabase.parameters.schema :as parameters.schema]
    [metabase.util.malli.schema :as ms]))
 
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/card/summarize"
   "Summarize a question."
   [_route-params
@@ -13,8 +18,8 @@
    body :- [:map
             [:dataset                {:optional true} [:maybe :boolean]]
             [:dataset_query          ms/Map]
-            [:parameters             {:optional true} [:maybe [:sequential ms/Parameter]]]
-            [:parameter_mappings     {:optional true} [:maybe [:sequential ms/ParameterMapping]]]
+            [:parameters             {:optional true} [:maybe [:sequential ::parameters.schema/parameter]]]
+            [:parameter_mappings     {:optional true} [:maybe [:sequential ::parameters.schema/parameter-mapping]]]
             [:description            {:optional true} [:maybe ms/NonBlankString]]
             [:display                ms/NonBlankString]
             [:visualization_settings ms/Map]
@@ -26,6 +31,10 @@
                                         ;(check-data-permissions-for-query dataset_query)
   {:summary (describe-question body)})
 
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/dashboard/summarize/:id"
   "Provide a summary of a dashboard."
   [{:keys [id]} :- [:map

@@ -1,6 +1,7 @@
 (ns metabase.timeline.models.timeline
   (:require
-   [metabase.models.collection.root :as collection.root]
+   [metabase.collections.models.collection :as collection]
+   [metabase.collections.models.collection.root :as collection.root]
    [metabase.models.serialization :as serdes]
    [metabase.timeline.models.timeline-event :as timeline-event]
    [methodical.core :as methodical]
@@ -22,6 +23,14 @@
   ;; Use the default icon instead. (metabase#34586, metabase#35129)
   (update timeline :icon (fn [icon]
                            (if (= icon "balloons") timeline-event/default-icon icon))))
+
+(t2/define-before-insert :model/Timeline [model]
+  (collection/check-allowed-content :model/Timeline (:collection_id model))
+  model)
+
+(t2/define-before-update :model/Timeline [model]
+  (collection/check-allowed-content :model/Timeline (:collection_id (t2/changes model)))
+  model)
 
 ;;;; functions
 

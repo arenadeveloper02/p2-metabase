@@ -6,20 +6,33 @@ import {
 
 import { IFRAME_CODE, getEmbeddingJsCode } from "./shared/embedding-snippets";
 
-const features = ["none", "all"];
+const tokens = ["starter", "pro-self-hosted"];
 
-features.forEach(feature => {
-  describe(`[tokenFeatures=${feature}] scenarios > embedding > code snippets`, () => {
+function codeBlock() {
+  return cy.get(".cm-content");
+}
+
+function highlightedTexts() {
+  return cy.findAllByTestId("highlighted-text");
+}
+
+tokens.forEach((token) => {
+  describe(`[plans=${token}] scenarios > embedding > code snippets`, () => {
     beforeEach(() => {
       H.restore();
       cy.signInAsAdmin();
-      H.setTokenFeatures(feature);
+      H.activateToken(token);
     });
 
     it("dashboard should have the correct embed snippet", () => {
-      const defaultDownloadsValue = feature === "all" ? true : undefined;
+      const defaultDownloadsValue =
+        token === "pro-self-hosted" ? true : undefined;
       H.visitDashboard(ORDERS_DASHBOARD_ID);
-      H.openStaticEmbeddingModal({ acceptTerms: false });
+      H.openLegacyStaticEmbeddingModal({
+        resource: "dashboard",
+        resourceId: ORDERS_DASHBOARD_ID,
+        acceptTerms: false,
+      });
 
       H.modal().within(() => {
         cy.findByText(
@@ -30,7 +43,7 @@ features.forEach(feature => {
           "Insert this code snippet in your server code to generate the signed embedding URL",
         );
 
-        cy.get(".ace_content")
+        codeBlock()
           .first()
           .invoke("text")
           .should(
@@ -54,7 +67,7 @@ features.forEach(feature => {
         .and("contain", "Clojure");
 
       // eslint-disable-next-line no-unsafe-element-filtering
-      cy.get(".ace_content").last().should("have.text", IFRAME_CODE);
+      codeBlock().last().should("have.text", IFRAME_CODE);
 
       H.modal()
         .findAllByTestId("embed-frontend-select-button")
@@ -72,7 +85,7 @@ features.forEach(feature => {
 
         // set transparent background metabase#23477
         cy.findByText("Dashboard background").click();
-        cy.get(".ace_content")
+        codeBlock()
           .first()
           .invoke("text")
           .should(
@@ -85,10 +98,12 @@ features.forEach(feature => {
             }),
           );
 
-        if (feature === "all") {
-          cy.findByText("Download buttons").click();
+        if (token === "pro-self-hosted") {
+          // Disable both download options
+          cy.findByText("Export to PDF").click();
+          cy.findByText("Results (csv, xlsx, json, png)").click();
 
-          cy.get(".ace_content")
+          codeBlock()
             .first()
             .invoke("text")
             .should(
@@ -100,14 +115,27 @@ features.forEach(feature => {
                 downloads: false,
               }),
             );
+
+          // Verify that switching tabs keeps the highlighted texts
+          highlightedTexts().should("have.length", 1);
+
+          cy.findByRole("tab", { name: "Parameters" }).click();
+          cy.findByRole("tab", { name: "Look and Feel" }).click();
+
+          highlightedTexts().should("have.length", 1);
         }
       });
     });
 
     it("question should have the correct embed snippet", () => {
-      const defaultDownloadsValue = feature === "all" ? true : undefined;
+      const defaultDownloadsValue =
+        token === "pro-self-hosted" ? true : undefined;
       H.visitQuestion(ORDERS_QUESTION_ID);
-      H.openStaticEmbeddingModal({ acceptTerms: false });
+      H.openLegacyStaticEmbeddingModal({
+        resource: "question",
+        resourceId: ORDERS_QUESTION_ID,
+        acceptTerms: false,
+      });
 
       H.modal().within(() => {
         cy.findByText(
@@ -117,7 +145,7 @@ features.forEach(feature => {
           "Insert this code snippet in your server code to generate the signed embedding URL",
         );
 
-        cy.get(".ace_content")
+        codeBlock()
           .first()
           .invoke("text")
           .should(
@@ -132,10 +160,10 @@ features.forEach(feature => {
         cy.findByRole("tab", { name: "Look and Feel" }).click();
 
         // hide download button for pro/enterprise users metabase#23477
-        if (feature === "all") {
-          cy.findByText("Download buttons").click();
+        if (token === "pro-self-hosted") {
+          cy.findByText("Download (csv, xlsx, json, png)").click();
 
-          cy.get(".ace_content")
+          codeBlock()
             .first()
             .invoke("text")
             .should(
@@ -158,6 +186,16 @@ features.forEach(feature => {
         .and("contain", "Ruby")
         .and("contain", "Python")
         .and("contain", "Clojure");
+
+      if (token === "pro-self-hosted") {
+        // Verify that switching tabs keeps the highlighted texts
+        highlightedTexts().should("have.length", 1);
+
+        cy.findByRole("tab", { name: "Parameters" }).click();
+        cy.findByRole("tab", { name: "Look and Feel" }).click();
+
+        highlightedTexts().should("have.length", 1);
+      }
     });
   });
 });

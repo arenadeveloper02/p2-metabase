@@ -1,6 +1,9 @@
-const YAML = require("json-to-pretty-yaml");
 const rspack = require("@rspack/core");
+const YAML = require("json-to-pretty-yaml");
 const { StatsWriterPlugin } = require("webpack-stats-plugin");
+
+const { WEBPACK_BUNDLE } = require("./frontend/build/shared/constants");
+const { SVGO_CONFIG } = require("./frontend/build/shared/rspack/svgo-config");
 
 const ASSETS_PATH = __dirname + "/resources/frontend_client/app/assets";
 const SRC_PATH = __dirname + "/frontend/src/metabase";
@@ -9,12 +12,15 @@ const CLJS_SRC_PATH = __dirname + "/target/cljs_release";
 const CLJS_SRC_PATH_DEV = __dirname + "/target/cljs_dev";
 const LIB_SRC_PATH = __dirname + "/frontend/src/metabase-lib";
 const TYPES_SRC_PATH = __dirname + "/frontend/src/metabase-types";
-const SDK_SRC_PATH = __dirname + "/enterprise/frontend/src/embedding-sdk";
+const EMBEDDING_SRC_PATH = __dirname + "/enterprise/frontend/src/embedding";
+const SDK_SHARED_SRC_PATH = __dirname + "/frontend/src/embedding-sdk-shared";
+const SDK_BUNDLE_SRC_PATH = __dirname + "/frontend/src/embedding-sdk-bundle";
+const ENTERPRISE_SRC_PATH =
+  __dirname + "/enterprise/frontend/src/metabase-enterprise";
 
-const WEBPACK_BUNDLE = process.env.WEBPACK_BUNDLE || "development";
 const devMode = WEBPACK_BUNDLE !== "production";
 
-module.exports = env => {
+module.exports = (env) => {
   return {
     mode: "production",
     context: SRC_PATH,
@@ -93,6 +99,7 @@ module.exports = env => {
               loader: "@svgr/webpack",
               options: {
                 ref: true,
+                svgoConfig: SVGO_CONFIG,
               },
             },
           ],
@@ -109,11 +116,18 @@ module.exports = env => {
       alias: {
         assets: ASSETS_PATH,
         metabase: SRC_PATH,
+        "metabase-enterprise": ENTERPRISE_SRC_PATH,
         cljs: devMode ? CLJS_SRC_PATH_DEV : CLJS_SRC_PATH,
         "metabase-lib": LIB_SRC_PATH,
         "metabase-types": TYPES_SRC_PATH,
-        "embedding-sdk": SDK_SRC_PATH,
+        embedding: EMBEDDING_SRC_PATH,
+        "embedding-sdk-bundle": SDK_BUNDLE_SRC_PATH,
+        "embedding-sdk-shared": SDK_SHARED_SRC_PATH,
         "process/browser": require.resolve("process/browser"),
+        "ee-overrides":
+          process.env.MB_EDITION === "ee"
+            ? ENTERPRISE_SRC_PATH + "/static-viz-overrides"
+            : SRC_PATH + "/lib/noop",
       },
       fallback: {
         crypto: require.resolve("crypto-browserify"),
@@ -127,7 +141,6 @@ module.exports = env => {
     },
     plugins: [
       new rspack.EnvironmentPlugin({
-        EMBEDDING_SDK_VERSION: null,
         IS_EMBEDDING_SDK_BUILD: false,
       }),
       new rspack.NormalModuleReplacementPlugin(
@@ -147,16 +160,16 @@ module.exports = env => {
           excludeModules: [/node_modules/],
         },
         filename: "../../../../.github/static-viz-sources.yaml",
-        transform: stats =>
+        transform: (stats) =>
           YAML.stringify({
             static_viz: stats.modules
               .filter(
-                module =>
+                (module) =>
                   module.type !== "hidden modules" &&
                   module.moduleType !== "runtime" &&
                   module.nameForCondition != null,
               )
-              .map(module =>
+              .map((module) =>
                 module.nameForCondition.replace(`${__dirname}/`, ""),
               ),
           }),

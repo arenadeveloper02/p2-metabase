@@ -1,27 +1,33 @@
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders, screen } from "__support__/ui";
-import { DATE_PICKER_UNITS } from "metabase/querying/filters/constants";
+import {
+  DATE_PICKER_DIRECTIONS,
+  DATE_PICKER_UNITS,
+} from "metabase/querying/filters/constants";
 import type {
   DatePickerUnit,
   RelativeDatePickerValue,
+  RelativeIntervalDirection,
 } from "metabase/querying/filters/types";
 
 import { RelativeDatePicker } from "./RelativeDatePicker";
 
 const TABS = ["Previous", "Current", "Next"];
-const TAB_CASES = TABS.flatMap(fromTab => TABS.map(toTab => [fromTab, toTab]));
+const TAB_CASES = TABS.flatMap((fromTab) =>
+  TABS.map((toTab) => [fromTab, toTab]),
+);
 
 interface SetupOpts {
   value?: RelativeDatePickerValue;
   availableUnits?: DatePickerUnit[];
-  submitButtonLabel?: string;
+  availableDirections?: RelativeIntervalDirection[];
 }
 
 function setup({
   value,
   availableUnits = DATE_PICKER_UNITS,
-  submitButtonLabel = "Apply",
+  availableDirections = DATE_PICKER_DIRECTIONS,
 }: SetupOpts = {}) {
   const onChange = jest.fn();
   const onBack = jest.fn();
@@ -30,7 +36,7 @@ function setup({
     <RelativeDatePicker
       value={value}
       availableUnits={availableUnits}
-      submitButtonLabel={submitButtonLabel}
+      availableDirections={availableDirections}
       onChange={onChange}
       onBack={onBack}
     />,
@@ -88,7 +94,7 @@ describe("RelativeDatePicker", () => {
 
     expect(onChange).toHaveBeenCalledWith({
       type: "relative",
-      value: "current",
+      value: 0,
       unit: "week",
     });
   });

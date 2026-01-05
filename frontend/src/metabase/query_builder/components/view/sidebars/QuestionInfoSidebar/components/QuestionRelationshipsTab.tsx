@@ -15,14 +15,14 @@ export const QuestionRelationshipsTab = ({
   const isModel = question.type() === "model";
 
   return (
-    <Stack spacing="lg">
+    <Stack gap="lg">
       {isModel && (
         <SidesheetCard title={t`Used by`}>
           <ModelUsageDetails model={question} />
         </SidesheetCard>
       )}
       <SidesheetCard title={t`Linked tables`}>
-        <TablesLinkedToQuestion question={question} />
+        <TablesLinkedToQuestion />
       </SidesheetCard>
     </Stack>
   );

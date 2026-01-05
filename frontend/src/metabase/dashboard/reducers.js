@@ -1,9 +1,8 @@
 import { assoc, assocIn, chain, dissoc, merge, updateIn } from "icepick";
-import reduceReducers from "reduce-reducers";
 import _ from "underscore";
 
-import Actions from "metabase/entities/actions";
-import Questions from "metabase/entities/questions";
+import { Actions } from "metabase/entities/actions";
+import { Questions } from "metabase/entities/questions";
 import { combineReducers, handleActions } from "metabase/lib/redux";
 
 import {
@@ -40,7 +39,6 @@ import {
   parameterValues,
   sidebar,
   slowCards,
-  theme,
 } from "./reducers-typed";
 import { calculateDashCardRowAfterUndo } from "./utils";
 
@@ -88,7 +86,7 @@ const dashcards = handleActions(
             updateIn(
               merge({ column_settings: {} }, value),
               ["column_settings", column],
-              columnSettings => ({
+              (columnSettings) => ({
                 ...columnSettings,
                 ...settings,
               }),
@@ -137,13 +135,13 @@ const dashcards = handleActions(
       [dashcardId]: { ...state[dashcardId], justAdded: false },
     }),
     [Questions.actionTypes.UPDATE]: (state, { payload: { object: card } }) =>
-      _.mapObject(state, dashcard =>
+      _.mapObject(state, (dashcard) =>
         dashcard.card?.id === card?.id
           ? assocIn(dashcard, ["card"], card)
           : dashcard,
       ),
     [Actions.actionTypes.UPDATE]: (state, { payload: { object: action } }) =>
-      _.mapObject(state, dashcard =>
+      _.mapObject(state, (dashcard) =>
         dashcard.action?.id === action?.id
           ? {
               ...dashcard,
@@ -198,28 +196,26 @@ const draftParameterValues = handleActions(
   {},
 );
 
-export const dashboardReducers = reduceReducers(
-  INITIAL_DASHBOARD_STATE,
-  combineReducers({
-    dashboardId,
-    missingActionParameters,
-    autoApplyFilters,
-    theme,
-    slowCards,
-    isNavigatingBackToDashboard,
-    isAddParameterPopoverOpen,
-    editingDashboard,
-    loadingControls,
-    sidebar,
-    parameterValues,
-    dashboards,
-    loadingDashCards,
-    dashcards,
-    dashcardData,
-    draftParameterValues,
-    // Combined reducer needs to init state for every slice
-    selectedTabId: (state = INITIAL_DASHBOARD_STATE.selectedTabId) => state,
-    tabDeletions: (state = INITIAL_DASHBOARD_STATE.tabDeletions) => state,
-  }),
-  tabsReducer,
-);
+const combinedDashboardReducer = combineReducers({
+  dashboardId,
+  missingActionParameters,
+  autoApplyFilters,
+  slowCards,
+  isNavigatingBackToDashboard,
+  isAddParameterPopoverOpen,
+  editingDashboard,
+  loadingControls,
+  sidebar,
+  parameterValues,
+  dashboards,
+  loadingDashCards,
+  dashcards,
+  dashcardData,
+  draftParameterValues,
+  // Combined reducer needs to init state for every slice
+  selectedTabId: (state = INITIAL_DASHBOARD_STATE.selectedTabId) => state,
+  tabDeletions: (state = INITIAL_DASHBOARD_STATE.tabDeletions) => state,
+});
+
+export const dashboardReducers = (state = INITIAL_DASHBOARD_STATE, action) =>
+  tabsReducer(combinedDashboardReducer(state, action), action);

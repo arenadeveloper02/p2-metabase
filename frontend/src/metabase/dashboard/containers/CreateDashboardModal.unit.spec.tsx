@@ -5,16 +5,18 @@ import { setupEnterpriseTest } from "__support__/enterprise";
 import {
   setupCollectionItemsEndpoint,
   setupCollectionsEndpoints,
+  setupDatabasesEndpoints,
+  setupLibraryEndpoints,
   setupRecentViewsAndSelectionsEndpoints,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
 import { createMockEntitiesState } from "__support__/store";
 import {
   mockGetBoundingClientRect,
-  mockScrollBy,
   renderWithProviders,
   screen,
   waitFor,
+  within,
 } from "__support__/ui";
 import { ROOT_COLLECTION } from "metabase/entities/collections";
 import {
@@ -51,14 +53,15 @@ COLLECTION.CHILD.location = `/${COLLECTION.PARENT.id}/`;
 
 function setup({ mockCreateDashboardResponse = true } = {}) {
   mockGetBoundingClientRect();
-  mockScrollBy();
   setupRecentViewsAndSelectionsEndpoints([]);
+  setupLibraryEndpoints();
+  setupDatabasesEndpoints([]);
   const onClose = jest.fn();
 
   const settings = mockSettings({});
 
   if (mockCreateDashboardResponse) {
-    fetchMock.post(`path:/api/dashboard`, (url, options) => options.body);
+    fetchMock.post(`path:/api/dashboard`, (call) => call?.options.body);
   }
   const collections = Object.values(COLLECTION);
   setupCollectionsEndpoints({
@@ -84,8 +87,8 @@ function setup({ mockCreateDashboardResponse = true } = {}) {
   });
 
   collections
-    .filter(c => c.id !== "root")
-    .forEach(c => fetchMock.get(`path:/api/collection/${c.id}`, c));
+    .filter((c) => c.id !== "root")
+    .forEach((c) => fetchMock.get(`path:/api/collection/${c.id}`, c));
 
   renderWithProviders(<CreateDashboardModal opened onClose={onClose} />, {
     storeInitialState: {
@@ -169,7 +172,16 @@ describe("CreateDashboardModal", () => {
       });
     const dashModalTitle = () =>
       screen.getByRole("heading", { name: /new dashboard/i });
-    const cancelBtn = () => screen.getByRole("button", { name: /cancel/i });
+
+    const newCollCancelButton = () =>
+      within(screen.getByRole("dialog", { name: /new collection/ })).getByRole(
+        "button",
+        { name: /cancel/i },
+      );
+    const selectCollCancelButton = () =>
+      within(
+        screen.getByRole("dialog", { name: /Select a collection/ }),
+      ).getByRole("button", { name: /cancel/i });
 
     it("should have a new collection button in the collection picker", async () => {
       setup();
@@ -190,9 +202,9 @@ describe("CreateDashboardModal", () => {
       await userEvent.click(newCollBtn());
       await screen.findByText("Give it a name");
       // Close New Collection Dialog
-      await userEvent.click(cancelBtn());
+      await userEvent.click(newCollCancelButton());
       // Close Collection Picker
-      await userEvent.click(cancelBtn());
+      await userEvent.click(selectCollCancelButton());
 
       await waitFor(() => expect(dashModalTitle()).toBeInTheDocument());
       expect(nameField()).toHaveValue(name);
@@ -207,7 +219,7 @@ describe("CreateDashboardModal", () => {
       await waitFor(() => expect(newCollBtn()).toBeInTheDocument());
       //Select Parent Collection
       await userEvent.click(
-        await screen.findByRole("button", {
+        await screen.findByRole("link", {
           name: new RegExp(COLLECTION.PARENT.name),
         }),
       );

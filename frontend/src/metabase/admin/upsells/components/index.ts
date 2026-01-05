@@ -1,3 +1,4 @@
 export * from "./UpsellBanner";
-export * from "./UpsellCard";
+export * from "./UpsellBigCard";
 export * from "./UpsellPill";
+export { UpsellGem } from "./UpsellGem";

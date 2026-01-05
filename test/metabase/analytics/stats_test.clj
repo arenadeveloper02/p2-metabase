@@ -4,17 +4,18 @@
    [clojure.set :as set]
    [clojure.test :refer :all]
    [java-time.api :as t]
+   [medley.core :as m]
    [metabase.analytics.stats :as stats :refer [legacy-anonymous-usage-stats]]
-   [metabase.channel.email :as email]
-   [metabase.config :as config]
+   [metabase.app-db.core :as mdb]
+   [metabase.channel.settings :as channel.settings]
+   [metabase.config.core :as config]
    [metabase.core.core :as mbc]
-   [metabase.db :as mdb]
-   [metabase.integrations.slack :as slack]
-   [metabase.premium-features.core :as premium-features]
+   [metabase.premium-features.settings :as premium-features.settings]
    [metabase.query-processor.util :as qp.util]
    [metabase.test :as mt]
    [metabase.test.fixtures :as fixtures]
    [metabase.util :as u]
+   [metabase.util.json :as json]
    [metabase.util.malli.schema :as ms]
    [toucan2.core :as t2]))
 
@@ -86,8 +87,8 @@
     "250+"    5000))
 
 (deftest anonymous-usage-stats-test
-  (with-redefs [email/email-configured? (constantly false)
-                slack/slack-configured? (constantly false)]
+  (with-redefs [channel.settings/email-configured? (constantly false)
+                channel.settings/slack-configured? (constantly false)]
     (mt/with-temporary-setting-values [site-name          "Metabase"
                                        startup-time-millis 1234.0
                                        google-auth-enabled false
@@ -124,8 +125,8 @@
 (deftest anonymous-usage-stats-test-ee-with-values-changed
   ; some settings are behind the whitelabel feature flag
   (mt/with-premium-features #{:whitelabel}
-    (with-redefs [email/email-configured? (constantly false)
-                  slack/slack-configured? (constantly false)]
+    (with-redefs [channel.settings/email-configured? (constantly false)
+                  channel.settings/slack-configured? (constantly false)]
       (mt/with-temporary-setting-values [site-name                   "My Company Analytics"
                                          startup-time-millis          1234.0
                                          google-auth-enabled          false
@@ -176,6 +177,20 @@
          (let [system-stats (get-in (legacy-anonymous-usage-stats) [:stats :system])]
            (into #{} (map #(contains? system-stats %) [:java_version :java_runtime_name :max_memory]))))
       "Spot checking a few system stats to ensure conversion from property names and presence in the anonymous-usage-stats"))
+
+(deftest metrics-anonymous-usage-stats-test
+  (testing "should report the metric count"
+    (mt/with-temp [:model/Card _ {:type :metric}
+                   :model/Card _ {:type :metric :archived true}]
+      (is (=?
+           {:stats {:metric {:metrics 1}}}
+           (legacy-anonymous-usage-stats)))))
+  (testing "should correctly check for the card type"
+    (mt/with-temp [:model/Card _ {:type :question}
+                   :model/Card _ {:type :model}]
+      (is (=?
+           {:stats {:metric {:metrics 0}}}
+           (legacy-anonymous-usage-stats))))))
 
 (defn- bin-large-number
   "Return large bin number. Assumes positive inputs."
@@ -337,6 +352,47 @@
                                          ["6-10" [:int {:min 1}]]]]]
                 (#'stats/alert-metrics)))))
 
+(deftest question-metrics-test
+  (testing "Returns metrics for cards using a single sql query"
+    (mt/with-empty-h2-app-db!
+      (mt/with-temp [:model/User      u {}
+                     :model/Dashboard d {:creator_id (u/the-id u)}
+                     :model/Card      _ {}
+                     :model/Card      _ {:query_type "native"}
+                     :model/Card      _ {:query_type "gui"}
+                     :model/Card      _ {:public_uuid (str (random-uuid))}
+                     :model/Card      _ {:dashboard_id (u/the-id d)}
+                     :model/Card      _ {:enable_embedding true}
+                     :model/Card      _ {:enable_embedding true :public_uuid (str (random-uuid))
+                                         :dataset_query    {:database (mt/id)
+                                                            :type     :native
+                                                            :native   {:query         "SELECT *"
+                                                                       :template-tags {:param {:name "param" :display-name "Param" :type :number}}}}
+                                         :embedding_params {:category_name "locked" :name_category "disabled"}}
+                     :model/Card      _ {:enable_embedding true :public_uuid (str (random-uuid))
+                                         :dataset_query    {:database (mt/id)
+                                                            :type     :native
+                                                            :native   {:query         "SELECT *"
+                                                                       :template-tags {:param {:name "param" :display-name "Param" :type :text}}}}
+                                         :embedding_params {:category_name "enabled" :name_category "enabled"}}]
+        (testing "reported metrics for all app db types"
+          (is (=? {:questions {:total                 8
+                               :native                3
+                               :gui                   1
+                               :is_dashboard_question 1}
+                   :public    {:total 3}
+                   :embedded  {:total 3}}
+                  (#'stats/question-metrics))))
+        (when (contains? #{:mysql :postgres} (mdb/db-type))
+          (testing "reports json column derived-metrics"
+            (let [reported (#'stats/question-metrics)]
+              (is (= 2 (get-in reported [:questions :with_params])))
+              (is (= 2 (get-in reported [:public :with_params])))
+              (is (= 2 (get-in reported [:embedded :with_params])))
+              (is (= 1 (get-in reported [:embedded :with_enabled_params])))
+              (is (= 1 (get-in reported [:embedded :with_locked_params])))
+              (is (= 1 (get-in reported [:embedded :with_disabled_params]))))))))))
+
 (deftest internal-content-metrics-test
   (testing "Internal content doesn't contribute to stats"
     (mt/with-temp-empty-app-db [_conn :h2]
@@ -419,21 +475,65 @@
                     config/current-minor-version (constantly nil)]
         (is false? (@#'stats/csv-upload-available?))))))
 
+(deftest starburst-legacy-test
+  (testing "starburst with impersonation"
+    (mt/with-temp [(t2/table-name :model/Database) _ {:engine "starburst"
+                                                      :name "starburst-legacy-test"
+                                                      :created_at (t/instant)
+                                                      :updated_at (t/instant)
+                                                      :details (json/encode {:impersonation true})}]
+      (is (= {:name :starburst-legacy-impersonation,
+              :available true,
+              :enabled true}
+             (m/find-first (fn [{key-name :name}]
+                             (= key-name :starburst-legacy-impersonation))
+                           (#'stats/snowplow-features-data))))))
+  (testing "starburst without impersonation"
+    (is (= {:name :starburst-legacy-impersonation,
+            :available true,
+            :enabled false}
+           (m/find-first (fn [{key-name :name}]
+                           (= key-name :starburst-legacy-impersonation))
+                         (#'stats/snowplow-features-data))))
+    (mt/with-temp [(t2/table-name :model/Database) _ {:engine "starburst"
+                                                      :name "starburst-legacy-test"
+                                                      :created_at (t/instant)
+                                                      :updated_at (t/instant)
+                                                      :details (json/encode {:impersonation false})}]
+      (is (= {:name :starburst-legacy-impersonation,
+              :available true,
+              :enabled false}
+             (m/find-first (fn [{key-name :name}]
+                             (= key-name :starburst-legacy-impersonation))
+                           (#'stats/snowplow-features-data)))))
+
+    (mt/with-temp [(t2/table-name :model/Database) _ {:engine "starburst"
+                                                      :name "starburst-legacy-test"
+                                                      :created_at (t/instant)
+                                                      :updated_at (t/instant)
+                                                      :details "{}"}]
+      (is (= {:name :starburst-legacy-impersonation,
+              :available true,
+              :enabled false}
+             (m/find-first (fn [{key-name :name}]
+                             (= key-name :starburst-legacy-impersonation))
+                           (#'stats/snowplow-features-data)))))))
+
 (deftest deployment-model-test
   (testing "deployment model correctly reports cloud/docker/jar"
-    (with-redefs [premium-features/is-hosted? (constantly true)]
+    (with-redefs [premium-features.settings/is-hosted? (constantly true)]
       (is (= "cloud" (@#'stats/deployment-model))))
 
     ;; Lets just mock io/file to always return an existing (temp) file, to validate that we're doing a filesystem check
     ;; to determine whether we're in a Docker container
     (mt/with-temp-file [mock-file]
       (spit mock-file "Temp file!")
-      (with-redefs [premium-features/is-hosted? (constantly false)
-                    io/file                     (constantly (java.io.File. mock-file))]
+      (with-redefs [premium-features.settings/is-hosted? (constantly false)
+                    io/file                              (constantly (java.io.File. mock-file))]
         (is (= "docker" (@#'stats/deployment-model)))))
 
-    (with-redefs [premium-features/is-hosted? (constantly false)
-                  stats/in-docker?            (constantly false)]
+    (with-redefs [premium-features.settings/is-hosted? (constantly false)
+                  stats/in-docker?                     (constantly false)]
       (is (= "jar" (@#'stats/deployment-model))))))
 
 (deftest no-features-enabled-but-not-available-test
@@ -455,20 +555,29 @@
   "Set of features intentionally excluded from the daily stats ping. If you add a new feature, either add it to the stats ping
   or to this set, so that [[every-feature-is-accounted-for-test]] passes."
   #{:audit-app ;; tracked under :mb-analytics
-    :enhancements
+    :collection-cleanup
+    :development-mode
+    :data-studio
     :embedding
     :embedding-sdk
-    :collection-cleanup
+    :embedding-simple
+    :embedding-hub
+    :enhancements
+    :etl-connections
+    :etl-connections-pg
     :llm-autodescription
     :query-reference-validation
-    :session-timeout-config})
+    :cloud-custom-smtp
+    :session-timeout-config
+    :offer-metabase-ai
+    :offer-metabase-ai-tiered})
 
 (deftest every-feature-is-accounted-for-test
   (testing "Is every premium feature either tracked under the :features key, or intentionally excluded?"
     (let [included-features     (->> (concat (@#'stats/snowplow-features-data) (@#'stats/ee-snowplow-features-data))
                                      (map :name))
           included-features-set (set included-features)
-          all-features      @premium-features/premium-features]
+          all-features      @@#'premium-features.settings/premium-features]
       ;; make sure features are not missing
       (is (empty? (set/difference all-features included-features-set excluded-features)))
 
@@ -485,17 +594,48 @@
                     (get query_executions_24h k)))
             "There are never more query executions in the 24h version than all-of-time.")))))
 
-(deftest query-execution-24h-filtering-test
-  (let [before (#'stats/->snowplow-grouped-metric-info)]
-    ;; run 2 internal queries, set one to happen a year ago:
-    (mt/with-temp [:model/QueryExecution _internal-year-ago
-                   (merge query-execution-defaults
-                          {:started_at (-> (t/offset-date-time) (t/minus (t/years 1)))})
-                   :model/QueryExecution _internal-new query-execution-defaults]
-      (let [after (#'stats/->snowplow-grouped-metric-info)
-            before-internal (-> before :query-executions (get "internal"))
-            after-internal (-> after :query-executions (get "internal"))
-            before-24h-internal (-> before :query-executions-24h (get "internal"))
-            after-24h-internal (-> after :query-executions-24h (get "internal"))]
-        (is (= 2 (- after-internal before-internal)))
-        (is (= 1 (- after-24h-internal before-24h-internal)))))))
+(deftest snowplow-setting-tests
+  (testing "snowplow formated settings"
+    (let [instance-stats (#'stats/instance-settings)
+          snowplow-settings (#'stats/snowplow-settings instance-stats)]
+      (testing "matches expected schema"
+        (is (malli= [:map
+                     [:is_embedding_app_origin_sdk_set :boolean]
+                     [:is_embedding_app_origin_interactive_set :boolean]
+                     [:application_name [:enum "default" "changed"]]
+                     [:help_link [:enum "hidden" "custom" "metabase"]]
+                     [:logo [:enum "default" "changed"]]
+                     [:favicon [:enum "default" "changed"]]
+                     [:loading_message [:enum "default" "changed"]]
+                     [:show_metabot_greeting :boolean]
+                     [:show_login_page_illustration [:enum "default" "changed" "none"]]
+                     [:show_landing_page_illustration [:enum "default" "changed" "none"]]
+                     [:show_no_data_illustration [:enum "default" "changed" "none"]]
+                     [:show_no_object_illustration [:enum "default" "changed" "none"]]
+                     [:ui_color [:enum "default" "changed"]]
+                     [:chart_colors [:enum "default" "changed"]]
+                     [:show_mb_links :boolean]
+                     [:font :string]
+                     [:samesite :string]
+                     [:site_locale :string]
+                     [:report_timezone :string]
+                     [:start_of_week :string]]
+                    (zipmap (map (comp keyword :key) snowplow-settings) (map :value snowplow-settings)))))
+      (testing "is_embedding_app_origin_sdk_set"
+        (is (= false (get-in snowplow-settings [0 :value]))))
+      (testing "stringifies help link"
+        (is (= "metabase" (get-in snowplow-settings [3 :value]))))
+      (testing "converts boolean changed? to string"
+        (is (= "default" (get-in snowplow-settings [4 :value])))))))
+
+(deftest document-metrics-test
+  (mt/with-empty-h2-app-db!
+    (testing "with no documents"
+      (is (=? {:documents {}}
+              (#'stats/document-metrics))))
+    (testing "with documents"
+      (mt/with-temp [:model/Document _ {}
+                     :model/Document _ {:archived true}]
+        (is (=? {:documents {:total 2
+                             :archived 1}}
+                (#'stats/document-metrics)))))))

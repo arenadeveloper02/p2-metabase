@@ -55,7 +55,7 @@ export function getDatePickerOperators(
   column: Lib.ColumnMetadata,
 ): DatePickerOperator[] {
   return Lib.filterableColumnOperators(column)
-    .map(operator => Lib.displayInfo(query, stageIndex, operator).shortName)
+    .map((operator) => Lib.displayInfo(query, stageIndex, operator).shortName)
     .filter(isDatePickerOperator);
 }
 
@@ -65,14 +65,14 @@ export function getDatePickerUnits(
   column: Lib.ColumnMetadata,
 ): DatePickerUnit[] {
   return Lib.availableTemporalBuckets(query, stageIndex, column)
-    .map(operator => Lib.displayInfo(query, stageIndex, operator).shortName)
+    .map((operator) => Lib.displayInfo(query, stageIndex, operator).shortName)
     .filter(isDatePickerUnit);
 }
 
 export function getDatePickerValue(
   query: Lib.Query,
   stageIndex: number,
-  filterClause: Lib.FilterClause,
+  filterClause: Lib.Filterable,
 ): DatePickerValue | undefined {
   return (
     getSpecificDateValue(query, stageIndex, filterClause) ??
@@ -84,7 +84,7 @@ export function getDatePickerValue(
 function getSpecificDateValue(
   query: Lib.Query,
   stageIndex: number,
-  filterClause: Lib.FilterClause,
+  filterClause: Lib.Filterable,
 ): SpecificDatePickerValue | undefined {
   const filterParts = Lib.specificDateFilterParts(
     query,
@@ -106,7 +106,7 @@ function getSpecificDateValue(
 function getRelativeDateValue(
   query: Lib.Query,
   stageIndex: number,
-  filterClause: Lib.FilterClause,
+  filterClause: Lib.Filterable,
 ): RelativeDatePickerValue | undefined {
   const filterParts = Lib.relativeDateFilterParts(
     query,
@@ -130,7 +130,7 @@ function getRelativeDateValue(
 function getExcludeDateValue(
   query: Lib.Query,
   stageIndex: number,
-  filterClause: Lib.FilterClause,
+  filterClause: Lib.Filterable,
 ): ExcludeDatePickerValue | undefined {
   const filterParts = Lib.excludeDateFilterParts(
     query,
@@ -280,20 +280,23 @@ export function getDateFilterDisplayName(
         return `${formatDate(startDate, hasTime)} - ${formatDate(endDate, hasTime)}`;
       },
     )
-    .with({ type: "relative" }, ({ value, unit, offsetValue, offsetUnit }) => {
-      if (offsetValue != null && offsetUnit != null) {
-        const prefix = Lib.describeTemporalInterval(value, unit);
-        const suffix = Lib.describeRelativeDatetime(offsetValue, offsetUnit);
-        return c(
-          "Describes a relative date interval. Example: Previous 2 months, starting 1 year ago.",
-        ).t`${prefix}, starting ${suffix}`;
-      } else {
-        return Lib.describeTemporalInterval(value, unit);
-      }
-    })
+    .with(
+      { type: "relative" },
+      ({ value, unit, offsetValue, offsetUnit, options }) => {
+        if (offsetValue != null && offsetUnit != null) {
+          const prefix = Lib.describeTemporalInterval(value, unit);
+          const suffix = Lib.describeRelativeDatetime(offsetValue, offsetUnit);
+          return `${prefix}, ${suffix}`;
+        } else {
+          return Lib.describeTemporalInterval(value, unit, {
+            "include-current": options?.includeCurrent,
+          });
+        }
+      },
+    )
     .with({ type: "exclude", operator: "!=" }, ({ values, unit }) => {
       if (values.length <= 2 && unit != null) {
-        const parts = values.map(value => formatExcludeUnit(value, unit));
+        const parts = values.map((value) => formatExcludeUnit(value, unit));
         return t`Exclude ${parts.join(", ")}`;
       } else {
         const count = values.length;
@@ -319,10 +322,8 @@ export function getDateFilterDisplayName(
     .exhaustive();
 }
 
-function formatDate(date: Date, hasTime: boolean) {
-  return hasTime
-    ? dayjs(date).format("MMMM D, YYYY hh:mm A")
-    : dayjs(date).format("MMMM D, YYYY");
+export function formatDate(date: Date, hasTime: boolean) {
+  return hasTime ? dayjs(date).format("LL hh:mm A") : dayjs(date).format("LL");
 }
 
 function formatMonth(month: number, year: number) {

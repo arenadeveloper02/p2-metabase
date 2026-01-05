@@ -3,15 +3,16 @@ import { push } from "react-router-redux";
 import { useDebounce } from "react-use";
 import { t } from "ttag";
 
+import EmptyState from "metabase/common/components/EmptyState";
 import { useSearchListQuery } from "metabase/common/hooks";
-import EmptyState from "metabase/components/EmptyState";
-import Search from "metabase/entities/search";
-import { useListKeyboardNavigation } from "metabase/hooks/use-list-keyboard-navigation";
+import { useListKeyboardNavigation } from "metabase/common/hooks/use-list-keyboard-navigation";
+import { Search } from "metabase/entities/search";
 import {
   DEFAULT_SEARCH_LIMIT,
   SEARCH_DEBOUNCE_DURATION,
 } from "metabase/lib/constants";
 import { useDispatch } from "metabase/lib/redux";
+import { modelToUrl } from "metabase/lib/urls";
 import {
   EmptyStateContainer,
   ResultsContainer,
@@ -21,7 +22,7 @@ import {
 import { SearchResult } from "metabase/search/components/SearchResult/SearchResult";
 import { SearchContextTypes } from "metabase/search/constants";
 import type { SearchFilters } from "metabase/search/types";
-import { Loader, Stack, Text } from "metabase/ui";
+import { Loader } from "metabase/ui";
 import type {
   CollectionItem,
   SearchModel,
@@ -50,12 +51,7 @@ export type SearchResultsProps = {
 };
 
 export const SearchLoadingSpinner = () => (
-  <Stack p="xl" align="center">
-    <Loader size="lg" data-testid="loading-indicator" />
-    <Text size="xl" color="text-light">
-      {t`Loading…`}
-    </Text>
-  </Stack>
+  <Loader size="lg" data-testid="loading-indicator" label={t`Loading…`} />
 );
 
 export const SearchResults = ({
@@ -123,8 +119,8 @@ export const SearchResults = ({
     if (item && typeof item !== "function") {
       if (onEntitySelect) {
         onEntitySelect(Search.wrapEntity(item, dispatch));
-      } else if (item && item.getUrl) {
-        dispatch(push(item.getUrl()));
+      } else if (item && modelToUrl(item)) {
+        dispatch(push(modelToUrl(item)));
       }
     }
   };
@@ -147,7 +143,7 @@ export const SearchResults = ({
   }
 
   return hasResults ? (
-    <SearchResultsList data-testid="search-results-list" spacing={0}>
+    <SearchResultsList data-testid="search-results-list" gap={0}>
       <ResultsContainer>
         {list.map((item, index) => {
           const isIndexedEntity = item.model === "indexed-entity";
@@ -168,6 +164,7 @@ export const SearchResults = ({
                 onClick={onClick}
                 index={index}
                 context="search-bar"
+                searchTerm={searchText}
               />
             </li>
           );

@@ -5,9 +5,13 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import { ExportSettingsWidget } from "metabase/common/components/ExportSettingsWidget";
-import Toggle from "metabase/core/components/Toggle";
+import Toggle from "metabase/common/components/Toggle";
 import CS from "metabase/css/core/index.css";
-import { Box, Checkbox, Group, Icon, Text } from "metabase/ui";
+import { Box, Checkbox, Group, Icon, Text, Tooltip } from "metabase/ui";
+
+function getCardIdPair(card) {
+  return card.id + "|" + card.dashboard_card_id;
+}
 
 export default class EmailAttachmentPicker extends Component {
   DEFAULT_ATTACHMENT_TYPE = "csv";
@@ -16,6 +20,7 @@ export default class EmailAttachmentPicker extends Component {
     isEnabled: false,
     isFormattingEnabled: true,
     isPivotingEnabled: false,
+    isAttachmentOnly: false,
     selectedAttachmentType: this.DEFAULT_ATTACHMENT_TYPE,
     selectedCardIds: new Set(),
   };
@@ -24,6 +29,7 @@ export default class EmailAttachmentPicker extends Component {
     pulse: PropTypes.object.isRequired,
     setPulse: PropTypes.func.isRequired,
     cards: PropTypes.array.isRequired,
+    allowDownload: PropTypes.bool.isRequired,
   };
 
   componentDidMount() {
@@ -44,26 +50,42 @@ export default class EmailAttachmentPicker extends Component {
   }
 
   _getCardsWithAttachments() {
-    return this.props.cards.filter(card => {
+    return this.props.cards.filter((card) => {
       return card.include_csv || card.include_xls;
     });
   }
 
   calculateStateFromCards() {
     const selectedCards = this._getCardsWithAttachments();
+    const { pulse } = this.props;
 
     return {
       isEnabled: selectedCards.length > 0,
       selectedAttachmentType:
         this.attachmentTypeFor(selectedCards) || this.DEFAULT_ATTACHMENT_TYPE,
-      selectedCardIds: new Set(selectedCards.map(card => card.id)),
+      selectedCardIds: new Set(
+        selectedCards.map((card) => getCardIdPair(card)),
+      ),
       isFormattingEnabled: getInitialFormattingState(selectedCards),
       isPivotingEnabled: getInitialPivotingState(selectedCards),
+      isAttachmentOnly: getInitialAttachmentOnlyState(pulse),
     };
   }
 
   canConfigurePivoting() {
-    return this.props.cards.some(card => card.display === "pivot");
+    return this.props.cards.some((card) => card.display === "pivot");
+  }
+
+  canAttachFiles() {
+    const { allowDownload } = this.props;
+    return allowDownload;
+  }
+
+  getAttachmentDisabledReason() {
+    if (!this.canAttachFiles()) {
+      return t`You don't have permission to download results and therefore cannot attach files to subscriptions.`;
+    }
+    return null;
   }
 
   shouldUpdateState(newState, currentState) {
@@ -80,7 +102,8 @@ export default class EmailAttachmentPicker extends Component {
    */
   updatePulseCards(attachmentType, selectedCardIds) {
     const { pulse, setPulse } = this.props;
-    const { isFormattingEnabled, isPivotingEnabled } = this.state;
+    const { isFormattingEnabled, isPivotingEnabled, isAttachmentOnly } =
+      this.state;
 
     const isXls = attachmentType === "xlsx",
       isCsv = attachmentType === "csv";
@@ -89,30 +112,36 @@ export default class EmailAttachmentPicker extends Component {
 
     setPulse({
       ...pulse,
-      cards: pulse.cards.map(card => {
-        card.include_csv = selectedCardIds.has(card.id) && isCsv;
-        card.include_xls = selectedCardIds.has(card.id) && isXls;
+      cards: pulse.cards.map((card) => {
+        card.include_csv = selectedCardIds.has(getCardIdPair(card)) && isCsv;
+        card.include_xls = selectedCardIds.has(getCardIdPair(card)) && isXls;
         card.format_rows = isCsv && isFormattingEnabled; // Excel always uses formatting
         card.pivot_results = card.display === "pivot" && isPivotingEnabled;
         return card;
       }),
+      channels: pulse.channels.map((channel) => ({
+        ...channel,
+        details: {
+          ...channel.details,
+          attachment_only: isAttachmentOnly,
+        },
+      })),
     });
   }
 
   cardIds() {
-    return new Set(this.props.cards.map(card => card.id));
+    return new Set(this.props.cards.map((card) => getCardIdPair(card)));
   }
 
   cardIdsToCards(cardIds) {
     const { pulse } = this.props;
-
-    return pulse.cards.filter(card => cardIds.has(card.id));
+    return pulse.cards.filter((card) => cardIds.has(getCardIdPair(card)));
   }
 
   attachmentTypeFor(cards) {
-    if (cards.some(c => c.include_xls)) {
+    if (cards.some((c) => c.include_xls)) {
       return "xlsx";
-    } else if (cards.some(c => c.include_csv)) {
+    } else if (cards.some((c) => c.include_csv)) {
       return "csv";
     } else {
       return null;
@@ -122,19 +151,22 @@ export default class EmailAttachmentPicker extends Component {
   /*
    * Called when the attachment type toggle (csv/xls) is clicked
    */
-  setAttachmentType = newAttachmentType => {
+  setAttachmentType = (newAttachmentType) => {
     this.updatePulseCards(newAttachmentType, this.state.selectedCardIds);
   };
 
   /*
    * Called when attachments are enabled/disabled at all
    */
-  toggleAttach = includeAttachment => {
+  toggleAttach = (includeAttachment) => {
     if (!includeAttachment) {
       this.disableAllCards();
     }
 
-    this.setState({ isEnabled: includeAttachment });
+    this.setState({
+      isEnabled: includeAttachment,
+      isAttachmentOnly: includeAttachment ? this.state.isAttachmentOnly : false,
+    });
   };
 
   /*
@@ -142,7 +174,7 @@ export default class EmailAttachmentPicker extends Component {
    */
   onToggleCard(card) {
     this.setState(({ selectedAttachmentType, selectedCardIds }) => {
-      const id = card.id;
+      const id = getCardIdPair(card);
       const attachmentType =
         this.attachmentTypeFor(this.cardIdsToCards(selectedCardIds)) ||
         selectedAttachmentType;
@@ -180,7 +212,7 @@ export default class EmailAttachmentPicker extends Component {
 
   onToggleFormatting = () => {
     this.setState(
-      prevState => ({
+      (prevState) => ({
         ...prevState,
         isFormattingEnabled: !prevState.isFormattingEnabled,
       }),
@@ -195,9 +227,24 @@ export default class EmailAttachmentPicker extends Component {
 
   onTogglePivoting = () => {
     this.setState(
-      prevState => ({
+      (prevState) => ({
         ...prevState,
         isPivotingEnabled: !prevState.isPivotingEnabled,
+      }),
+      () => {
+        this.updatePulseCards(
+          this.state.selectedAttachmentType,
+          this.state.selectedCardIds,
+        );
+      },
+    );
+  };
+
+  onToggleAttachmentOnly = () => {
+    this.setState(
+      (prevState) => ({
+        ...prevState,
+        isAttachmentOnly: !prevState.isAttachmentOnly,
       }),
       () => {
         this.updatePulseCards(
@@ -228,29 +275,46 @@ export default class EmailAttachmentPicker extends Component {
       isEnabled,
       isFormattingEnabled,
       isPivotingEnabled,
+      isAttachmentOnly,
       selectedAttachmentType,
       selectedCardIds,
     } = this.state;
 
+    const canAttachFiles = this.canAttachFiles();
+    const disabledReason = this.getAttachmentDisabledReason();
+
     return (
       <div>
-        <Group className={CS.borderTop} position="apart" pt="1.5rem">
-          <Group position="left" spacing="0">
+        <Group
+          className={CS.borderTop}
+          justify="space-between"
+          pt="1.5rem"
+          pb="1.5rem"
+          opacity={canAttachFiles ? 1 : 0.6}
+        >
+          <Group position="left" gap="0">
             <Text fw="bold">{t`Attach results as files`}</Text>
             <Icon
               name="info"
-              className={cx(CS.textMedium, CS.ml1)}
+              c="gray.6"
+              ml="0.5rem"
               size={12}
-              tooltip={t`Attachments can contain up to 2,000 rows of data.`}
+              tooltip={
+                disabledReason ||
+                t`Attachments can contain up to 2,000 rows of data.`
+              }
             />
           </Group>
-          <Toggle
-            aria-label={t`Attach results`}
-            value={isEnabled}
-            onChange={this.toggleAttach}
-          />
+          <Tooltip label={disabledReason} disabled={!disabledReason}>
+            <Toggle
+              aria-label={t`Attach results`}
+              value={isEnabled && canAttachFiles}
+              onChange={this.toggleAttach}
+              disabled={!canAttachFiles}
+            />
+          </Tooltip>
         </Group>
-        {isEnabled && (
+        {isEnabled && canAttachFiles && (
           <div>
             <Box py="1rem">
               <ExportSettingsWidget
@@ -296,12 +360,12 @@ export default class EmailAttachmentPicker extends Component {
                     onChange={this.onToggleAll}
                   />
                 </li>
-                {cards.map(card => (
+                {cards.map((card) => (
                   <li key={card.id}>
                     <Checkbox
                       mb="1rem"
                       mr="0.5rem"
-                      checked={selectedCardIds.has(card.id)}
+                      checked={selectedCardIds.has(getCardIdPair(card))}
                       label={card.name}
                       onChange={() => {
                         this.onToggleCard(card);
@@ -311,6 +375,23 @@ export default class EmailAttachmentPicker extends Component {
                 ))}
               </ul>
             </div>
+            <Group justify="space-between" pt="1rem">
+              <Group position="left" gap="0">
+                <Text fw="bold">{t`Send only attachments (no charts)`}</Text>
+                <Icon
+                  name="info"
+                  c="gray"
+                  ml="0.5rem"
+                  size={12}
+                  tooltip={t`When enabled, only file attachments will be sent (no email content).`}
+                />
+              </Group>
+              <Toggle
+                aria-label={t`Send only attachments`}
+                value={isAttachmentOnly}
+                onChange={this.onToggleAttachmentOnly}
+              />
+            </Group>
           </div>
         )}
       </div>
@@ -320,14 +401,21 @@ export default class EmailAttachmentPicker extends Component {
 
 function getInitialFormattingState(cards) {
   if (cards.length > 0) {
-    return cards.some(card => !!card.format_rows);
+    return cards.some((card) => !!card.format_rows);
   }
   return true;
 }
 
 function getInitialPivotingState(cards) {
   if (cards.length > 0) {
-    return cards.some(card => !!card.pivot_results);
+    return cards.some((card) => !!card.pivot_results);
+  }
+  return false;
+}
+
+function getInitialAttachmentOnlyState(pulse) {
+  if (pulse && pulse.channels && pulse.channels.length > 0) {
+    return pulse.channels.some((channel) => !!channel.details?.attachment_only);
   }
   return false;
 }

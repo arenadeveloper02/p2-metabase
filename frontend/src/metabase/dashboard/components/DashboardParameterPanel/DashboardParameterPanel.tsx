@@ -2,45 +2,29 @@ import cx from "classnames";
 import { useRef } from "react";
 
 import TransitionS from "metabase/css/core/transitions.module.css";
-import { DASHBOARD_PARAMETERS_PDF_EXPORT_NODE_ID } from "metabase/dashboard/constants";
+import { DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID } from "metabase/dashboard/constants";
+import { useDashboardContext } from "metabase/dashboard/context";
 import { useIsParameterPanelSticky } from "metabase/dashboard/hooks/use-is-parameter-panel-sticky";
-import {
-  getDashboardComplete,
-  getIsEditing,
-  getIsNightMode,
-  getParameters,
-  getTabHiddenParameterSlugs,
-} from "metabase/dashboard/selectors";
+import { getDashboardHeaderValuePopulatedParameters } from "metabase/dashboard/selectors";
+import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { isSmallScreen } from "metabase/lib/dom";
 import { useSelector } from "metabase/lib/redux";
-import { FilterApplyButton } from "metabase/parameters/components/FilterApplyButton";
 import { getVisibleParameters } from "metabase/parameters/utils/ui";
+import { FullWidthContainer } from "metabase/styled-components/layout/FullWidthContainer";
 
-import {
-  FixedWidthContainer,
-  ParametersFixedWidthContainer,
-  ParametersWidgetContainer,
-} from "../Dashboard/Dashboard.styled";
-import { DashboardParameterList } from "../DashboardParameterList";
+import { Dashboard } from "../Dashboard";
+import DashboardS from "../Dashboard/Dashboard.module.css";
+import { FixedWidthContainer } from "../Dashboard/DashboardComponents";
 
-interface DashboardParameterPanelProps {
-  isFullscreen: boolean;
-}
+import S from "./DashboardParameterPanel.module.css";
 
-export function DashboardParameterPanel({
-  isFullscreen,
-}: DashboardParameterPanelProps) {
-  const dashboard = useSelector(getDashboardComplete);
-  const parameters = useSelector(getParameters);
-  const hiddenParameterSlugs = useSelector(getTabHiddenParameterSlugs);
-  const isEditing = useSelector(getIsEditing);
-  const isNightMode = useSelector(getIsNightMode);
-  const visibleParameters = getVisibleParameters(
-    parameters,
-    hiddenParameterSlugs,
-  );
+export function DashboardParameterPanel() {
+  const parameters = useSelector(getDashboardHeaderValuePopulatedParameters);
+
+  const { dashboard, hideParameters, isEditing } = useDashboardContext();
+
+  const visibleParameters = getVisibleParameters(parameters, hideParameters);
   const hasVisibleParameters = visibleParameters.length > 0;
-  const shouldRenderAsNightMode = isNightMode && isFullscreen;
 
   const parameterPanelRef = useRef<HTMLElement>(null);
   const allowSticky = isParametersWidgetContainersSticky(
@@ -48,6 +32,7 @@ export function DashboardParameterPanel({
   );
   const { isSticky, isStickyStateChanging } = useIsParameterPanelSticky({
     parameterPanelRef,
+    disabled: !allowSticky || !hasVisibleParameters,
   });
 
   const shouldApplyThemeChangeTransition = !isStickyStateChanging && isSticky;
@@ -59,44 +44,48 @@ export function DashboardParameterPanel({
   if (isEditing) {
     return (
       <span ref={parameterPanelRef}>
-        <ParametersWidgetContainer
-          allowSticky
-          isSticky
-          isNightMode={shouldRenderAsNightMode}
+        <FullWidthContainer
+          className={cx(
+            S.ParametersWidgetContainer,
+            S.allowSticky,
+            S.isSticky,
+            {
+              [S.isEmbeddingSdk]: isEmbeddingSdk(),
+            },
+          )}
           data-testid="edit-dashboard-parameters-widget-container"
         >
           <FixedWidthContainer
             isFixedWidth={dashboard?.width === "fixed"}
             data-testid="fixed-width-filters"
           >
-            <DashboardParameterList isFullscreen={isFullscreen} />
+            <Dashboard.ParametersList />
           </FixedWidthContainer>
-        </ParametersWidgetContainer>
+        </FullWidthContainer>
       </span>
     );
   }
 
   return (
     <span ref={parameterPanelRef}>
-      <ParametersWidgetContainer
-        className={cx({
+      <FullWidthContainer
+        className={cx(S.ParametersWidgetContainer, {
           [TransitionS.transitionThemeChange]: shouldApplyThemeChangeTransition,
+          [S.allowSticky]: allowSticky,
+          [S.isSticky]: isSticky,
+          [S.isEmbeddingSdk]: isEmbeddingSdk(),
         })}
-        allowSticky={allowSticky}
-        isSticky={isSticky}
-        isNightMode={shouldRenderAsNightMode}
         data-testid="dashboard-parameters-widget-container"
       >
-        <ParametersFixedWidthContainer
-          id={DASHBOARD_PARAMETERS_PDF_EXPORT_NODE_ID}
+        <FixedWidthContainer
+          className={DashboardS.ParametersFixedWidthContainer}
+          id={DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}
           isFixedWidth={dashboard?.width === "fixed"}
           data-testid="fixed-width-filters"
         >
-          <DashboardParameterList isFullscreen={isFullscreen} />
-
-          <FilterApplyButton />
-        </ParametersFixedWidthContainer>
-      </ParametersWidgetContainer>
+          <Dashboard.ParametersList />
+        </FixedWidthContainer>
+      </FullWidthContainer>
     </span>
   );
 }

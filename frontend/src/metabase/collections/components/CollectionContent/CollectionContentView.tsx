@@ -6,6 +6,7 @@ import { t } from "ttag";
 import ErrorBoundary from "metabase/ErrorBoundary";
 import { deletePermanently } from "metabase/archive/actions";
 import { ArchivedEntityBanner } from "metabase/archive/components/ArchivedEntityBanner";
+import { trackCollectionBookmarked } from "metabase/collections/analytics";
 import { CollectionBulkActions } from "metabase/collections/components/CollectionBulkActions";
 import {
   type CollectionContentTableColumn,
@@ -14,23 +15,23 @@ import {
 import PinnedItemOverview from "metabase/collections/components/PinnedItemOverview";
 import Header from "metabase/collections/containers/CollectionHeader";
 import type {
+  CollectionOrTableIdProps,
   CreateBookmark,
   DeleteBookmark,
   OnFileUpload,
   UploadFile,
 } from "metabase/collections/types";
 import {
-  isPersonalCollectionChild,
   isRootTrashCollection,
   isTrashedCollection,
 } from "metabase/collections/utils";
-import { getVisibleColumnsMap } from "metabase/components/ItemsTable/utils";
-import ItemsDragLayer from "metabase/containers/dnd/ItemsDragLayer";
-import Bookmarks from "metabase/entities/bookmarks";
-import Collections from "metabase/entities/collections";
-import Search from "metabase/entities/search";
-import { useListSelect } from "metabase/hooks/use-list-select";
-import { useToggle } from "metabase/hooks/use-toggle";
+import { getVisibleColumnsMap } from "metabase/common/components/ItemsTable/utils";
+import ItemsDragLayer from "metabase/common/components/dnd/ItemsDragLayer";
+import { useListSelect } from "metabase/common/hooks/use-list-select";
+import { useToggle } from "metabase/common/hooks/use-toggle";
+import { Bookmarks } from "metabase/entities/bookmarks";
+import { Collections } from "metabase/entities/collections";
+import { Search } from "metabase/entities/search";
 import { useDispatch } from "metabase/lib/redux";
 import { addUndo } from "metabase/redux/undo";
 import type Database from "metabase-lib/v1/metadata/Database";
@@ -43,7 +44,6 @@ import type {
 import { SortDirection } from "metabase-types/api/sorting";
 import type { State } from "metabase-types/store";
 
-import type { CollectionOrTableIdProps } from "../ModelUploadModal";
 import { ModelUploadModal } from "../ModelUploadModal";
 import UploadOverlay from "../UploadOverlay";
 
@@ -57,7 +57,6 @@ const CollectionContentViewInner = ({
   databases,
   bookmarks,
   collection,
-  collections: collectionList = [],
   collectionId,
   createBookmark,
   deleteBookmark,
@@ -72,7 +71,6 @@ const CollectionContentViewInner = ({
   databases?: Database[];
   bookmarks?: Bookmark[];
   collection: Collection;
-  collections: Collection[];
   collectionId: CollectionId;
   createBookmark: CreateBookmark;
   deleteBookmark: DeleteBookmark;
@@ -127,7 +125,7 @@ const CollectionContentViewInner = ({
 
   useEffect(() => {
     const shouldBeBookmarked = !!bookmarks?.some(
-      bookmark =>
+      (bookmark) =>
         bookmark.type === "collection" && bookmark.item_id === collectionId,
     );
     setIsBookmarked(shouldBeBookmarked);
@@ -174,6 +172,7 @@ const CollectionContentViewInner = ({
 
   const handleCreateBookmark = () => {
     createBookmark(collectionId.toString(), "collection");
+    trackCollectionBookmarked();
   };
 
   const handleDeleteBookmark = () => {
@@ -234,10 +233,6 @@ const CollectionContentViewInner = ({
             collection={collection}
             isAdmin={isAdmin}
             isBookmarked={isBookmarked}
-            isPersonalCollectionChild={isPersonalCollectionChild(
-              collection,
-              collectionList,
-            )}
             onCreateBookmark={handleCreateBookmark}
             onDeleteBookmark={handleDeleteBookmark}
             canUpload={canCreateUpload}

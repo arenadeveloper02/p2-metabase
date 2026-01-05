@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { t } from "ttag";
 
+import { getErrorMessage } from "metabase/api/utils";
 import { Button, Flex, Text } from "metabase/ui";
 
 export const ButtonBar = ({
@@ -19,16 +20,20 @@ export const ButtonBar = ({
   cancelButtonText?: string;
 }) => {
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const handleEnter = (e: KeyboardEvent) => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.isComposing) {
+        return;
+      }
       if (canConfirm && e.key === "Enter") {
         onConfirm();
       }
     };
-    document.addEventListener("keypress", handleEnter);
+    document.addEventListener("keypress", handleKeyPress);
     return () => {
-      document.removeEventListener("keypress", handleEnter);
+      document.removeEventListener("keypress", handleKeyPress);
     };
   }, [canConfirm, onConfirm]);
 
@@ -57,13 +62,15 @@ export const ButtonBar = ({
           onClick={async () => {
             try {
               setError(null);
+              setLoading(true);
               await onConfirm();
             } catch (e: any) {
               console.error(e);
-              setError(e?.data?.message ?? t`An error occurred`);
+              setError(getErrorMessage(e));
             }
+            setLoading(false);
           }}
-          disabled={!canConfirm}
+          disabled={!canConfirm || loading}
           data-testid="entity-picker-select-button"
         >
           {confirmButtonText ?? t`Select`}

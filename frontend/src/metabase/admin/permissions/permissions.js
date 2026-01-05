@@ -1,7 +1,7 @@
-import { assocIn, merge } from "icepick";
+import { assocIn, getIn, merge } from "icepick";
 import { push } from "react-router-redux";
 import { t } from "ttag";
-import _ from "underscore";
+import { isBoolean } from "underscore";
 
 import {
   inferAndUpdateEntityPermissions,
@@ -12,8 +12,8 @@ import {
   updateTablesPermission,
 } from "metabase/admin/permissions/utils/graph";
 import { getGroupFocusPermissionsUrl } from "metabase/admin/permissions/utils/urls";
-import Group from "metabase/entities/groups";
-import Tables from "metabase/entities/tables";
+import { Groups } from "metabase/entities/groups";
+import { Tables } from "metabase/entities/tables";
 import {
   combineReducers,
   createAction,
@@ -39,10 +39,10 @@ const INITIALIZE_DATA_PERMISSIONS =
   "metabase/admin/permissions/INITIALIZE_DATA_PERMISSIONS";
 export const initializeDataPermissions = createThunkAction(
   INITIALIZE_DATA_PERMISSIONS,
-  () => async dispatch => {
+  () => async (dispatch) => {
     await Promise.all([
       dispatch(loadDataPermissions()),
-      dispatch(Group.actions.fetchList()),
+      dispatch(Groups.actions.fetchList()),
     ]);
   },
 );
@@ -77,10 +77,10 @@ const INITIALIZE_COLLECTION_PERMISSIONS =
   "metabase/admin/permissions/INITIALIZE_COLLECTION_PERMISSIONS";
 export const initializeCollectionPermissions = createThunkAction(
   INITIALIZE_COLLECTION_PERMISSIONS,
-  namespace => async dispatch => {
+  (namespace) => async (dispatch) => {
     await Promise.all([
       dispatch(loadCollectionPermissions(namespace)),
-      dispatch(Group.actions.fetchList()),
+      dispatch(Groups.actions.fetchList()),
     ]);
   },
 );
@@ -89,7 +89,7 @@ const LOAD_COLLECTION_PERMISSIONS =
   "metabase/admin/permissions/LOAD_COLLECTION_PERMISSIONS";
 export const loadCollectionPermissions = createThunkAction(
   LOAD_COLLECTION_PERMISSIONS,
-  namespace => async () => {
+  (namespace) => async () => {
     const params = namespace != null ? { namespace } : {};
     return CollectionsApi.graph(params);
   },
@@ -99,7 +99,7 @@ export const LIMIT_DATABASE_PERMISSION =
   "metabase/admin/permissions/LIMIT_DATABASE_PERMISSION";
 export const limitDatabasePermission = createThunkAction(
   LIMIT_DATABASE_PERMISSION,
-  (groupId, entityId, accessPermissionValue) => dispatch => {
+  (groupId, entityId, accessPermissionValue) => (dispatch) => {
     const newValue =
       PLUGIN_ADVANCED_PERMISSIONS.getDatabaseLimitedAccessPermission(
         accessPermissionValue,
@@ -127,7 +127,7 @@ export const NAVIGATE_TO_GRANULAR_PERMISSIONS =
   "metabase/admin/permissions/NAVIGATE_TO_GRANULAR_PERMISSIONS";
 export const navigateToGranularPermissions = createThunkAction(
   NAVIGATE_TO_GRANULAR_PERMISSIONS,
-  (groupId, entityId) => dispatch => {
+  (groupId, entityId) => (dispatch) => {
     dispatch(push(getGroupFocusPermissionsUrl(groupId, entityId)));
   },
 );
@@ -144,6 +144,7 @@ export const updateDataPermission = createThunkAction(
             dbId: entityId.databaseId,
             include_hidden: true,
             remove_inactive: true,
+            skip_fields: true,
           }),
         );
       }
@@ -224,7 +225,7 @@ const SAVE_COLLECTION_PERMISSIONS =
   "metabase/admin/permissions/data/SAVE_COLLECTION_PERMISSIONS";
 export const saveCollectionPermissions = createThunkAction(
   SAVE_COLLECTION_PERMISSIONS,
-  namespace => async (_dispatch, getState) => {
+  (namespace) => async (_dispatch, getState) => {
     const {
       originalCollectionPermissions,
       collectionPermissions,
@@ -249,11 +250,70 @@ export const saveCollectionPermissions = createThunkAction(
   },
 );
 
+// Tenant Collection Permissions
+const TENANT_NAMESPACE = "shared-tenant-collection";
+
+const INITIALIZE_TENANT_COLLECTION_PERMISSIONS =
+  "metabase/admin/permissions/INITIALIZE_TENANT_COLLECTION_PERMISSIONS";
+export const initializeTenantCollectionPermissions = createThunkAction(
+  INITIALIZE_TENANT_COLLECTION_PERMISSIONS,
+  () => async (dispatch) => {
+    await Promise.all([
+      dispatch(loadTenantCollectionPermissions()),
+      dispatch(Groups.actions.fetchList()),
+    ]);
+  },
+);
+
+const LOAD_TENANT_COLLECTION_PERMISSIONS =
+  "metabase/admin/permissions/LOAD_TENANT_COLLECTION_PERMISSIONS";
+export const loadTenantCollectionPermissions = createThunkAction(
+  LOAD_TENANT_COLLECTION_PERMISSIONS,
+  () => async () => {
+    return CollectionsApi.graph({ namespace: TENANT_NAMESPACE });
+  },
+);
+
+const UPDATE_TENANT_COLLECTION_PERMISSION =
+  "metabase/admin/permissions/UPDATE_TENANT_COLLECTION_PERMISSION";
+export const updateTenantCollectionPermission = createAction(
+  UPDATE_TENANT_COLLECTION_PERMISSION,
+);
+
+const SAVE_TENANT_COLLECTION_PERMISSIONS =
+  "metabase/admin/permissions/data/SAVE_TENANT_COLLECTION_PERMISSIONS";
+export const saveTenantCollectionPermissions = createThunkAction(
+  SAVE_TENANT_COLLECTION_PERMISSIONS,
+  () => async (_dispatch, getState) => {
+    const {
+      originalTenantCollectionPermissions,
+      tenantCollectionPermissions,
+      tenantCollectionPermissionsRevision,
+    } = getState().admin.permissions;
+
+    const modifiedPermissions = getModifiedCollectionPermissionsGraphParts(
+      originalTenantCollectionPermissions,
+      tenantCollectionPermissions,
+    );
+
+    const result = await CollectionsApi.updateGraph({
+      namespace: TENANT_NAMESPACE,
+      revision: tenantCollectionPermissionsRevision,
+      groups: modifiedPermissions,
+    });
+
+    return {
+      ...result,
+      groups: tenantCollectionPermissions,
+    };
+  },
+);
+
 const CLEAR_SAVE_ERROR = "metabase/admin/permissions/CLEAR_SAVE_ERROR";
 export const clearSaveError = createAction(CLEAR_SAVE_ERROR);
 
 const savePermission = {
-  next: _state => null,
+  next: (_state) => null,
   throw: (_state, { payload }) => {
     return (
       (payload && typeof payload.data === "string"
@@ -267,11 +327,15 @@ const saveError = handleActions(
   {
     [SAVE_DATA_PERMISSIONS]: savePermission,
     [LOAD_DATA_PERMISSIONS]: {
-      next: state => null,
+      next: (state) => null,
     },
     [SAVE_COLLECTION_PERMISSIONS]: savePermission,
     [LOAD_COLLECTION_PERMISSIONS]: {
-      next: state => null,
+      next: (state) => null,
+    },
+    [SAVE_TENANT_COLLECTION_PERMISSIONS]: savePermission,
+    [LOAD_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (state) => null,
     },
     [CLEAR_SAVE_ERROR]: { next: () => null },
   },
@@ -280,7 +344,7 @@ const saveError = handleActions(
 
 function getDecendentCollections(collection) {
   const subCollections = collection.children.filter(
-    collection => !collection.is_personal,
+    (collection) => !collection.is_personal,
   );
   return subCollections.concat(...subCollections.map(getDecendentCollections));
 }
@@ -437,19 +501,36 @@ const collectionPermissions = handleActions(
     },
     [UPDATE_COLLECTION_PERMISSION]: {
       next: (state, { payload }) => {
-        const { groupId, collection, value, shouldPropagate } = payload;
-        let newPermissions = assocIn(state, [groupId, collection.id], value);
+        const {
+          collection,
+          groupId,
+          originalPermissionsState,
+          shouldPropagate,
+          value,
+        } = payload;
+        let newPermissionsState = assocIn(
+          state,
+          [groupId, collection.id],
+          value,
+        );
 
-        if (shouldPropagate) {
+        /**
+         * Check if shouldPropagate is explicitly set (true or false) vs unset (null or undefined).
+         * If it's a boolean, we either propagate the new value or restore the original. When not a boolean, we do nothing.
+         */
+        if (isBoolean(shouldPropagate)) {
           for (const descendent of getDecendentCollections(collection)) {
-            newPermissions = assocIn(
-              newPermissions,
+            newPermissionsState = assocIn(
+              newPermissionsState,
               [groupId, descendent.id],
-              value,
+              shouldPropagate
+                ? value
+                : getIn(originalPermissionsState, [groupId, descendent.id]),
             );
           }
         }
-        return newPermissions;
+
+        return newPermissionsState;
       },
     },
     [SAVE_COLLECTION_PERMISSIONS]: {
@@ -483,6 +564,60 @@ const collectionPermissionsRevision = handleActions(
   null,
 );
 
+// Tenant Collection Permissions Reducers
+const tenantCollectionPermissions = handleActions(
+  {
+    [LOAD_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (_state, { payload }) => payload.groups,
+    },
+    [UPDATE_TENANT_COLLECTION_PERMISSION]: {
+      next: (state, { payload }) => {
+        const { groupId, collection, value, shouldPropagate } = payload;
+        let newPermissions = assocIn(state, [groupId, collection.id], value);
+
+        if (shouldPropagate) {
+          for (const descendent of getDecendentCollections(collection)) {
+            newPermissions = assocIn(
+              newPermissions,
+              [groupId, descendent.id],
+              value,
+            );
+          }
+        }
+        return newPermissions;
+      },
+    },
+    [SAVE_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (_state, { payload }) => payload.groups,
+    },
+  },
+  null,
+);
+
+const originalTenantCollectionPermissions = handleActions(
+  {
+    [LOAD_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (_state, { payload }) => payload.groups,
+    },
+    [SAVE_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (state, { payload }) => payload.groups,
+    },
+  },
+  null,
+);
+
+const tenantCollectionPermissionsRevision = handleActions(
+  {
+    [LOAD_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (_state, { payload }) => payload.revision,
+    },
+    [SAVE_TENANT_COLLECTION_PERMISSIONS]: {
+      next: (_state, { payload }) => payload.revision,
+    },
+  },
+  null,
+);
+
 export const TOGGLE_HELP_REFERENCE =
   "metabase/admin/permissions/TOGGLE_HELP_REFERENCE";
 export const toggleHelpReference = createAction(TOGGLE_HELP_REFERENCE);
@@ -490,7 +625,7 @@ export const toggleHelpReference = createAction(TOGGLE_HELP_REFERENCE);
 export const isHelpReferenceOpen = handleActions(
   {
     [toggleHelpReference]: {
-      next: state => !state,
+      next: (state) => !state,
     },
   },
   false,
@@ -544,6 +679,9 @@ export default combineReducers({
   collectionPermissions,
   originalCollectionPermissions,
   collectionPermissionsRevision,
+  tenantCollectionPermissions,
+  originalTenantCollectionPermissions,
+  tenantCollectionPermissionsRevision,
   isHelpReferenceOpen,
   hasRevisionChanged,
 });

@@ -3,24 +3,19 @@
     {
       "name": "Querying",
       "label": ".Team/Querying",
-      "projectUrl": "https://github.com/orgs/metabase/projects/97/views/1",
       "members": [
         "ranquild",
-        "kamilmielnik",
         "romeovs",
         "bshepherdson",
         "metamben",
-        "lbrdnk",
-        "appleby",
-        "uladzimirdev",
         "wzimrin",
-        "ericnormand"
+        "ericnormand",
+        "galdre"
       ]
     },
     {
       "name": "Drivers",
       "label": ".Team/Drivers",
-      "projectUrl": "https://github.com/orgs/metabase/projects/98/views/1",
       "members": [
         "snoe",
         "rileythomp"
@@ -29,49 +24,19 @@
     {
       "name": "Embedding",
       "label": ".Team/Embedding",
-      "projectUrl": "https://github.com/orgs/metabase/projects/88/views/1",
       "members": [
         "WiNloSt",
-        "oisincoveney",
         "npretto",
         "heypoom",
-        "sanex3339"
-      ]
-    },
-    {
-      "name": "Workflows",
-      "label": ".Team/Workflows",
-      "projectUrl": "https://github.com/orgs/metabase/projects/50/views/1",
-      "members": [
-        "qnkhuat",
-        "piranha",
-        "crisptrutski",
-        "deniskaber",
-        "wotbrew"
+        "sanex3339",
+        "lorem--ipsum"
       ]
     },
     {
       "name": "Admin Webapp",
       "label": ".Team/AdminWebapp",
       "members": [
-        "npfitz",
-        "johnswanson",
-        "rafpaf",
-        "sloansparger",
-        "iethree",
-        "nvoxland",
-        "fraserdrops"
-      ]
-    },
-    {
-      "name": "DashViz",
-      "label": ".Team/DashViz",
-      "members": [
-        "alxnddr",
-        "kulyk",
-        "tsplude",
-        "lorem--ipsum",
-        "noahmoss"
+        "eliotmetabase"
       ]
     },
     {
@@ -79,7 +44,71 @@
       "label": ".Team/DevEx",
       "members": [
         "camsaul",
-        "escherize"
+        "dpsutton",
+        "escherize",
+        "fraserdrops",
+        "nemanjaglumac"
+      ]
+    },
+    {
+      "name": "Metabot",
+      "label": ".Team/Metabot",
+      "members": [
+        "appleby",
+        "noahmoss",
+        "retro",
+        "sloansparger",
+        "somtom",
+        "tsplude",
+        "lbrdnk",
+        "piranha",
+        "crisptrutski"
+      ]
+    },
+    {
+      "name": "Cloud",
+      "label": "cloud",
+      "members": [
+        "filipesilva"
+      ]
+    },
+    {
+      "name": "DashViz",
+      "label": ".Team/DashViz",
+      "members": [
+        "eliotmetabase"
+      ]
+    },
+    {
+      "name": "UX West",
+      "label": ".Team/UXWest",
+      "members": [
+        "eliotmetabase",
+        "npfitz",
+        "johnswanson",
+        "iethree",
+        "nvoxland",
+        "edpaget",
+        "deniskaber",
+        "alxnddr",
+        "bpander",
+        "andsalves",
+        "gantoreno"
+      ]
+    },
+    {
+      "name": "Gadget",
+      "label": ".Team/Gadget",
+      "members": [
+        "nmezzopera",
+        "bronsa",
+        "wotbrew",
+        "qnkhuat",
+        "chodorowicz",
+        "kamilmielnik",
+        "stasgavrylov",
+        "uladzimirdev",
+        "egorgrushin"
       ]
     }
   ]

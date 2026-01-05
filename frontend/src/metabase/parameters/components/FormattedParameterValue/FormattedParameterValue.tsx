@@ -1,5 +1,7 @@
-import { Ellipsified } from "metabase/core/components/Ellipsified";
-import ParameterFieldWidgetValue from "metabase/parameters/components/widgets/ParameterFieldWidget/ParameterFieldWidgetValue/ParameterFieldWidgetValue";
+import { t } from "ttag";
+
+import { Ellipsified } from "metabase/common/components/Ellipsified";
+import { ParameterFieldWidgetValue } from "metabase/parameters/components/widgets/ParameterFieldWidget/ParameterFieldWidgetValue/ParameterFieldWidgetValue";
 import { formatParameterValue } from "metabase/parameters/utils/formatting";
 import type { UiParameter } from "metabase-lib/v1/parameters/types";
 import {
@@ -8,22 +10,34 @@ import {
   isFieldFilterUiParameter,
 } from "metabase-lib/v1/parameters/utils/parameter-fields";
 import {
+  isBooleanParameter,
   isDateParameter,
   isStringParameter,
+  isTemporalUnitParameter,
 } from "metabase-lib/v1/parameters/utils/parameter-type";
 import { parameterHasNoDisplayValue } from "metabase-lib/v1/parameters/utils/parameter-values";
-import type { ParameterValue, RowValue } from "metabase-types/api";
+import type {
+  CardId,
+  DashboardId,
+  ParameterValue,
+  RowValue,
+} from "metabase-types/api";
 
 export type FormattedParameterValueProps = {
   parameter: UiParameter;
-  value: string | number | number[];
+  value: string | number | number[] | ParameterValue;
+  cardId?: CardId;
+  dashboardId?: DashboardId;
   placeholder?: string;
   isPopoverOpen?: boolean;
+  dataTestId?: string;
 };
 
 function FormattedParameterValue({
   parameter,
   value,
+  cardId,
+  dashboardId,
   placeholder,
   isPopoverOpen = false,
 }: FormattedParameterValueProps) {
@@ -34,21 +48,27 @@ function FormattedParameterValue({
   const first = getValue(value);
   const values = parameter?.values_source_config?.values;
   const displayValue = values?.find(
-    value => getValue(value)?.toString() === first?.toString(),
+    (value) => getValue(value)?.toString() === first?.toString(),
   );
 
-  const label = getLabel(displayValue);
+  const label = !isBooleanParameter(parameter)
+    ? getLabel(displayValue)
+    : getBooleanLabel(first as boolean);
 
   const renderContent = () => {
     if (
       isFieldFilterUiParameter(parameter) &&
       hasFields(parameter) &&
-      !isDateParameter(parameter)
+      !isDateParameter(parameter) &&
+      !isTemporalUnitParameter(parameter)
     ) {
       return (
         <ParameterFieldWidgetValue
           fields={getFields(parameter)}
           value={value}
+          parameter={parameter}
+          cardId={cardId}
+          dashboardId={dashboardId}
           displayValue={label}
         />
       );
@@ -66,8 +86,10 @@ function FormattedParameterValue({
     return (
       <Ellipsified
         showTooltip={!isPopoverOpen}
-        multiline
-        tooltipMaxWidth={hasLongValue ? 450 : undefined}
+        tooltipProps={{
+          multiline: true,
+          w: hasLongValue ? 450 : undefined,
+        }}
       >
         {renderContent()}
       </Ellipsified>
@@ -87,12 +109,16 @@ function getValue(
 }
 
 function getLabel(
-  value: string | ParameterValue | undefined,
+  value: boolean | string | ParameterValue | undefined,
 ): string | undefined {
   if (Array.isArray(value)) {
     return value[1];
   }
   return value?.toString();
+}
+
+function getBooleanLabel(value: boolean) {
+  return value ? t`True` : t`False`;
 }
 
 // eslint-disable-next-line import/no-default-export -- deprecated usage

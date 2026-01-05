@@ -16,17 +16,20 @@
   (:require
    [clojure.core.specs.alpha]
    [clojure.spec.alpha :as s]
+   [clojure.string :as str]
    [clout.core :as clout]
    [compojure.response]
    [flatland.ordered.map :as ordered-map]
    [malli.core :as mc]
    [malli.error :as me]
    [malli.transform :as mtx]
+   [malli.util]
    [medley.core :as m]
    [metabase.api.common.internal]
    [metabase.api.macros.defendpoint.open-api]
    [metabase.api.open-api :as open-api]
-   [metabase.config :as config]
+   [metabase.config.core :as config]
+   [metabase.events.core :as events]
    [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
@@ -168,9 +171,7 @@
              (= (mc/type route-params-schema) :map))
     (some (fn [[k _options v-schema]]
             (when (= k route-param)
-              (or
-               (:api/regex (mc/properties v-schema))
-               (second (metabase.api.common.internal/->matching-regex v-schema)))))
+              (second (metabase.api.common.internal/->matching-regex v-schema))))
           (mc/children route-params-schema))))
 
 (mu/defn- inferred-route-regexes :- [:maybe [:map-of :keyword (ms/InstanceOfClass java.util.regex.Pattern)]]
@@ -290,12 +291,22 @@
    (update-vals (:regexes route) (fn [regex-form]
                                    `(str ~regex-form)))])
 
+(mu/defn- unique-fn-name
+  "Generate a unique name for the endpoint function based on parsed args."
+  [{:keys [method route]} :- ::parsed-args]
+  (symbol
+   (-> (str (name method) "-" (:path route) "--thunk")
+       (str/replace #"/" "-")
+       (str/replace #" " "-")
+       (str/replace #":" ""))))
+
 (def ^:private decode-transformer
   (mtx/transformer
    (mtx/string-transformer)
    (mtx/json-transformer)
    (mtx/default-value-transformer)
-   {:name :api}))
+   {:name :api}
+   {:name :normalize}))
 
 (def ^:private encode-transformer
   (mtx/transformer
@@ -340,16 +351,26 @@
       me/with-spell-checking
       (me/humanize {:wrap mu/humanize-include-value})))
 
-(defn- invalid-params-errors [schema explanation specific-errors]
-  (or (when (and (map? specific-errors)
-                 (= (mc/type schema) :map))
-        (into {}
-              (let [specific-error-keys (set (keys specific-errors))]
-                (keep (fn [child]
-                        (when (contains? specific-error-keys (first child))
-                          [(first child) (umd/describe (last child))]))))
-              (mc/children schema)))
-      (me/humanize explanation {:wrap #(umd/describe (:schema %))})))
+(defn- invalid-params-errors [{:keys [schema], :as explanation}]
+  (reduce
+   (fn [m {:keys [path in], :as _explanation}]
+     (let [error-path (remove integer? in)]
+       ;; if there is already an error here keep the existing one, this is usually something like an `[:and x y]`
+       ;; where `x` has already failed so it's preferable to return the error for that than the `y` one, which
+       ;; probably won't make any sense (for some weird reason Malli `:and` schemas don't short-circut)
+       (if (get-in m error-path)
+         m
+         (let [nice-path     (loop [path (vec path)]
+                               (if (integer? (last path))
+                                 (recur (pop path))
+                                 path))
+               nested-schema (loop [path nice-path]
+                               (when (seq path)
+                                 (or (malli.util/get-in schema path)
+                                     (recur (pop path)))))]
+           (assoc-in m error-path (umd/describe nested-schema))))))
+   {}
+   (:errors explanation)))
 
 (mu/defn decode-and-validate-params
   "Impl for [[defendpoint]]."
@@ -365,7 +386,7 @@
                                              :body  "body"))
                       (let [explanation     (mr/explain schema decoded)
                             specific-errors (invalid-params-specific-errors explanation)
-                            errors          (invalid-params-errors schema explanation specific-errors)]
+                            errors          (invalid-params-errors explanation)]
                         {:status-code     400
                          #_:api/debug     #_{:params-type params-type
                                              :schema      (mc/form schema)
@@ -558,7 +579,7 @@
   [request :- :map]
   (or (some-> (not-empty (:form-params request)) (update-keys keyword))
       (when-let [body (:body request)]
-        (when-not (instance? org.eclipse.jetty.server.HttpInput body)
+        (when-not (instance? org.eclipse.jetty.ee9.nested.HttpInput body)
           body))))
 
 (mu/defn- middleware-forms
@@ -688,7 +709,13 @@
                  (update metadata :api/endpoints update-api-endpoints))
                (rebuild-handler [metadata]
                  (assoc metadata :api/handler (build-ns-handler (:api/endpoints metadata))))]
-         (-> metadata update-info rebuild-handler))))))
+         (-> metadata update-info rebuild-handler))))
+    ;; Publish event for API handler update (e.g., for OpenAPI regeneration)
+    (when config/is-dev?
+      (try
+        (events/publish-event! :event/api-handler-update {})
+        (catch Throwable e
+          (log/debug e "Failed to publish api-handler-update event"))))))
 
 (defn- quote-parsed-args
   "Quote the appropriate parts of the parsed [[defendpoint]] args (body and param bindings) so they can be emitted in
@@ -711,8 +738,15 @@
 (defmacro defendpoint
   "NEW macro for defining REST API endpoints. See
   [Cam's tech design doc](https://www.notion.so/metabase/defendpoint-2-0-16169354c901806ca10cf45be6d91891) for
-  motivation behind it."
-  {:added "0.53.0"}
+  motivation behind it.
+
+  REPL Tip: use [[call-core-fn]] to call the core-fn directly."
+  {:added "0.53.0", :arglists '([method
+                                 route
+                                 docstring?
+                                 metadata?
+                                 [route-params? query-params? body-params? request? respond? raise?]
+                                 & body])}
   [& args]
   (let [parsed (parse-args args)]
     `(let [core-fn#  (endpoint-core-fn ~parsed)
@@ -721,7 +755,7 @@
                       :handler handler#
                       :form    ~(quote-parsed-args parsed)}]
        (update-ns-endpoints! *ns* ~(unique-key-form parsed) info#)
-       info#)))
+       (fn ~(unique-fn-name parsed) [] info#))))
 
 (s/fdef defendpoint
   :args ::defendpoint
@@ -827,6 +861,13 @@
    method :- ::method
    route  :- string?]
   (:core-fn (find-route nmspace method route)))
+
+(defn call-core-fn
+  "Call this on the return value of [[defendpoint]] to get the core function for the endpoint.
+
+  You can call that from the repl on the args [[-core-fn]] expects as in [[metabase.api.open-api-test/get-core-fn!-test]]."
+  [defendpoint-return & [route-params query-params body-params request]]
+  ((:core-fn (defendpoint-return)) route-params query-params body-params request))
 
 ;;;;
 ;;;; Example usages

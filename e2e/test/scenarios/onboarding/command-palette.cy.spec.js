@@ -1,11 +1,44 @@
 const { H } = cy;
-import { USERS } from "e2e/support/cypress_data";
+import { SAMPLE_DB_ID, USERS } from "e2e/support/cypress_data";
 import {
+  ADMIN_PERSONAL_COLLECTION_ID,
+  ORDERS_BY_YEAR_QUESTION_ID,
   ORDERS_COUNT_QUESTION_ID,
   ORDERS_DASHBOARD_ID,
+  ORDERS_QUESTION_ID,
 } from "e2e/support/cypress_sample_instance_data";
+import {
+  createMockDashboardCard,
+  createMockDocument,
+} from "metabase-types/api/mocks";
 
 const { admin } = USERS;
+
+const TAB_1 = {
+  id: 1,
+  name: "Tab 1",
+};
+
+const TAB_2 = {
+  id: 2,
+  name: "Tab 2",
+};
+
+const TAB_3 = {
+  id: 3,
+  name: "Tab 3",
+};
+
+const TAB_4 = {
+  id: 4,
+  name: "Tab 4",
+};
+
+/**
+ * When keys are pressed too fast redux won't have enough time to update the state,
+ * so conditions in subsequently called event handlers may not have been updated yet.
+ */
+const REAL_PRESS_DELAY = 1;
 
 describe("command palette", () => {
   beforeEach(() => {
@@ -13,7 +46,22 @@ describe("command palette", () => {
     cy.signInAsAdmin();
   });
 
-  it("should render a searchable command palette", { tags: "@flaky" }, () => {
+  it("should render a searchable command palette", () => {
+    // we return a list of entities in a specific order to avoid flakiness. "recency" score can sometimes cause the order to change and fail the test
+    cy.intercept(
+      "GET",
+      "**/search?q=Company&context=command-palette&include_dashboard_questions=true&limit=20",
+      (req) => {
+        req.reply((res) => {
+          const orderedNames = ["Products", "Orders", "Reviews", "People"];
+          res.body.data = res.body.data.sort((a, b) => {
+            return orderedNames.indexOf(a.name) - orderedNames.indexOf(b.name);
+          });
+          return res.body;
+        });
+      },
+    );
+
     // //Add a description for a check
     cy.request("PUT", `/api/card/${ORDERS_COUNT_QUESTION_ID}`, {
       description: "The best question",
@@ -21,22 +69,30 @@ describe("command palette", () => {
 
     //Request to have an item in the recents list
     cy.request(`/api/dashboard/${ORDERS_DASHBOARD_ID}`);
+
     cy.visit("/");
 
-    cy.findByRole("button", { name: /Search/ }).click();
+    cy.findByRole("button", { name: /search/i }).click();
+    H.commandPalette().should("be.visible");
+    cy.findByRole("option", { name: "Orders in a dashboard" }).should(
+      "have.attr",
+      "aria-selected",
+      "true",
+    );
     H.closeCommandPalette();
+    H.commandPalette().should("not.exist");
 
     cy.log("open the command palette with keybinding");
     H.openCommandPalette();
     H.commandPalette().within(() => {
       H.commandPaletteInput().should("exist");
 
-      cy.log("limit to 5 basic actions");
-      cy.findByText("New question");
-      cy.findByText("New SQL query");
-      cy.findByText("New dashboard");
-      cy.findByText("New collection");
-      cy.findByText("New model");
+      cy.log("does not show actions if there is no search query");
+      cy.findByText("New question").should("not.exist");
+      cy.findByText("New SQL query").should("not.exist");
+      cy.findByText("New dashboard").should("not.exist");
+      cy.findByText("New collection").should("not.exist");
+      cy.findByText("New model").should("not.exist");
       cy.findByText("New metric").should("not.exist");
 
       cy.log("Should show recent items");
@@ -98,14 +154,28 @@ describe("command palette", () => {
       .findByRole("option", { name: "Orders in a dashboard" })
       .should("have.attr", "aria-selected", "true");
 
-    H.pressPageDown();
+    H.commandPaletteInput().type("New");
+    H.commandPalette()
+      .findByText(/loading/i)
+      .should("not.exist");
+    H.commandPalette().findByText("No results for “New”").should("be.visible");
 
     H.commandPalette()
-      .findByRole("option", { name: "New dashboard" })
+      .findByRole("option", { name: "New question" })
+      .should("have.attr", "aria-selected", "true");
+
+    cy.wait(100); // pressing page down too fast does nothing
+    H.pressPageDown();
+    H.commandPalette()
+      .findByRole("option", { name: "New model" })
       .should("have.attr", "aria-selected", "true");
 
     H.pressPageDown();
+    H.commandPalette()
+      .findByRole("option", { name: 'Search documentation for "New"' })
+      .should("have.attr", "aria-selected", "true");
 
+    H.pressPageUp();
     H.commandPalette()
       .findByRole("option", { name: "New model" })
       .should("have.attr", "aria-selected", "true");
@@ -116,21 +186,20 @@ describe("command palette", () => {
       .should("have.attr", "aria-selected", "true");
 
     H.pressEnd();
-
     H.commandPalette()
-      .findByRole("option", { name: "New model" })
+      .findByRole("option", { name: 'Search documentation for "New"' })
       .should("have.attr", "aria-selected", "true");
 
     H.pressHome();
     H.commandPalette()
-      .findByRole("option", { name: "Orders in a dashboard" })
+      .findByRole("option", { name: "New question" })
       .should("have.attr", "aria-selected", "true");
   });
 
   it("should display search results in the order returned by the API", () => {
     cy.visit("/");
 
-    cy.findByRole("button", { name: /Search/ }).click();
+    cy.findByRole("button", { name: /search/i }).click();
     cy.intercept("/api/search?*").as("searchData");
 
     H.commandPalette().within(() => {
@@ -141,14 +210,38 @@ describe("command palette", () => {
       cy.get("@searchData").then(({ response }) => {
         const results = response.body.data;
 
-        results.forEach((result, index) => {
-          // eslint-disable-next-line no-unsafe-element-filtering
-          cy.findAllByRole("option")
-            .eq(index + 2)
-            .should("contain.text", result.name);
-        });
+        cy.findAllByRole("option")
+          // filter out unrelated items, keep only options with data
+          .invoke("slice", 1, -2)
+          .should("have.length", results.length)
+          .each(($option, index) => {
+            cy.wrap($option).should("contain", results[index].name);
+          });
       });
     });
+  });
+
+  // Making this a separate test for now because it requires the bleeding edge token, which
+  // Enables a bunch of other stuff and messes up the "Renders a searchable command palette"
+  // test. In the future, this can be integrated into the test above, or moved to a BE test
+  it("should display collection names for documents in recents", () => {
+    //Create a document so that it appears in the recents list
+    cy.request(
+      "POST",
+      "/api/document",
+      createMockDocument({ collection_id: ADMIN_PERSONAL_COLLECTION_ID }),
+    );
+
+    cy.visit("/");
+
+    cy.findByRole("button", { name: /search/i }).click();
+    H.commandPalette().should("be.visible");
+
+    // UXW-1786
+    cy.findByRole("option", { name: "Test Document" }).should(
+      "contain.text",
+      "Bobby Tables's Personal Collection",
+    );
   });
 
   describe("admin settings links", () => {
@@ -162,13 +255,13 @@ describe("command palette", () => {
       H.commandPalette().within(() => {
         H.commandPaletteInput().type("Settings -");
         cy.log("check admin sees all settings links");
-        H.commandPaletteAction("Settings - Setup").should("exist");
-        H.commandPaletteAction("Settings - General").should("exist");
+        H.commandPaletteAction("Settings - General").should("be.visible");
+        H.commandPaletteAction("Settings - Email").should("be.visible");
         H.commandPaletteInput().clear();
 
-        cy.log("shouldsee admin links");
+        cy.log("should see admin links");
         H.commandPaletteInput().type("Performance");
-        H.commandPaletteAction("Performance").should("exist");
+        H.commandPaletteAction("Performance").should("be.visible");
       });
     });
 
@@ -192,10 +285,7 @@ describe("command palette", () => {
         H.commandPaletteAction("Performance").should("not.exist");
         H.commandPaletteInput().clear();
 
-        // Tools and Troubleshooting
-
-        H.commandPaletteInput().type("Troub");
-        H.commandPaletteAction("Troubleshooting").should("not.exist");
+        // Tools
         H.commandPaletteInput().clear().type("tool");
         H.commandPaletteAction("Tools").should("not.exist");
         H.commandPaletteInput().clear();
@@ -214,7 +304,7 @@ describe("command palette", () => {
         // setup
         cy.log("setup permissions");
 
-        H.setTokenFeatures("all");
+        H.activateToken("pro-self-hosted");
         cy.visit("/admin/permissions/application");
 
         const SETTINGS_INDEX = 0;
@@ -222,13 +312,7 @@ describe("command palette", () => {
         H.modifyPermission("All Users", SETTINGS_INDEX, "Yes");
         H.modifyPermission("All Users", MONITORING_INDEX, "Yes");
 
-        cy.button("Save changes").click();
-
-        H.modal().within(() => {
-          cy.findByText("Save permissions?");
-          cy.findByText("Are you sure you want to do this?");
-          cy.button("Yes").click();
-        });
+        H.saveChangesToPermissions();
 
         cy.findByRole("radiogroup").findByText("Data").click();
         cy.findByRole("menuitem", { name: "All Users" }).click();
@@ -239,13 +323,7 @@ describe("command palette", () => {
         H.modifyPermission("Sample Database", TABLE_METADATA_INDEX, "Yes");
         H.modifyPermission("Sample Database", DATABASE_INDEX, "Yes");
 
-        cy.button("Save changes").click();
-
-        H.modal().within(() => {
-          cy.findByText("Save permissions?");
-          cy.findByText("Are you sure you want to do this?");
-          cy.button("Yes").click();
-        });
+        H.saveChangesToPermissions();
 
         cy.signInAsNormalUser();
 
@@ -266,10 +344,7 @@ describe("command palette", () => {
           H.commandPaletteAction("Settings - General").should("exist");
           H.commandPaletteInput().clear();
 
-          // Tools and Troubleshooting
-
-          H.commandPaletteInput().type("Troub");
-          H.commandPaletteAction("Troubleshooting").should("exist");
+          // Tools
           H.commandPaletteInput().clear().type("tool");
           H.commandPaletteAction("Tools").should("exist");
           H.commandPaletteInput().clear();
@@ -340,7 +415,7 @@ describe("command palette", () => {
 
   it("Should have a new metric item", () => {
     cy.visit("/");
-    cy.findByRole("button", { name: /Search/ }).click();
+    cy.findByRole("button", { name: /search/i }).click();
 
     H.commandPalette().within(() => {
       H.commandPaletteInput().should("exist").type("Me");
@@ -350,25 +425,333 @@ describe("command palette", () => {
     });
   });
 
-  it("should show the 'Report an issue' command palette item", () => {
+  it("should show the 'Download diagnostics' command palette item", () => {
     cy.visit("/");
-    cy.findByRole("button", { name: /Search/ }).click();
+    cy.findByRole("button", { name: /search/i }).click();
 
     H.commandPalette().within(() => {
       H.commandPaletteInput().should("exist").type("Issue");
-      cy.findByText("Report an issue").should("be.visible");
+      cy.findByText("Download diagnostics").should("be.visible");
     });
   });
 
-  it("The data picker does not cover the command palette (metabase#45469)", () => {
+  it("should allow searching personal collections if no results and user is admin", () => {
     cy.visit("/");
-    cy.log("Click on the New button in the navigation bar and select Question");
-    H.newButton("Question").click();
-    cy.findByRole("dialog", { name: "Pick your starting data" });
-    cy.log("Open the command palette with a shortcut key");
-    cy.get("body").type("{ctrl+k}{cmd+k}");
-    H.commandPalette().within(() => {
-      H.commandPaletteInput().should("be.visible");
+    cy.findByRole("button", { name: /search/i }).click();
+    cy.realType("asdf");
+    H.commandPalette()
+      .get("#search-results-metadata")
+      .should("contain", "Search everything");
+  });
+
+  describe("ee", () => {
+    beforeEach(() => {
+      H.activateToken("bleeding-edge");
     });
+
+    it("should show the 'New embed' command palette item", () => {
+      cy.visit("/");
+      cy.findByRole("button", { name: /search/i }).click();
+
+      H.commandPalette().within(() => {
+        H.commandPaletteInput().should("exist").type("new embed");
+        cy.findByText("New embed").should("be.visible");
+      });
+    });
+
+    it("should have a 'New document' item", () => {
+      cy.visit("/");
+      cy.findByRole("button", { name: /search/i }).click();
+      H.commandPalette().within(() => {
+        H.commandPaletteInput().should("be.visible").type("new document");
+        cy.findByText("New document").should("be.visible").click();
+        cy.location("pathname").should("eq", "/document/new");
+      });
+    });
+  });
+});
+
+describe("shortcuts", { tags: ["@actions"] }, () => {
+  beforeEach(() => {
+    H.resetSnowplow();
+    H.restore();
+    cy.signInAsAdmin();
+    H.enableTracking();
+  });
+
+  it("should render a shortcuts modal, and global shortcuts should be available", () => {
+    H.setActionsEnabledForDB(SAMPLE_DB_ID);
+    cy.visit("/");
+    cy.findByTestId("home-page")
+      .findByTestId("loading-indicator")
+      .should("not.exist");
+    H.openShortcutModal();
+
+    H.shortcutModal().within(() => {
+      cy.findByRole("tab", { name: "General" }).should("exist");
+      cy.findByRole("tab", { name: "Dashboards" }).should("exist");
+    });
+    cy.realPress("Escape");
+    H.shortcutModal().should("not.exist");
+    H.openShortcutModal();
+    cy.realPress("?");
+    H.shortcutModal().should("not.exist");
+
+    H.appBar().findByRole("img", { name: /gear/ }).click();
+    H.popover().findByText("Keyboard shortcuts").click();
+    H.shortcutModal().should("exist");
+    cy.realPress("Escape");
+    H.shortcutModal().should("not.exist");
+
+    // Test a few global shortcuts
+    cy.realPress("c").realPress("f");
+    cy.findByRole("dialog", { name: /collection/i }).should("exist");
+    cy.realPress("Escape");
+    H.expectUnstructuredSnowplowEvent({
+      event: "keyboard_shortcut_performed",
+      event_detail: "create-new-collection",
+    });
+    H.openCommandPalette();
+    H.commandPaletteInput().should("be.visible").type("new dashboard");
+    H.commandPalette().findByRole("option", { name: "New dashboard" }).click();
+    cy.findByRole("dialog", { name: /dashboard/i }).should("exist");
+    cy.realPress("Escape");
+
+    // Using a command palette action registered as a shortcut should only
+    // emit snowplow events when using keyboard shortcuts, not command palette
+    H.expectUnstructuredSnowplowEvent(
+      {
+        event: "keyboard_shortcut_performed",
+        event_detail: "create-new-dashboard",
+      },
+      0,
+    );
+
+    cy.realPress("c").realPress("d");
+    cy.findByRole("dialog", { name: /dashboard/i }).should("exist");
+    cy.realPress("Escape");
+    H.expectUnstructuredSnowplowEvent(
+      {
+        event: "keyboard_shortcut_performed",
+        event_detail: "create-new-dashboard",
+      },
+      1,
+    );
+
+    cy.realPress("g").realPress("d");
+    cy.location("pathname").should("contain", "browse/databases");
+
+    cy.realPress(["Meta", "["]);
+    H.navigationSidebar().should("be.visible");
+
+    cy.realPress("[");
+    H.navigationSidebar().should("not.be.visible");
+    cy.realPress("[");
+    H.navigationSidebar().should("be.visible");
+    H.expectUnstructuredSnowplowEvent(
+      {
+        event: "keyboard_shortcut_performed",
+        event_detail: "toggle-navbar",
+      },
+      2,
+    );
+
+    cy.realPress("g").realPress("p");
+    cy.location("pathname").should(
+      "equal",
+      `/collection/${ADMIN_PERSONAL_COLLECTION_ID}`,
+    );
+    H.expectUnstructuredSnowplowEvent({
+      event: "keyboard_shortcut_performed",
+      event_detail: "navigate-personal-collection",
+    });
+
+    cy.realPress("g").realPress("t");
+    cy.location("pathname").should("equal", "/trash");
+
+    H.expectUnstructuredSnowplowEvent({
+      event: "keyboard_shortcut_performed",
+      event_detail: "navigate-trash",
+    });
+
+    cy.log("shortcuts should not be enabled when working in a modal (ADM 658)");
+
+    H.navigationSidebar().should("be.visible");
+    // Mantine Modals
+    H.startNewCollectionFromSidebar();
+
+    cy.findByTestId("new-collection-modal")
+      .findByLabelText(/collection it's saved in/i)
+      .click();
+
+    // Remove focus
+    H.entityPickerModal().findByRole("heading").click();
+
+    cy.realPress("[");
+    H.navigationSidebar().should("be.visible");
+    cy.realPress("Escape");
+    cy.realPress("[");
+    H.navigationSidebar().should("be.visible");
+    cy.realPress("Escape");
+    // Legacy Modals
+
+    H.startNewAction();
+
+    // Remove focus
+    H.modal()
+      .findByText(/Build custom forms/)
+      .click();
+    cy.realPress("[");
+    H.navigationSidebar().should("be.visible");
+    cy.realPress("Escape");
+    cy.realPress("[");
+    H.navigationSidebar().should("not.visible");
+
+    cy.findByLabelText("Settings menu").click();
+    H.popover().findByText("Admin settings").click();
+
+    cy.findByTestId("site-name-setting").should("exist");
+    cy.location("pathname").should("contain", "/admin/settings");
+    cy.realPress("4");
+    cy.location("pathname").should("contain", "/admin/datamodel");
+    cy.realPress("8");
+    cy.location("pathname").should("contain", "/admin/tools");
+  });
+
+  it("should support dashboard shortcuts", () => {
+    H.createDashboardWithTabs({
+      tabs: [TAB_1, TAB_2, TAB_3, TAB_4],
+      dashcards: [
+        createMockDashboardCard({
+          id: -1,
+          card_id: ORDERS_QUESTION_ID,
+          dashboard_tab_id: TAB_1.id,
+        }),
+        createMockDashboardCard({
+          id: -2,
+          card_id: ORDERS_QUESTION_ID,
+          dashboard_tab_id: TAB_2.id,
+        }),
+        createMockDashboardCard({
+          id: -3,
+          card_id: ORDERS_QUESTION_ID,
+          dashboard_tab_id: TAB_3.id,
+        }),
+        createMockDashboardCard({
+          id: -4,
+          card_id: ORDERS_QUESTION_ID,
+          dashboard_tab_id: TAB_4.id,
+        }),
+      ],
+    }).then((dashboard) => H.visitDashboard(dashboard.id));
+
+    H.openShortcutModal();
+    H.shortcutModal().should("exist");
+    cy.realPress("Escape");
+
+    cy.realPress("o");
+    H.openNavigationSidebar();
+    H.navigationSidebar()
+      .findByRole("section", { name: "Bookmarks" })
+      .should("contain.text", "Test Dashboard");
+    cy.realPress("o");
+    H.navigationSidebar()
+      .findByRole("section", { name: "Bookmarks" })
+      .should("not.exist");
+
+    cy.realPress("e");
+    cy.findByTestId("edit-bar").should(
+      "contain.text",
+      "You're editing this dashboard",
+    );
+    cy.realPress("f");
+    cy.findByRole("menu", { name: /add a filter/i }).should("exist");
+    cy.realPress("Escape");
+    cy.realPress("e");
+    cy.findByTestId("edit-bar").should("not.exist");
+
+    cy.realPress("]");
+    cy.findByRole("dialog", { name: "Info" }).should("exist");
+    cy.realPress("]");
+    cy.findByRole("dialog", { name: "Info" }).should("not.exist");
+
+    cy.findByRole("tab", { name: "Tab 1" }).should(
+      "have.attr",
+      "aria-selected",
+      "true",
+    );
+    cy.realPress("3");
+    cy.findByRole("tab", { name: "Tab 3" }).should(
+      "have.attr",
+      "aria-selected",
+      "true",
+    );
+    cy.realPress("1");
+    cy.findByRole("tab", { name: "Tab 1" }).should(
+      "have.attr",
+      "aria-selected",
+      "true",
+    );
+    // Doesn't error on pressing numbers out of bounds
+    cy.realPress("7");
+    cy.findByRole("tab", { name: "Tab 1" }).should(
+      "have.attr",
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("should support query builder shortcuts", () => {
+    H.visitQuestion(ORDERS_BY_YEAR_QUESTION_ID);
+
+    // This is a bit strange, but we need to focus something or pressing f
+    // will open expand the spec list in cypress
+    // Filter
+    cy.findByTestId("question-filter-header").should("exist").focus();
+    cy.findByRole("dialog", { name: /filter/i }).should("not.exist");
+    cy.realPress("f");
+    cy.findByRole("dialog", { name: /filter/i }).should("exist");
+    cy.realPress("Escape");
+
+    // Summarize sidebar
+    cy.realPress("s");
+    cy.findByTestId("sidebar-content").should("contain.text", "Summarize by");
+    cy.realPress("s");
+    cy.findByTestId("sidebar-content").should("not.exist");
+
+    // Sidesheet
+    cy.realPress("]");
+    cy.findByRole("dialog", { name: "Info" }).should("exist");
+    cy.wait(REAL_PRESS_DELAY);
+    cy.realPress("]");
+    cy.findByRole("dialog", { name: "Info" }).should("not.exist");
+
+    // Viz Settings
+    cy.realPress("y");
+    cy.findByTestId("chartsettings-sidebar").should("exist");
+    cy.wait(REAL_PRESS_DELAY);
+    cy.realPress("y");
+    cy.findByTestId("chartsettings-sidebar").should("not.exist");
+
+    // Viz toggle
+    cy.findByTestId("visualization-root").should(
+      "have.attr",
+      "data-viz-ui-name",
+      "Line",
+    );
+    cy.realPress("v");
+    cy.findByTestId("visualization-root").should(
+      "have.attr",
+      "data-viz-ui-name",
+      "Table",
+    );
+
+    // toggle notebook mode
+    cy.findByTestId("step-data-0-0").should("not.exist");
+    cy.realPress("e");
+    cy.findByTestId("step-data-0-0").should("exist");
+    cy.realPress("e");
+    cy.findByTestId("step-data-0-0").should("not.exist");
+    cy.findByTestId("visualization-root").should("exist");
   });
 });

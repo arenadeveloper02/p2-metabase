@@ -100,7 +100,7 @@ function getDashboardCards(mappedQuestionId) {
   ];
 }
 
-H.describeWithSnowplow("scenarios > dashboard cards > replace question", () => {
+describe("scenarios > dashboard cards > replace question", () => {
   beforeEach(() => {
     H.resetSnowplow();
     H.restore();
@@ -133,13 +133,16 @@ H.describeWithSnowplow("scenarios > dashboard cards > replace question", () => {
   it("should replace a dashboard card question (metabase#36984)", () => {
     visitDashboardAndEdit();
 
-    H.findDashCardAction(findHeadingDashcard(), "Replace").should("not.exist");
+    findHeadingDashcard()
+      .realHover({ scrollBehavior: "bottom" })
+      .findByLabelText("Replace")
+      .should("not.exist");
 
     // Ensure can replace with a question
     replaceQuestion(findTargetDashcard(), {
       nextQuestionName: "Orders",
     });
-    H.expectGoodSnowplowEvent({ event: "dashboard_card_replaced" });
+    H.expectUnstructuredSnowplowEvent({ event: "dashboard_card_replaced" });
     findTargetDashcard().within(() => {
       assertDashCardTitle("Orders");
       cy.findByText("Product ID").should("exist");
@@ -168,7 +171,7 @@ H.describeWithSnowplow("scenarios > dashboard cards > replace question", () => {
   it("should undo the question replace action", () => {
     visitDashboardAndEdit();
 
-    overwriteDashCardTitle(findTargetDashcard(), "Custom name");
+    overwriteDashCardTitle("Custom name");
     connectDashboardFilter(findTargetDashcard(), {
       filterName: PARAMETER.UNUSED.name,
       columnName: "Discount",
@@ -179,7 +182,15 @@ H.describeWithSnowplow("scenarios > dashboard cards > replace question", () => {
     });
 
     // There're two toasts: "Undo replace" and "Auto-connect"
-    H.undoToastList().eq(0).button("Undo").click();
+    H.undoToastList()
+      .should("have.length", 2)
+      .eq(0)
+      .should(($el) => {
+        // we wait for element to take its position after animation
+        expect($el.position().left).to.be.equal(0);
+      })
+      .button("Undo")
+      .click();
 
     // Ensure we kept viz settings and parameter mapping changes from before
     findTargetDashcard().within(() => {
@@ -267,32 +278,32 @@ function assertDashCardTitle(title) {
   cy.findByTestId("legend-caption-title").should("have.text", title);
 }
 
-function overwriteDashCardTitle(dashcardElement, textTitle) {
-  H.findDashCardAction(dashcardElement, "Show visualization options").click();
+function overwriteDashCardTitle(textTitle) {
+  findTargetDashcard()
+    .realHover({ scrollBehavior: "bottom" })
+    .findByLabelText("Show visualization options")
+    .click();
   H.modal().within(() => {
     cy.findByLabelText("Title").type(`{selectall}{del}${textTitle}`).blur();
     cy.button("Done").click();
   });
 }
 
+const filterPanel = () =>
+  cy.findByTestId("edit-dashboard-parameters-widget-container");
+
 function connectDashboardFilter(dashcardElement, { filterName, columnName }) {
-  const filterPanel = cy.findByTestId(
-    "edit-dashboard-parameters-widget-container",
-  );
-  filterPanel.findByText(filterName).click();
+  filterPanel().findByText(filterName).click();
   dashcardElement.button(/Select/).click();
   H.popover().findByText(columnName).click();
-  filterPanel.findByText(filterName).click();
+  filterPanel().findByText(filterName).click();
 }
 
 function assertDashboardFilterMapping(
   dashcardElement,
   { filterName, expectedColumName },
 ) {
-  const filterPanel = cy.findByTestId(
-    "edit-dashboard-parameters-widget-container",
-  );
-  filterPanel.findByText(filterName).click();
+  filterPanel().findByText(filterName).click();
   dashcardElement.findByText(expectedColumName).should("exist");
-  filterPanel.findByText(filterName).click();
+  filterPanel().findByText(filterName).click();
 }

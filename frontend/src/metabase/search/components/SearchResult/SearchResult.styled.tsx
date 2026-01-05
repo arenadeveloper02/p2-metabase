@@ -1,5 +1,7 @@
 import isPropValid from "@emotion/is-prop-valid";
+// eslint-disable-next-line no-restricted-imports
 import { css } from "@emotion/react";
+// eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 import type {
   AnchorHTMLAttributes,
@@ -8,7 +10,7 @@ import type {
   RefObject,
 } from "react";
 
-import Markdown from "metabase/core/components/Markdown";
+import Markdown from "metabase/common/components/Markdown";
 import type { AnchorProps, BoxProps, ButtonProps } from "metabase/ui";
 import { Anchor, Box, Button, Divider, Stack } from "metabase/ui";
 
@@ -88,12 +90,12 @@ export const ResultNameSection = styled(Stack)`
 export const LoadingSection = styled(Box)<BoxProps>`
   grid-row: 1 / span 1;
   grid-column: 3;
-`;
+` as unknown as typeof Box;
 
 export const XRaySection = styled(Box)<BoxProps>`
   grid-row: 1 / span 1;
   grid-column: 4;
-`;
+` as unknown as typeof Box;
 
 export const XRayButton = styled(Button)<
   ButtonProps & HTMLAttributes<HTMLButtonElement>
@@ -104,7 +106,7 @@ export const XRayButton = styled(Button)<
 
 export const DescriptionSection = styled(Box)<PropsWithChildren>`
   margin-top: 0.5rem;
-`;
+` as unknown as typeof Box;
 
 export const DescriptionDivider = styled(Divider)`
   border-radius: ${({ theme }) => theme.radius.xs};

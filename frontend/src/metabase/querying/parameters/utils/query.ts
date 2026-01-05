@@ -1,5 +1,6 @@
 import { P, match } from "ts-pattern";
 
+import { isNotNull } from "metabase/lib/types";
 import { getDateFilterClause } from "metabase/querying/filters/utils/dates";
 import * as Lib from "metabase-lib";
 import { isTemporalUnitParameter } from "metabase-lib/v1/parameters/utils/parameter-type";
@@ -12,11 +13,11 @@ import type {
 import { isStructuredDimensionTarget } from "metabase-types/guards";
 
 import {
-  normalizeBooleanParameterValue,
-  normalizeDateParameterValue,
-  normalizeNumberParameterValue,
-  normalizeStringParameterValue,
-} from "./normalize";
+  deserializeBooleanParameterValue,
+  deserializeDateParameterValue,
+  deserializeNumberParameterValue,
+  deserializeStringParameterValue,
+} from "./parsing";
 
 const STRING_OPERATORS: Partial<
   Record<ParameterType, Lib.StringFilterOperator>
@@ -56,6 +57,10 @@ export function applyParameter(
   value: ParameterValueOrArray | null,
 ) {
   if (target == null || value == null || !isStructuredDimensionTarget(target)) {
+    return query;
+  }
+
+  if (stageIndex >= Lib.stageCount(query)) {
     return query;
   }
 
@@ -120,7 +125,7 @@ function getParameterFilterClause(
   if (Lib.isNumeric(column)) {
     return getNumberParameterFilterClause(type, column, value);
   }
-  if (Lib.isString(column)) {
+  if (Lib.isStringOrStringLike(column)) {
     return getStringParameterFilterClause(type, column, value);
   }
 }
@@ -130,7 +135,7 @@ function getStringParameterFilterClause(
   column: Lib.ColumnMetadata,
   value: ParameterValueOrArray,
 ): Lib.ExpressionClause | undefined {
-  const values = normalizeStringParameterValue(value);
+  const values = deserializeStringParameterValue(value);
   if (values.length === 0) {
     return;
   }
@@ -149,7 +154,7 @@ function getNumberParameterFilterClause(
   column: Lib.ColumnMetadata,
   value: ParameterValueOrArray,
 ): Lib.ExpressionClause | undefined {
-  const values = normalizeNumberParameterValue(value);
+  const values = deserializeNumberParameterValue(type, value);
   if (values.length === 0) {
     return;
   }
@@ -157,10 +162,23 @@ function getNumberParameterFilterClause(
   const operator = NUMBER_OPERATORS[type] ?? "=";
   return match({ operator, values })
     .with(
-      { operator: P.union("=", "!=") },
-      { operator: P.union(">=", "<="), values: [P.number] },
-      { operator: "between", values: [P.number, P.number] },
-      () => Lib.numberFilterClause({ operator, column, values }),
+      { operator: P.union("=", "!="), values: P.array(P.nonNullable) },
+      { operator: P.union(">=", "<="), values: [P.nonNullable] },
+      { operator: "between", values: [P.nonNullable, P.nonNullable] },
+      ({ values }) => Lib.numberFilterClause({ operator, column, values }),
+    )
+    .with(
+      {
+        operator: "between",
+        values: P.union([P.nonNullable], [P.nonNullable, P.nullish]),
+      },
+      ({ values: [minValue] }) =>
+        Lib.numberFilterClause({ operator: ">=", column, values: [minValue] }),
+    )
+    .with(
+      { operator: "between", values: [P.nullish, P.nonNullable] },
+      ({ values: [_minValue, maxValue] }) =>
+        Lib.numberFilterClause({ operator: "<=", column, values: [maxValue] }),
     )
     .otherwise(() => undefined);
 }
@@ -170,7 +188,7 @@ function getBooleanParameterFilterClause(
   column: Lib.ColumnMetadata,
   value: ParameterValueOrArray,
 ): Lib.ExpressionClause | undefined {
-  const values = normalizeBooleanParameterValue(value);
+  const values = deserializeBooleanParameterValue(value);
   if (values.length === 0) {
     return;
   }
@@ -183,7 +201,7 @@ function getDateParameterFilterClause(
   column: Lib.ColumnMetadata,
   value: ParameterValueOrArray,
 ): Lib.ExpressionClause | undefined {
-  const filter = normalizeDateParameterValue(value);
+  const filter = deserializeDateParameterValue(value);
   if (filter == null) {
     return;
   }
@@ -198,9 +216,9 @@ function applyTemporalUnitParameter(
   value: ParameterValueOrArray,
 ): Lib.Query {
   const breakouts = Lib.breakouts(query, stageIndex);
-  const columns = breakouts.map(breakout =>
-    Lib.breakoutColumn(query, stageIndex, breakout),
-  );
+  const columns = breakouts
+    .map((breakout) => Lib.breakoutColumn(query, stageIndex, breakout))
+    .filter(isNotNull);
   const columnRef = target[1];
   const [columnIndex] = Lib.findColumnIndexesFromLegacyRefs(
     query,
@@ -216,7 +234,7 @@ function applyTemporalUnitParameter(
   const breakout = breakouts[columnIndex];
   const buckets = Lib.availableTemporalBuckets(query, stageIndex, column);
   const bucket = buckets.find(
-    bucket => Lib.displayInfo(query, stageIndex, bucket).shortName === value,
+    (bucket) => Lib.displayInfo(query, stageIndex, bucket).shortName === value,
   );
   if (!bucket) {
     return query;

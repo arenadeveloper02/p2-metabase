@@ -7,10 +7,12 @@ import {
   useListDashboardItemsQuery,
   useListDatabaseSchemaTablesQuery,
 } from "metabase/api";
+import { DATABASES_COLLECTION } from "metabase/entities/collections";
 import { isNotNull } from "metabase/lib/types";
 import type {
   CollectionId,
   CollectionItem,
+  CollectionItemModel,
   DashboardId,
   SearchResultId,
   Table,
@@ -23,6 +25,20 @@ import type {
 } from "../types";
 import { isSchemaItem } from "../utils";
 
+const searchModelsToCollectionItemModels = (
+  searchModels: string[],
+): CollectionItemModel[] => {
+  const validModels = [
+    "card",
+    "collection",
+    "dataset",
+    "dashboard",
+    "snippet",
+    "metric",
+  ] as const;
+  return validModels.filter((model) => searchModels.includes(model));
+};
+
 export const useScopedSearchResults = <
   Id extends SearchResultId,
   Model extends string,
@@ -33,10 +49,13 @@ export const useScopedSearchResults = <
   searchScope: EntityPickerSearchScope,
   folder: Item | undefined,
 ): SearchItem[] | null => {
-  const isScopedSearchEnabled = searchScope === "folder" && folder != null;
+  const isScopedSearchEnabled =
+    searchScope === "folder" && folder != null && folder.id !== "tenant";
 
   const shouldUseCollectionItems =
-    isScopedSearchEnabled && folder.model === "collection";
+    isScopedSearchEnabled &&
+    folder.model === "collection" &&
+    folder.id !== DATABASES_COLLECTION.id;
   const shouldUseDashboardItems =
     isScopedSearchEnabled && folder.model === "dashboard";
 
@@ -44,12 +63,19 @@ export const useScopedSearchResults = <
 
   const { data: collectionItemsData, isFetching: isFetchingCollectionItems } =
     useListCollectionItemsQuery(
-      shouldUseCollectionItems ? { id: folder.id as CollectionId } : skipToken,
+      shouldUseCollectionItems && searchQuery
+        ? {
+            id: folder.id as CollectionId,
+            models: searchModelsToCollectionItemModels(searchModels),
+          }
+        : skipToken,
     );
 
   const { data: dashboardItemsData, isFetching: isFetchingDashboardItems } =
     useListDashboardItemsQuery(
-      shouldUseDashboardItems ? { id: folder.id as DashboardId } : skipToken,
+      shouldUseDashboardItems && searchQuery
+        ? { id: folder.id as DashboardId }
+        : skipToken,
     );
 
   const dbId =
@@ -153,7 +179,7 @@ const tablesToSearchResults = (
   tables: Table[],
   dbName: string | undefined,
 ): SearchItem[] => {
-  return tables.map(table => ({
+  return tables.map((table) => ({
     ...table,
     id: Number(table.id),
     name: table.display_name,
@@ -171,7 +197,7 @@ const filterSearchResults = (
   searchQuery: string,
   searchModels: string[],
 ) => {
-  return results.filter(result => {
+  return results.filter((result) => {
     const matchesQuery = result.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());

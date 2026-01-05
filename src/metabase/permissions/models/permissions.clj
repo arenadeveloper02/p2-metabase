@@ -23,7 +23,7 @@
   `/db/1/read/` permissions, or if they have `/db/1/`, or even full `/` superuser permissions.
 
   This prefix system allows us to easily and efficiently query the application database to find relevant matching
-  permissions matching an path or path using `LIKE`; see [[metabase.models.database/pre-delete]] for
+  permissions matching an path or path using `LIKE`; see [[metabase.warehouses.models.database/pre-delete]] for
   an example of the sort of efficient queries the prefix system facilitates.
 
   The union of all permissions the current User's gets from all groups of which they are a member are automatically
@@ -37,10 +37,11 @@
 
   * _data permissions_ -- permissions to view, update, or run ad-hoc or SQL queries against a Database or Table.
 
-  * _Collection permissions_ -- permissions to view/curate/etc. an individual [[metabase.models.collection]] and the
-    items inside it. Collection permissions apply to individual Collections and to any non-Collection items inside that
-    Collection. Child Collections get their own permissions. Many objects such as Cards (a.k.a. *Saved Questions*) and
-    Dashboards get their permissions from the Collection in which they live.
+  * _Collection permissions_ -- permissions to view/curate/etc. an
+  individual [[metabase.collections.models.collection]] and the items inside it. Collection permissions apply to
+  individual Collections and to any non-Collection items inside that Collection. Child Collections get their own
+  permissions. Many objects such as Cards (a.k.a. *Saved Questions*) and Dashboards get their permissions from the
+  Collection in which they live.
 
   ### Enterprise-only permissions and \"anti-permissions\"
 
@@ -56,7 +57,7 @@
     Segmented permissions allow a User to run ad-hoc MBQL queries against the Table in question; regardless of whether
     they have relevant Collection permissions, queries against the sandboxed Table are rewritten to replace the Table
     itself with a special type of nested query called a
-    [[metabase-enterprise.sandbox.models.group-table-access-policy]], or _GTAP_. Note that segmented permissions are
+    [[metabase-enterprise.sandbox.models.sandbox]], or _GTAP_. Note that segmented permissions are
     both additive and subtractive -- they are additive because they grant (sandboxed) ad-hoc query access for a Table,
     but subtractive in that any access thru a Saved Question will now be sandboxed as well.
 
@@ -67,7 +68,7 @@
     * Only one GTAP may defined per-Group per-Table (this is an application-DB-level constraint). A User may have
       multiple applicable GTAPs if they are members of multiple groups that have sandboxed anti-perms for that Table; in
       that case, the QP signals an error if multiple GTAPs apply to a given Table for the current User (see
-      [[metabase-enterprise.sandbox.query-processor.middleware.row-level-restrictions/assert-one-gtap-per-table]]).
+      [[metabase-enterprise.sandbox.query-processor.middleware.sandboxing/assert-one-gtap-per-table]]).
 
     * Segmented (sandboxing) permissions and GTAPs are tied together, and a Group should be given both (or both
       should be deleted) at the same time. This is *not* currently enforced as a hard application DB constraint, but is
@@ -76,12 +77,11 @@
 
     * Segmented permissions can also be used to enforce column-level permissions -- any column not returned by the
       underlying GTAP query is not allowed to be referenced by the parent query thru other means such as filter clauses.
-      See [[metabase-enterprise.sandbox.query-processor.middleware.column-level-perms-check]].
 
     * GTAPs are not allowed to add columns not present in the original Table, or change their effective type to
       something incompatible (this constraint is in place so we other things continue to work transparently regardless
       of whether the Table is swapped out.) See
-      [[metabase-enterprise.sandbox.models.group-table-access-policy/check-columns-match-table]]
+      [[metabase-enterprise.sandbox.models.sandbox/check-columns-match-table]]
 
   * *block \"anti-permissions\"* are per-Group, per-Table grants that tell Metabase to disallow running Saved
     Questions unless the User has data permissions (in other words, disregard Collection permissions). These are
@@ -104,15 +104,6 @@
   [[metabase.api.common/*current-user-permissions-set*]] includes permissions for a given path (action)
   using [[set-has-full-permissions?]], or for a set of paths using [[set-has-full-permissions-for-set?]].
 
-  Other implementations check whether a user has _partial permissions_ for a path or set
-  using [[set-has-partial-permissions?]] or [[set-has-partial-permissions-for-set?]]. Partial permissions means that
-  the User has permissions for some subpath of the path in question, e.g. `/db/1/read/` is considered to be partial
-  permissions for `/db/1/`. For example the [[metabase.models.interface/can-read?]] implementation for Database checks
-  whether the current User has *any* permissions for that Database; a User can fetch Database 1 from API
-  endpoints (\"read\" it) if they have any permissions starting with `/db/1/`, for example `/db/1/` itself (full
-  permissions) `/db/1/native/` (ad-hoc SQL query permissions) or permissions, or
-  `/db/1/schema/PUBLIC/table/2/query/` (run ad-hoc queries against Table 2 permissions).
-
   ### Determining query permissions
 
   Normally, a User is allowed to view (i.e., run the query for) a Saved Question if they have read permissions for the
@@ -122,7 +113,7 @@
   Users would still be prevented from poking around things on their own, however.
 
   The Query Processor middleware in [[metabase.query-processor.middleware.permissions]],
-  [[metabase-enterprise.sandbox.query-processor.middleware.row-level-restrictions]], and
+  [[metabase-enterprise.sandbox.query-processor.middleware.sandboxing]], and
   [[metabase-enterprise.advanced-permissions.models.permissions.block-permissions]] determines whether the current
   User has permissions to run the current query. Permissions are as follows:
 
@@ -149,7 +140,7 @@
 
   ### Known Permissions Paths
 
-  See [[path-regex-v1]] for an always-up-to-date list of permissions paths.
+  See [[metabase.permissions.util/path-regex-v1]] for an always-up-to-date list of permissions paths.
 
     /collection/:id/                                ; read-write perms for a Coll and its non-Coll children
     /collection/:id/read/                           ; read-only  perms for a Coll and its non-Coll children
@@ -169,13 +160,17 @@
     /                                               ; full root perms"
   (:require
    [clojure.string :as str]
-   [metabase.audit :as audit]
-   [metabase.config :as config]
+   [metabase.api.common :as api]
+   [metabase.audit-app.core :as audit]
+   [metabase.config.core :as config]
    [metabase.models.interface :as mi]
    [metabase.permissions.models.permissions-group :as perms-group]
+   [metabase.permissions.path :as permissions.path]
+   [metabase.permissions.user :as permissions.user]
    [metabase.permissions.util :as perms.u]
-   [metabase.plugins.classloader :as classloader]
    [metabase.premium-features.core :as premium-features :refer [defenterprise]]
+   [metabase.remote-sync.core :as remote-sync]
+   [metabase.settings.core :as setting]
    [metabase.util :as u]
    [metabase.util.honey-sql-2 :as h2x]
    [metabase.util.i18n :refer [tru]]
@@ -185,6 +180,8 @@
    [metabase.util.performance :as perf]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
+
+(set! *warn-on-reflection* true)
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                    UTIL FNS                                                    |
@@ -230,38 +227,6 @@
              assert-valid-object]]
     (f permissions)))
 
-;;; ------------------------------------------------- Path Util Fns --------------------------------------------------
-
-(def ^:private MapOrID
-  [:or :map ms/PositiveInt])
-
-(mu/defn collection-readwrite-path :- perms.u/PathSchema
-  "Return the permissions path for *readwrite* access for a `collection-or-id`."
-  [collection-or-id :- MapOrID]
-  (if-not (get collection-or-id :metabase.models.collection.root/is-root?)
-    (format "/collection/%d/" (u/the-id collection-or-id))
-    (if-let [collection-namespace (:namespace collection-or-id)]
-      (format "/collection/namespace/%s/root/" (perms.u/escape-path-component (u/qualified-name collection-namespace)))
-      "/collection/root/")))
-
-(mu/defn collection-read-path :- perms.u/PathSchema
-  "Return the permissions path for *read* access for a `collection-or-id`."
-  [collection-or-id :- MapOrID]
-  (str (collection-readwrite-path collection-or-id) "read/"))
-
-(mu/defn application-perms-path :- perms.u/PathSchema
-  "Returns the permissions path for *full* access a application permission."
-  [perm-type]
-  (case perm-type
-    :setting
-    "/application/setting/"
-
-    :monitoring
-    "/application/monitoring/"
-
-    :subscription
-    "/application/subscription/"))
-
 ;;; -------------------------------------------- Permissions Checking Fns --------------------------------------------
 
 (defn is-permissions-for-object?
@@ -269,21 +234,10 @@
   [permissions-path path]
   (str/starts-with? path permissions-path))
 
-(defn is-partial-permissions-for-object?
-  "Does `permissions-path` grant access full access for `path` *or* for a descendant of `path`?"
-  [permissions-path path]
-  (or (is-permissions-for-object? permissions-path path)
-      (str/starts-with? permissions-path path)))
-
 (defn set-has-full-permissions?
   "Does `permissions-set` grant *full* access to object with `path`?"
   ^Boolean [permissions-set path]
   (boolean (perf/some #(is-permissions-for-object? % path) permissions-set)))
-
-(defn set-has-partial-permissions?
-  "Does `permissions-set` grant access full access to object with `path` *or* to a descendant of it?"
-  ^Boolean [permissions-set path]
-  (boolean (perf/some #(is-partial-permissions-for-object? % path) permissions-set)))
 
 (mu/defn set-has-full-permissions-for-set? :- :boolean
   "Do the permissions paths in `permissions-set` grant *full* access to all the object paths in `paths-set`?"
@@ -292,18 +246,10 @@
                         permissions-set)]
     (every? (partial set-has-full-permissions? permissions) paths-set)))
 
-(mu/defn set-has-partial-permissions-for-set? :- :boolean
-  "Do the permissions paths in `permissions-set` grant *partial* access to all the object paths in `paths-set`?
-   (`permissions-set` must grant partial access to *every* object in `paths-set` set)."
-  [permissions-set paths-set]
-  (let [permissions (or (:as-vec (meta permissions-set))
-                        permissions-set)]
-    (every? (partial set-has-partial-permissions? permissions) paths-set)))
-
 (mu/defn set-has-application-permission-of-type? :- :boolean
   "Does `permissions-set` grant *full* access to a application permission of type `perm-type`?"
   [permissions-set perm-type]
-  (set-has-full-permissions? permissions-set (application-perms-path perm-type)))
+  (set-has-full-permissions? permissions-set (permissions.path/application-perms-path perm-type)))
 
 (mu/defn perms-objects-set-for-parent-collection :- [:set perms.u/PathSchema]
   "Implementation of `perms-objects-set` for models with a `collection_id`, such as Card, Dashboard, or Pulse.
@@ -318,13 +264,13 @@
     read-or-write        :- [:enum :read :write]]
    ;; based on value of read-or-write determine the approprite function used to calculate the perms path
    (let [path-fn (case read-or-write
-                   :read  collection-read-path
-                   :write collection-readwrite-path)
+                   :read  permissions.path/collection-read-path
+                   :write permissions.path/collection-readwrite-path)
          collection-id (:collection_id this)]
      ;; now pass that function our collection_id if we have one, or if not, pass it an object representing the Root
      ;; Collection
      #{(path-fn (or collection-id
-                    {:metabase.models.collection.root/is-root? true
+                    {:metabase.collections.models.collection.root/is-root? true
                      :namespace                                collection-namespace}))})))
 
 (doto :perms/use-parent-collection-perms
@@ -333,7 +279,28 @@
 
 (defmethod mi/perms-objects-set :perms/use-parent-collection-perms
   [instance read-or-write]
-  (perms-objects-set-for-parent-collection instance read-or-write))
+  (if (or (= read-or-write :read)
+          (remote-sync/collection-editable? (or (:collection instance) (:collection_id instance))))
+    (perms-objects-set-for-parent-collection instance read-or-write)
+    ;; We need to return a dummy permissions string that cannot possibly belong to a user in
+    ;; the case where an instance is not syncable due to remote-sync being in ':production' mode
+    #{"___no-remote-sync-access"}))
+
+(methodical/defmethod t2/batched-hydrate [:perms/use-parent-collection-perms :can_write]
+  [_model k models]
+  (mi/instances-with-hydrated-data
+   models k
+   #(into {}
+          (map (juxt :id mi/can-write?))
+          (t2/hydrate (remove nil? models) :collection))
+   :id
+   {:default false}))
+
+(defmethod mi/can-create? :perms/use-parent-collection-perms
+  [_model m]
+  (if-let [collection-id (:collection_id m)]
+    (mi/can-write? (t2/select-one :model/Collection :id collection-id))
+    (mi/can-write? (var-get (requiring-resolve 'metabase.collections.models.collection/root-collection)))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                               ENTITY + LIFECYCLE                                               |
@@ -377,10 +344,14 @@
 
 (defn- clear-current-user-cached-permissions!
   "If [[metabase.api.common/*current-user-permissions-set*]] is bound, reset it so it gets recalculated on next use.
-  Called by [[delete-related-permissions!]] and [[grant-permissions!]] below, mostly as a convenience for tests that
-  bind a current user and then grant or revoke permissions for that user without rebinding it."
+  Called by [[metabase.permissions.models.permissions/delete-related-permissions!]]
+  and [[metabase.permissions.models.permissions/grant-permissions!]], mostly as a convenience for tests that bind a
+  current user and then grant or revoke permissions for that user without rebinding it."
   []
-  ((requiring-resolve 'metabase.server.middleware.session/clear-current-user-cached-permissions-set!))
+  (when-let [current-user-id api/*current-user-id*]
+    ;; [[api/*current-user-permissions-set*]] is dynamically bound
+    (when (get (get-thread-bindings) #'api/*current-user-permissions-set*)
+      (.set #'api/*current-user-permissions-set* (delay (permissions.user/user-permissions-set current-user-id)))))
   nil)
 
 (mu/defn delete-related-permissions!
@@ -417,32 +388,37 @@
       (clear-current-user-cached-permissions!))))
 
 (defn grant-permissions!
-  "Grant permissions for `group-or-id` and return the inserted permissions. Two-arity grants any arbitrary Permissions `path`.
-  With > 2 args, grants the data permissions from calling [[data-perms-path]]."
-  ([group-or-id path]
-   (try
-     (t2/insert! :model/Permissions
-                 (map (fn [path-object]
-                        {:group_id (u/the-id group-or-id) :object path-object})
-                      (distinct (conj (perms.u/->v2-path path) path))))
-     (clear-current-user-cached-permissions!)
-     ;; on some occasions through weirdness we might accidentally try to insert a key that's already been inserted
-     (catch Throwable e
-       (log/error e (u/format-color 'red "Failed to grant permissions"))
-       ;; if we're running tests, we're doing something wrong here if duplicate permissions are getting assigned,
-       ;; mostly likely because tests aren't properly cleaning up after themselves, and possibly causing other tests
-       ;; to pass when they shouldn't. Don't allow this during tests
-       (when config/is-test?
-         (throw e))))))
+  "Grant permissions for `group-or-id` and return the inserted permissions. Two-arity grants any arbitrary Permissions `path`."
+  [group-or-id path]
+  (try
+    (t2/insert! :model/Permissions
+                (map (fn [path-object]
+                       {:group_id (u/the-id group-or-id) :object path-object})
+                     (distinct (conj (perms.u/->v2-path path) path))))
+    (clear-current-user-cached-permissions!)
+    ;; on some occasions through weirdness we might accidentally try to insert a key that's already been inserted
+    (catch Throwable e
+      (log/error e (u/format-color 'red "Failed to grant permissions"))
+      ;; if we're running tests, we're doing something wrong here if duplicate permissions are getting assigned,
+      ;; mostly likely because tests aren't properly cleaning up after themselves, and possibly causing other tests
+      ;; to pass when they shouldn't. Don't allow this during tests
+      (when config/is-test?
+        (throw e)))))
 
 ;;;; Audit Permissions helper fns
 
-(defn audit-namespace-clause
+(defn namespace-clause
   "SQL clause to filter namespaces depending on if audit app is enabled or not, and if the namespace is the default one."
-  [namespace-keyword namespace-val]
-  (if (and (nil? namespace-val) (premium-features/enable-audit-app?))
-    [:or [:= namespace-keyword nil] [:= namespace-keyword "analytics"]]
-    [:= namespace-keyword namespace-val]))
+  [namespace-keyword namespace-val & [include-tenant-namespaces?]]
+  [:or
+   [:= namespace-keyword namespace-val]
+   (when (and (nil? namespace-val)
+              (premium-features/enable-audit-app?))
+     [:= namespace-keyword "analytics"])
+   (when (and include-tenant-namespaces? (nil? namespace-val) (setting/get :use-tenants))
+     [:= namespace-keyword "shared-tenant-collection"])
+   (when (and include-tenant-namespaces? (nil? namespace-val) (setting/get :use-tenants))
+     [:= namespace-keyword "tenant-specific"])])
 
 ;;; TODO -- this is a predicate function that returns truthy or falsey, it should end in a `?` -- Cam
 (mu/defn can-read-audit-helper
@@ -463,20 +439,26 @@
 (defn revoke-application-permissions!
   "Remove all permissions entries for a Group to access a Application permisisons"
   [group-or-id perm-type]
-  (delete-related-permissions! group-or-id (application-perms-path perm-type)))
+  (delete-related-permissions! group-or-id (permissions.path/application-perms-path perm-type)))
 
 (defn grant-application-permissions!
   "Grant full permissions for a group to access a Application permisisons."
   [group-or-id perm-type]
-  (grant-permissions! group-or-id (application-perms-path perm-type)))
+  (when (and (perms-group/is-tenant-group? group-or-id)
+             (not= perm-type :subscription))
+    (throw (ex-info (tru "Cannot grant application permission to a tenant group.") {})))
+  (grant-permissions! group-or-id (permissions.path/application-perms-path perm-type)))
 
+;; TODO: We really have to figure out a better solution to these circular dependencies than this
 (defn- is-personal-collection-or-descendant-of-one? [collection]
-  (classloader/require 'metabase.models.collection)
-  ((resolve 'metabase.models.collection/is-personal-collection-or-descendant-of-one?) collection))
+  ((requiring-resolve 'metabase.collections.models.collection/is-personal-collection-or-descendant-of-one?) collection))
 
 (defn- is-trash-or-descendant? [collection]
-  (classloader/require 'metabase.models.collection)
-  ((resolve 'metabase.models.collection/is-trash-or-descendant?) collection))
+  ((requiring-resolve 'metabase.collections.models.collection/is-trash-or-descendant?) collection))
+
+(defn- tenant-collection?
+  [collection]
+  ((requiring-resolve 'metabase.collections.models.collection/shared-tenant-collection?) collection))
 
 (defn- ^:private collection-or-id->collection
   [collection-or-id]
@@ -487,10 +469,10 @@
 (mu/defn- check-is-modifiable-collection
   "Check whether `collection-or-id` refers to a collection that can have permissions modified. Personal collections, the
   Trash, and descendants of those can't have their permissions modified."
-  [collection-or-id :- MapOrID]
+  [collection-or-id :- permissions.path/MapOrID]
   ;; skip the whole thing for the root collection, we know it's not a personal collection, trash, or descendant of one
   ;; of them.
-  (when-not (:metabase.models.collection.root/is-root? collection-or-id)
+  (when-not (:metabase.collections.models.collection.root/is-root? collection-or-id)
     (let [collection (collection-or-id->collection collection-or-id)]
       ;; Check whether the collection is the Trash collection or a descendant thereof; if so, throw an Exception. This
       ;; is done because you can't modify the permissions of things in the Trash, you need to untrash them first.
@@ -505,21 +487,27 @@
 
 (mu/defn revoke-collection-permissions!
   "Revoke all access for `group-or-id` to a Collection."
-  [group-or-id :- MapOrID collection-or-id :- MapOrID]
+  [group-or-id :- permissions.path/MapOrID collection-or-id :- permissions.path/MapOrID]
   (check-is-modifiable-collection collection-or-id)
-  (delete-related-permissions! group-or-id (collection-readwrite-path collection-or-id)))
+  (delete-related-permissions! group-or-id (permissions.path/collection-readwrite-path collection-or-id)))
 
 (mu/defn grant-collection-readwrite-permissions!
   "Grant full access to a Collection, which means a user can view all Cards in the Collection and add/remove Cards."
-  [group-or-id :- MapOrID collection-or-id :- MapOrID]
+  [group-or-id :- permissions.path/MapOrID collection-or-id :- permissions.path/MapOrID]
   (check-is-modifiable-collection collection-or-id)
-  (grant-permissions! (u/the-id group-or-id) (collection-readwrite-path collection-or-id)))
+  (when (perms-group/is-tenant-group? group-or-id)
+    (throw (ex-info (tru "Tenant groups cannot have write access to any collections.") {})))
+  (grant-permissions! (u/the-id group-or-id) (permissions.path/collection-readwrite-path collection-or-id)))
 
 (mu/defn grant-collection-read-permissions!
   "Grant read access to a Collection, which means a user can view all Cards in the Collection."
-  [group-or-id :- MapOrID collection-or-id :- MapOrID]
+  [group-or-id :- permissions.path/MapOrID collection-or-id :- permissions.path/MapOrID]
   (check-is-modifiable-collection collection-or-id)
-  (grant-permissions! (u/the-id group-or-id) (collection-read-path collection-or-id)))
+  (let [collection (collection-or-id->collection collection-or-id)]
+    (when (and (not (tenant-collection? collection))
+               (perms-group/is-tenant-group? group-or-id))
+      (throw (ex-info (tru "Tenant groups cannot receive access to non-tenant collections.") {}))))
+  (grant-permissions! (u/the-id group-or-id) (permissions.path/collection-read-path collection-or-id)))
 
 (defenterprise current-user-has-application-permissions?
   "Check if `*current-user*` has permissions for a application permissions of type `perm-type`.

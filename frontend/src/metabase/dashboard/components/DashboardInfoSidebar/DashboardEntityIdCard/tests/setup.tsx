@@ -1,4 +1,4 @@
-import { setupEnterprisePlugins } from "__support__/enterprise";
+import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import { mockSettings } from "__support__/settings";
 import {
   type RenderWithProvidersOptions,
@@ -15,17 +15,14 @@ import { DashboardEntityIdCard } from "../DashboardEntityIdCard";
 
 export const setup = ({
   dashboard = createMockDashboard(),
-  hasEnterprisePlugins,
+  enterprisePlugins,
   enableSerialization = false,
   ...renderOptions
 }: {
   dashboard?: Dashboard;
-  hasEnterprisePlugins?: boolean;
+  enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][];
   enableSerialization?: boolean;
 } & RenderWithProvidersOptions = {}) => {
-  if (hasEnterprisePlugins) {
-    setupEnterprisePlugins();
-  }
   const state = createMockState({
     settings: mockSettings({
       "token-features": createMockTokenFeatures({
@@ -33,6 +30,9 @@ export const setup = ({
       }),
     }),
   });
+  if (enterprisePlugins) {
+    enterprisePlugins.forEach(setupEnterpriseOnlyPlugin);
+  }
   return renderWithProviders(<DashboardEntityIdCard dashboard={dashboard} />, {
     ...renderOptions,
     storeInitialState: state,

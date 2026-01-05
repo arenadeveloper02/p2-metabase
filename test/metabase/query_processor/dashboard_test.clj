@@ -1,15 +1,15 @@
 (ns metabase.query-processor.dashboard-test
-  "There are more e2e tests in [[metabase.api.dashboard-test]]."
+  "There are more e2e tests in [[metabase.dashboards-rest.api-test]]."
+  {:clj-kondo/config '{:linters {:discouraged-var {metabase.test/with-temp           {:level :off}
+                                                   toucan2.tools.with-temp/with-temp {:level :off}}}}}
   (:require
    [clojure.test :refer :all]
-   [metabase.api.dashboard-test :as api.dashboard-test]
+   [metabase.dashboards-rest.api-test :as api.dashboard-test]
    [metabase.query-processor :as qp]
    [metabase.query-processor.card-test :as qp.card-test]
    [metabase.query-processor.dashboard :as qp.dashboard]
    [metabase.test :as mt]
    [toucan2.core :as t2]))
-
-;; there are more tests in [[metabase.api.dashboard-test]]
 
 (defn- run-query-for-dashcard [dashboard-id card-id dashcard-id & options]
   ;; TODO -- we shouldn't do the perms checks if there is no current User context. It seems like API-level perms check
@@ -24,7 +24,7 @@
                             (qp/process-query (assoc query :info info))))
            options)))
 
-(deftest resolve-parameters-validation-test
+(deftest ^:parallel resolve-parameters-validation-test
   (api.dashboard-test/with-chain-filter-fixtures [{{dashboard-id :id} :dashboard
                                                    {card-id :id}      :card
                                                    {dashcard-id :id}  :dashcard}]
@@ -44,8 +44,10 @@
       (testing "Should error if parameter is of a different type"
         (is (thrown-with-msg?
              clojure.lang.ExceptionInfo
-             #"Invalid parameter type :number/!= for parameter \"_PRICE_\".*"
-             (resolve-params [{:id "_PRICE_", :value 4, :type :number/!=}]))))))
+             #"Invalid parameter value type :number/!= for parameter \"_PRICE_\".*"
+             (resolve-params [{:id "_PRICE_", :value 4, :type :number/!=}])))))))
+
+(deftest ^:parallel resolve-parameters-validation-test-2
   (testing "Resolves new operator type arguments without error (#25031)"
     (mt/dataset test-data
       (let [query (mt/native-query {:query         "select COUNT(*) from \"ORDERS\" where true [[AND quantity={{qty_locked}}]]"
@@ -117,7 +119,7 @@
                             #"Not found"
                             (run-query-for-dashcard dashboard-id card-id-2 dashcard-id-3))))))
 
-(deftest ^:parallel default-value-precedence-test-field-filters
+(deftest default-value-precedence-test-field-filters
   (testing "If both Dashboard and Card have default values for a Field filter parameter, Card defaults should take precedence\n"
     (mt/dataset test-data
       (mt/with-temp
@@ -172,9 +174,9 @@
       [:model/Card {card-id :id} {:database_id   (mt/id)
                                   :table_id      (mt/id :venues)
                                   :dataset_query (mt/mbql-query venues
-                                                   {:aggregation  [:count]
-                                                    :breakout     [$category_id
-                                                                   $price]})}
+                                                   {:aggregation [:count]
+                                                    :breakout    [$category_id
+                                                                  $price]})}
        :model/Dashboard {dashboard-id :id} {:parameters
                                             [{:slug      "venue_id"
                                               :id        "_VENUE_ID_"
@@ -423,13 +425,13 @@
                                                              :dashboard_id       dashboard-id}]
         (testing "No parameters -- ignore Dashboard default (#20493, #20503)"
           ;; [[metabase.query-processor.middleware.large-int-id]] middleware is converting the IDs to strings I guess
-          (is (= [["1" "Rustic Paper Wallet" "Gizmo"]
-                  ["2" "Small Marble Shoes" "Doohickey"]]
+          (is (= [[1 "Rustic Paper Wallet" "Gizmo"]
+                  [2 "Small Marble Shoes" "Doohickey"]]
                  (mt/rows
                   (run-query-for-dashcard dashboard-id card-id dashcard-id)))))
         (testing "Request parameters with :default -- ignore these as well (#20516)"
-          (is (= [["1" "Rustic Paper Wallet" "Gizmo"]
-                  ["2" "Small Marble Shoes" "Doohickey"]]
+          (is (= [[1 "Rustic Paper Wallet" "Gizmo"]
+                  [2 "Small Marble Shoes" "Doohickey"]]
                  (mt/rows
                   (run-query-for-dashcard dashboard-id card-id dashcard-id
                                           :parameters [{:name    "Category"
@@ -438,8 +440,8 @@
                                                         :type    "category"
                                                         :default ["Gizmo"]}])))))
         (testing "Request parameters with :default and nil value"
-          (is (= [["1" "Rustic Paper Wallet" "Gizmo"]
-                  ["2" "Small Marble Shoes" "Doohickey"]]
+          (is (= [[1 "Rustic Paper Wallet" "Gizmo"]
+                  [2 "Small Marble Shoes" "Doohickey"]]
                  (mt/rows
                   (run-query-for-dashcard dashboard-id card-id dashcard-id
                                           :parameters [{:name    "Category"
@@ -454,8 +456,8 @@
     (mt/dataset test-data
       (mt/with-temp [:model/Dashboard {dashboard-id :id} {:last_viewed_at #t "2000-01-01"}
                      :model/Card {card-id :id} {:dataset_query (mt/native-query
-                                                                 {:query "SELECT COUNT(*) FROM \"ORDERS\""
-                                                                  :template-tags {}})}
+                                                                {:query "SELECT COUNT(*) FROM \"ORDERS\""
+                                                                 :template-tags {}})}
                      :model/DashboardCard {dashcard-id :id} {:card_id card-id
                                                              :dashboard_id dashboard-id}]
         (let [original-last-viewed-at (t2/select-one-fn :last_viewed_at :model/Dashboard dashboard-id)]

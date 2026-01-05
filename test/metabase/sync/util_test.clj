@@ -7,11 +7,11 @@
    [java-time.api :as t]
    [metabase.driver :as driver]
    [metabase.models.interface :as mi]
-   [metabase.models.task-history :as task-history]
    [metabase.sync.core :as sync]
    [metabase.sync.sync-metadata :as sync-metadata]
    [metabase.sync.sync-metadata.fields :as sync-fields]
    [metabase.sync.util :as sync-util]
+   [metabase.task-history.models.task-history :as task-history]
    [metabase.test :as mt]
    [metabase.test.util :as tu]
    [toucan2.core :as t2]))
@@ -28,7 +28,7 @@
 
 (driver/register! ::concurrent-sync-test, :abstract? true)
 
-(defmethod driver/describe-database ::concurrent-sync-test [& _]
+(defmethod driver/describe-database* ::concurrent-sync-test [& _]
   (swap! calls-to-describe-database inc)
   (Thread/sleep 1000)
   {:tables #{}})
@@ -118,8 +118,8 @@
         [results]    (:operation-results
                       (call-with-operation-info! #(sync-util/run-sync-operation process-name mock-db sync-steps)))]
     (testing "valid operation metadata?"
-      (is (= true
-             (validate-times results))))
+      (is (true?
+           (validate-times results))))
     (testing "valid step metadata?"
       (is (= [true true]
              (map (comp validate-times second) (:steps results)))))
@@ -186,43 +186,43 @@
                                                                  (create-test-sync-summary step-name
                                                                                            (constantly step-log-text)))]
         (testing "has-operation?"
-          (is (= true
-                 (str/includes? results operation))))
+          (is (true?
+               (str/includes? results operation))))
         (testing "has-db-name?"
-          (is (= true
-                 (str/includes? results db-name))))
+          (is (true?
+               (str/includes? results db-name))))
         (testing "has-operation-duration?"
-          (is (= true
-                 (str/includes? results "5.0 s"))))
+          (is (true?
+               (str/includes? results "5.0 s"))))
         (testing "has-step-name?"
-          (is (= true
-                 (str/includes? results step-name))))
+          (is (true?
+               (str/includes? results step-name))))
         (testing "has-step-duration?"
-          (is (= true
-                 (str/includes? results "4.0 s"))))
+          (is (true?
+               (str/includes? results "4.0 s"))))
         (testing "has-log-summary-text?"
-          (is (= true
-                 (str/includes? results step-log-text))))))
+          (is (true?
+               (str/includes? results step-log-text))))))
     (testing (str "The `log-summary-fn` part of step info is optional as not all steps have it. Validate that we"
                   " properly handle that case")
       (let [results (#'sync-util/make-log-sync-summary-str operation
                                                            (mi/instance :model/Database {:name db-name})
                                                            (create-test-sync-summary step-name nil))]
         (testing "has-operation?"
-          (is (= true
-                 (str/includes? results operation))))
+          (is (true?
+               (str/includes? results operation))))
         (testing "has-db-name?"
-          (is (= true
-                 (str/includes? results db-name))))
+          (is (true?
+               (str/includes? results db-name))))
         (testing "has-operation-duration?"
-          (is (= true
-                 (str/includes? results "5.0 s"))))
+          (is (true?
+               (str/includes? results "5.0 s"))))
         (testing "has-step-name?"
-          (is (= true
-                 (str/includes? results step-name))))
+          (is (true?
+               (str/includes? results step-name))))
         (testing "has-step-duration?"
-          (is (= true
-                 (str/includes? results "4.0 s"))))))))
+          (is (true?
+               (str/includes? results "4.0 s"))))))))
 
 (derive ::sync-error-handling-begin ::sync-util/event)
 (derive ::sync-error-handling-end ::sync-util/event)
@@ -287,29 +287,29 @@
 (deftest initial-sync-status-test
   (mt/dataset test-data
     (testing "If `initial-sync-status` on a DB is `incomplete`, it is marked as `complete` when sync-metadata has finished"
-      (let [_  (t2/update! :model/Database (:id (mt/db)) {:initial_sync_status "incomplete"})
-            db (t2/select-one :model/Database :id (:id (mt/db)))]
+      (let [_  (t2/update! :model/Database (mt/id) {:initial_sync_status "incomplete"})
+            db (t2/select-one :model/Database :id (mt/id))]
         (sync/sync-database! db)
         (is (= "complete" (t2/select-one-fn :initial_sync_status :model/Database :id (:id db))))))
 
     (testing "If `initial-sync-status` on a DB is `complete`, it remains `complete` when sync is run again"
-      (let [_  (t2/update! :model/Database (:id (mt/db)) {:initial_sync_status "complete"})
-            db (t2/select-one :model/Database :id (:id (mt/db)))]
+      (let [_  (t2/update! :model/Database (mt/id) {:initial_sync_status "complete"})
+            db (t2/select-one :model/Database :id (mt/id))]
         (sync/sync-database! db)
         (is (= "complete" (t2/select-one-fn :initial_sync_status :model/Database :id (:id db))))))
 
     (testing "If `initial-sync-status` on a table is `incomplete`, it is marked as `complete` after the sync-fks step
                        has finished"
-      (let [table-id (t2/select-one-fn :id :model/Table :db_id (:id (mt/db)))
+      (let [table-id (t2/select-one-fn :id :model/Table :db_id (mt/id))
             _        (t2/update! :model/Table table-id {:initial_sync_status "incomplete"})
             _table   (t2/select-one :model/Table :id table-id)]
         (sync/sync-database! (mt/db))
         (is (= "complete" (t2/select-one-fn :initial_sync_status :model/Table :id table-id)))))
 
     (testing "Database and table syncs are marked as complete even if the initial scan is :schema only"
-      (let [_        (t2/update! :model/Database (:id (mt/db)) {:initial_sync_status "incomplete"})
-            db       (t2/select-one :model/Database :id (:id (mt/db)))
-            table-id (t2/select-one-fn :id :model/Table :db_id (:id (mt/db)))
+      (let [_        (t2/update! :model/Database (mt/id) {:initial_sync_status "incomplete"})
+            db       (t2/select-one :model/Database :id (mt/id))
+            table-id (t2/select-one-fn :id :model/Table :db_id (mt/id))
             _        (t2/update! :model/Table table-id {:initial_sync_status "incomplete"})
             _table   (t2/select-one :model/Table :id table-id)]
         (sync/sync-database! db {:scan :schema})
@@ -317,8 +317,8 @@
         (is (= "complete" (t2/select-one-fn :initial_sync_status :model/Table :id table-id)))))
 
     (testing "If a non-recoverable error occurs during sync, `initial-sync-status` on the database is set to `aborted`"
-      (let [_  (t2/update! :model/Database (:id (mt/db)) {:initial_sync_status "incomplete"})
-            db (t2/select-one :model/Database :id (:id (mt/db)))]
+      (let [_  (t2/update! :model/Database (mt/id) {:initial_sync_status "incomplete"})
+            db (t2/select-one :model/Database :id (mt/id))]
         (with-redefs [sync-metadata/make-sync-steps (fn [_]
                                                       [(sync-util/create-sync-step
                                                         "fake-step"
@@ -328,8 +328,8 @@
 
     (testing "If `initial-sync-status` is `aborted` for a database, it is set to `complete` the next time sync finishes
                        without error"
-      (let [_  (t2/update! :model/Database (:id (mt/db)) {:initial_sync_status "complete"})
-            db (t2/select-one :model/Database :id (:id (mt/db)))]
+      (let [_  (t2/update! :model/Database (mt/id) {:initial_sync_status "complete"})
+            db (t2/select-one :model/Database :id (mt/id))]
         (sync/sync-database! db)
         (is (= "complete" (t2/select-one-fn :initial_sync_status :model/Database :id (:id db))))))))
 

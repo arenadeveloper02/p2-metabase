@@ -33,7 +33,7 @@ describe("scenarios > collections > clean up", () => {
     describe("action menu", () => {
       it("should show in proper contexts", () => {
         cy.signInAsAdmin();
-        H.setTokenFeatures("all");
+        H.activateToken("pro-self-hosted");
 
         cy.log("should not show in custom analytics collections");
         H.visitCollection("root");
@@ -117,8 +117,8 @@ describe("scenarios > collections > clean up", () => {
               );
 
               // trip is_sample flag
-              cy.intercept("GET", `/api/collection/${id}`, req => {
-                req.on("response", res => {
+              cy.intercept("GET", `/api/collection/${id}`, (req) => {
+                req.on("response", (res) => {
                   res.send(assocIn(res.body, ["is_sample"], true));
                 });
               });
@@ -141,11 +141,11 @@ describe("scenarios > collections > clean up", () => {
       });
     });
 
-    H.describeWithSnowplowEE("clean up collection modal", () => {
+    describe("clean up collection modal", () => {
       beforeEach(() => {
         H.resetSnowplow();
         cy.signInAsAdmin();
-        H.setTokenFeatures("all");
+        H.activateToken("pro-self-hosted");
         H.enableTracking();
       });
 
@@ -154,7 +154,7 @@ describe("scenarios > collections > clean up", () => {
       });
 
       it("should be able to clean up stale items", () => {
-        seedMainTestData().then(seedData => {
+        seedMainTestData().then((seedData) => {
           const firstAlphabeticalName = "Bulk dashboard 1";
           const lastAlphabeticalName = "Bulk question 9";
 
@@ -235,8 +235,8 @@ describe("scenarios > collections > clean up", () => {
           moveToTrash();
           assertNoPagination();
 
-          H.expectGoodSnowplowEvent(
-            event =>
+          H.expectUnstructuredSnowplowEvent(
+            (event) =>
               isMatching(
                 {
                   event: "moved-to-trash",
@@ -254,8 +254,8 @@ describe("scenarios > collections > clean up", () => {
           // Because cutoff_date will be relative to the current date, we simply check
           // that it exists and is a string. Snowplow will assert that it is in the correct
           // format
-          H.expectGoodSnowplowEvent(
-            event =>
+          H.expectUnstructuredSnowplowEvent(
+            (event) =>
               event &&
               event.event === "stale_items_archived" &&
               event.collection_id === seedData.collection.id &&
@@ -290,7 +290,9 @@ describe("scenarios > collections > clean up", () => {
 
           makeItemStale(ORDERS_QUESTION_ID, "card");
 
-          cy.findByRole("navigation").findByText("Our analytics").click();
+          cy.findByTestId("main-navbar-root")
+            .findByText("Our analytics")
+            .click();
           selectCleanThingsUpCollectionAction();
           cy.url().should("include", "cleanup");
 
@@ -303,8 +305,8 @@ describe("scenarios > collections > clean up", () => {
           closeCleanUpModal();
 
           // Ensure that stale items in Our Analytics are maked with a null collection id
-          H.expectGoodSnowplowEvent(
-            event =>
+          H.expectUnstructuredSnowplowEvent(
+            (event) =>
               event &&
               event.event === "stale_items_archived" &&
               event.collection_id === null &&
@@ -323,7 +325,7 @@ describe("scenarios > collections > clean up", () => {
           .then(({ body: { id } }) => id)
           .as("collectionId");
 
-        cy.get("@collectionId").then(id => {
+        cy.get("@collectionId").then((id) => {
           return bulkCreateQuestions(2, { collection_id: id }).then(() => {
             H.visitCollection(id);
           });
@@ -379,7 +381,7 @@ const selectCleanThingsUpCollectionAction = () => {
       cy.findByText("Clear out unused items").click();
     });
 };
-const setDateFilter = timeSpan => {
+const setDateFilter = (timeSpan) => {
   dateFilter().click();
   H.selectDropdown().findByText(timeSpan).click();
 };
@@ -405,7 +407,7 @@ const assertNoPagination = () => {
   });
 };
 
-const assertStaleItemCount = itemCount => {
+const assertStaleItemCount = (itemCount) => {
   cleanUpModal().within(() => {
     cy.findAllByTestId("pagination-total").should("have.text", `${itemCount}`);
   });
@@ -418,7 +420,7 @@ const bulkCreateQuestions = (amount, options, results = []) => {
     query: { "source-table": STATIC_ORDERS_ID },
     type: "model",
     ...options,
-  }).then(req => {
+  }).then((req) => {
     results.push(req.body);
     if (amount <= 1) {
       return results;
@@ -431,7 +433,7 @@ const bulkCreateDashboards = (amount, options, results = []) => {
   return H.createDashboard({
     name: `Bulk dashboard ${amount}`,
     ...options,
-  }).then(req => {
+  }).then((req) => {
     results.push(req.body);
     if (amount <= 1) {
       return results;
@@ -495,7 +497,7 @@ function seedMainTestData() {
   cy.get("@cleanUpCollection")
     .then(({ id }) => bulkCreateQuestions(12, { collection_id: id }))
     .as("questions")
-    .then(questions => {
+    .then((questions) => {
       veryStaleQuestionIds.push(...questions.slice(0, 4).map(({ id }) => id));
       staleQuestionIds.push(...questions.slice(4, 8).map(({ id }) => id));
       notStaleQuestionIds.push(...questions.slice(8).map(({ id }) => id));
@@ -506,7 +508,7 @@ function seedMainTestData() {
   cy.get("@cleanUpCollection")
     .then(({ id }) => bulkCreateDashboards(9, { collection_id: id }))
     .as("dashboards")
-    .then(dashboards => {
+    .then((dashboards) => {
       veryStaleDashboardIds.push(...dashboards.slice(0, 3).map(({ id }) => id));
       staleDashboardIds.push(...dashboards.slice(3, 6).map(({ id }) => id));
       notStaleDashboardIds.push(...dashboards.slice(6).map(({ id }) => id));
@@ -523,7 +525,7 @@ function seedMainTestData() {
   cy.get("@cleanUpChildCollection")
     .then(({ id }) => bulkCreateDashboards(5, { collection_id: id }))
     .as("childDashboards")
-    .then(dashboards => {
+    .then((dashboards) => {
       veryStaleChildDashboardIds.push(...dashboards.map(({ id }) => id));
       makeItemsStale(veryStaleChildDashboardIds, "dashboard", "2000-01-01");
     });

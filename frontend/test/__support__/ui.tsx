@@ -1,26 +1,34 @@
 import { Global } from "@emotion/react";
-import type { MantineThemeOverride } from "@mantine/core";
 import type { Reducer, Store } from "@reduxjs/toolkit";
 import type { MatcherFunction } from "@testing-library/dom";
-import type { ByRoleMatcher } from "@testing-library/react";
-import { render, screen, waitFor } from "@testing-library/react";
+import type { ByRoleMatcher, RenderHookOptions } from "@testing-library/react";
+import {
+  renderHook,
+  screen,
+  render as testingLibraryRender,
+  waitFor,
+} from "@testing-library/react";
 import type { History } from "history";
 import { createMemoryHistory } from "history";
 import { KBarProvider } from "kbar";
 import type * as React from "react";
 import { DragDropContextProvider } from "react-dnd";
 import HTML5Backend from "react-dnd-html5-backend";
-import { Router, useRouterHistory } from "react-router";
+import { Route, useRouterHistory } from "react-router";
 import { routerMiddleware, routerReducer } from "react-router-redux";
 import _ from "underscore";
 
 import { Api } from "metabase/api";
-import { UndoListing } from "metabase/containers/UndoListing";
+import { UndoListing } from "metabase/common/components/UndoListing";
 import { baseStyle } from "metabase/css/core/base.styled";
+import { HistoryProvider } from "metabase/history";
 import { MetabaseReduxProvider } from "metabase/lib/redux";
-import { mainReducers } from "metabase/reducers-main";
+import { makeMainReducers } from "metabase/reducers-main";
 import { publicReducers } from "metabase/reducers-public";
+import { RouterProvider } from "metabase/router";
+import type { MantineThemeOverride } from "metabase/ui";
 import { ThemeProvider } from "metabase/ui";
+import { ThemeProviderContext } from "metabase/ui/components/theme/ThemeProvider/context";
 import type { State } from "metabase-types/store";
 import { createMockState } from "metabase-types/store/mocks";
 
@@ -67,6 +75,90 @@ export function renderWithProviders(
     ...options
   }: RenderWithProvidersOptions = {},
 ) {
+  const { wrapper, store, history } = getTestStoreAndWrapper({
+    mode,
+    initialRoute,
+    storeInitialState,
+    withRouter,
+    withKBar,
+    withDND,
+    withUndos,
+    customReducers,
+    theme,
+  });
+
+  const utils = testingLibraryRender(ui, {
+    wrapper,
+    ...options,
+  });
+
+  return {
+    ...utils,
+    store,
+    history,
+  };
+}
+
+export function renderHookWithProviders<TProps, TResult>(
+  hook: (props: TProps) => TResult,
+  {
+    mode = "default",
+    initialRoute = "/",
+    storeInitialState = {},
+    withRouter = false,
+    withKBar = false,
+    withDND = false,
+    withUndos = false,
+    customReducers,
+    theme,
+    ...renderHookOptions
+  }: Omit<RenderHookOptions<TProps>, "wrapper"> & RenderWithProvidersOptions,
+) {
+  const {
+    wrapper: Wrapper,
+    store,
+    history,
+  } = getTestStoreAndWrapper({
+    mode,
+    initialRoute,
+    storeInitialState,
+    withRouter,
+    withKBar,
+    withDND,
+    withUndos,
+    customReducers,
+    theme,
+  });
+
+  const WrapperWithRoute = ({ children, ...props }: any) => {
+    return (
+      <Wrapper {...props}>
+        <Route path="/" component={() => <>{children}</>} />
+      </Wrapper>
+    );
+  };
+
+  const wrapper = withRouter ? WrapperWithRoute : Wrapper;
+
+  const renderHookReturn = renderHook(hook, { wrapper, ...renderHookOptions });
+
+  return { ...renderHookReturn, store, history };
+}
+
+type GetTestStoreAndWrapperOptions = RenderWithProvidersOptions &
+  Pick<Required<RenderWithProvidersOptions>, "initialRoute">;
+
+export function getTestStoreAndWrapper({
+  mode,
+  initialRoute,
+  storeInitialState,
+  withRouter,
+  withKBar,
+  withDND,
+  withUndos,
+  customReducers,
+  theme,
+}: GetTestStoreAndWrapperOptions) {
   let { routing, ...initialState }: Partial<State> =
     createMockState(storeInitialState);
 
@@ -88,7 +180,7 @@ export function renderWithProviders(
   if (mode === "public") {
     reducers = publicReducers;
   } else {
-    reducers = mainReducers;
+    reducers = makeMainReducers();
   }
 
   if (withRouter) {
@@ -125,16 +217,7 @@ export function renderWithProviders(
     );
   };
 
-  const utils = render(ui, {
-    wrapper,
-    ...options,
-  });
-
-  return {
-    ...utils,
-    store,
-    history,
-  };
+  return { wrapper, store, history };
 }
 
 /**
@@ -152,6 +235,7 @@ export function TestWrapper({
   withDND,
   withUndos,
   theme,
+  withCssVariables = false,
 }: {
   children: React.ReactElement;
   store: any;
@@ -161,20 +245,23 @@ export function TestWrapper({
   withDND: boolean;
   withUndos?: boolean;
   theme?: MantineThemeOverride;
+  withCssVariables?: boolean;
 }): JSX.Element {
   return (
     <MetabaseReduxProvider store={store}>
       <MaybeDNDProvider hasDND={withDND}>
-        <ThemeProvider theme={theme}>
-          <GlobalStylesForTest />
+        <ThemeProviderContext.Provider value={{ withCssVariables }}>
+          <ThemeProvider theme={theme}>
+            <GlobalStylesForTest />
 
-          <MaybeKBar hasKBar={withKBar}>
-            <MaybeRouter hasRouter={withRouter} history={history}>
-              {children}
-            </MaybeRouter>
-          </MaybeKBar>
-          {withUndos && <UndoListing />}
-        </ThemeProvider>
+            <MaybeKBar hasKBar={withKBar}>
+              <MaybeRouter hasRouter={withRouter} history={history}>
+                {children}
+              </MaybeRouter>
+            </MaybeKBar>
+            {withUndos && <UndoListing />}
+          </ThemeProvider>
+        </ThemeProviderContext.Provider>
       </MaybeDNDProvider>
     </MetabaseReduxProvider>
   );
@@ -189,10 +276,14 @@ function MaybeRouter({
   hasRouter: boolean;
   history?: History;
 }): JSX.Element {
-  if (!hasRouter) {
+  if (!hasRouter || !history) {
     return children;
   }
-  return <Router history={history}>{children}</Router>;
+  return (
+    <HistoryProvider history={history}>
+      <RouterProvider>{children}</RouterProvider>
+    </HistoryProvider>
+  );
 }
 
 function MaybeKBar({
@@ -246,7 +337,7 @@ export function getBrokenUpTextMatcher(textToFind: string): MatcherFunction {
     const hasText = (node: Element | null | undefined) =>
       node?.textContent === textToFind;
     const childrenDoNotHaveText = element
-      ? Array.from(element.children).every(child => !hasText(child))
+      ? Array.from(element.children).every((child) => !hasText(child))
       : true;
 
     return hasText(element) && childrenDoNotHaveText;
@@ -311,24 +402,10 @@ export const mockGetBoundingClientRect = (options: Partial<DOMRect> = {}) => {
 };
 
 /**
- * jsdom doesn't have scrollBy, so we need to mock it
+ * Mocked globally in frontend/test/__support__/mocks.js
  */
-export const mockScrollBy = () => {
-  window.Element.prototype.scrollBy = jest.fn();
-};
-
-/**
- * jsdom doesn't have scrollBy, so we need to mock it
- */
-export const mockScrollTo = () => {
-  window.Element.prototype.scrollTo = jest.fn();
-};
-
-/**
- * jsdom doesn't have scrollBy, so we need to mock it
- */
-export const mockScrollIntoView = () => {
-  window.Element.prototype.scrollIntoView = jest.fn();
+export const getScrollIntoViewMock = () => {
+  return window.HTMLElement.prototype.scrollIntoView;
 };
 
 /**
@@ -341,4 +418,40 @@ export function createMockClipboardData(
   return clipboardData as unknown as DataTransfer;
 }
 
+/**
+ * jsdom doesn't have MediaQueryList
+ */
+export const createMockMediaQueryList = (
+  opts?: Partial<MediaQueryList>,
+): MediaQueryList => ({
+  media: "",
+  matches: false,
+  onchange: jest.fn(),
+  dispatchEvent: jest.fn(),
+  addListener: jest.fn(),
+  addEventListener: jest.fn(),
+  removeListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  ...opts,
+});
+
+const ThemeProviderWrapper = ({
+  children,
+  ...props
+}: React.PropsWithChildren) => (
+  <ThemeProviderContext.Provider value={{ withCssVariables: false }}>
+    <ThemeProvider {...props}>{children}</ThemeProvider>
+  </ThemeProviderContext.Provider>
+);
+
+export function renderWithTheme(children: React.ReactElement) {
+  return testingLibraryRender(children, {
+    wrapper: ThemeProviderWrapper,
+  });
+}
+
+// eslint-disable-next-line import/export -- we're intentionally overriding the render function
+export { renderWithTheme as render };
+
+// eslint-disable-next-line import/export -- we're intentionally overriding the render function
 export * from "@testing-library/react";
