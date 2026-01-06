@@ -1,3 +1,4 @@
+/* eslint-disable ttag/no-module-declaration */
 import cx from "classnames";
 import { useMemo } from "react";
 import { t } from "ttag";
@@ -27,7 +28,7 @@ import type {
 import type { DatasetData, RawSeries } from "metabase-types/api";
 
 Object.assign(Heatmap, {
-  uiName: t`Heatmap`,
+  getUiName: () => t`Heatmap`,
   identifier: "heatmap",
   iconName: "heatmap",
   noun: t`heatmap`,
