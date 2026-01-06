@@ -1,8 +1,10 @@
 import type { EChartsOption } from "echarts";
+import type React from "react";
 
 import { formatValue } from "metabase/lib/formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
+import { getHeatmapTooltipOption } from "./tooltip";
 
 export interface HeatmapDataPoint {
   value: [number, number, number | string];
@@ -11,6 +13,7 @@ export interface HeatmapDataPoint {
 export function getHeatmapChartOption(
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
+  containerRef: React.RefObject<HTMLDivElement>,
 ): EChartsOption {
   const [
     {
@@ -156,18 +159,13 @@ export function getHeatmapChartOption(
   const visualMapPosition = settings["heatmap.visualMapPosition"] || "bottom";
 
   const option = {
-    tooltip: {
-      position: "top" as const,
-      formatter: (params: any) => {
-        const xVal = xValues[params.data[0]];
-        const yVal = yValues[params.data[1]];
-        const value = params.data[2];
-        if (value === "-") {
-          return `${yVal} - ${xVal}<br/>No data`;
-        }
-        return `${yVal} - ${xVal}<br/>${formatValueForDisplay(value)}`;
-      },
-    },
+    tooltip: getHeatmapTooltipOption(
+      rawSeries,
+      settings,
+      containerRef,
+      xValues,
+      yValues,
+    ),
     grid: {
       height: visualMapPosition === "bottom" ? "65%" : "75%",
       top: "10%",

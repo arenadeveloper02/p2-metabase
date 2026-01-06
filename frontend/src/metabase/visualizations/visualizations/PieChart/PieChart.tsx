@@ -57,6 +57,10 @@ export function PieChart(props: VisualizationProps) {
     isDashboard,
     isFullscreen,
   });
+  const rawSeriesWithRemappings = useMemo(
+    () => extractRemappings(rawSeries) || [],
+    [rawSeries],
+  );
   const seriesToRender = useMemo(
     () => extractRemappings(rawSeries),
     [rawSeries],
@@ -174,10 +178,12 @@ export function PieChart(props: VisualizationProps) {
     }
   };
 
-  const doughnutOption = useMemo(
-    () => getDoughnutChartOption(rawSeriesWithRemappings, settings),
-    [rawSeriesWithRemappings, settings],
-  );
+  const doughnutOption = useMemo(() => {
+    if (!rawSeriesWithRemappings || rawSeriesWithRemappings.length === 0) {
+      return null;
+    }
+    return getDoughnutChartOption(rawSeriesWithRemappings, settings);
+  }, [rawSeriesWithRemappings, settings]);
 
   // Create event handlers for classic doughnut
   const doughnutEventHandlers = useMemo(() => {
@@ -193,7 +199,12 @@ export function PieChart(props: VisualizationProps) {
               (r: any) => r.name === sliceName || r.key === sliceName,
             );
 
-            if (pieRow && props.onVisualizationClick) {
+            if (
+              pieRow &&
+              props.onVisualizationClick &&
+              rawSeriesWithRemappings &&
+              rawSeriesWithRemappings.length > 0
+            ) {
               const [
                 {
                   data: { cols, rows },
@@ -265,6 +276,9 @@ export function PieChart(props: VisualizationProps) {
 
   // Render classic doughnut if selected
   if (settings["pie.type"] === "donut-classic") {
+    if (!doughnutOption) {
+      return null;
+    }
     return (
       <div style={{ width: "100%", height: "100%" }}>
         <ResponsiveEChartsRenderer

@@ -1,6 +1,6 @@
 /* eslint-disable ttag/no-module-declaration */
 import cx from "classnames";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { t } from "ttag";
 
 import CS from "metabase/css/core/index.css";
@@ -187,14 +187,18 @@ export function Heatmap(props: VisualizationProps) {
   } = props;
 
   const hasTitle = showTitle && settings["card.title"];
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const option = useMemo(
-    () => getHeatmapChartOption(rawSeries, settings),
+    () => getHeatmapChartOption(rawSeries, settings, containerRef),
     [rawSeries, settings],
   );
 
   return (
-    <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>
+    <div
+      ref={containerRef}
+      className={cx(className, CS.flex, CS.flexColumn, CS.p1)}
+    >
       {hasTitle && (
         <ChartCaption
           series={rawSeries}
