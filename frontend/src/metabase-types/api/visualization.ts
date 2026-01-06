@@ -29,6 +29,7 @@ export const cardDisplayTypes = [
   "gauge",
   "progress",
   "funnel",
+  "heatmap",
   "object",
   "map",
   "scatter",

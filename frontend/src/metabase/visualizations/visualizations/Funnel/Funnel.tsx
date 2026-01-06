@@ -1,13 +1,17 @@
 import cx from "classnames";
 import React from "react";
+import { useMemo } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
 import CS from "metabase/css/core/index.css";
+import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatNullable } from "metabase/lib/formatting/nullable";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
+import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
 import { ChartSettingOrderedSimple } from "metabase/visualizations/components/settings/ChartSettingOrderedSimple";
+import { getFunnelChartOption } from "metabase/visualizations/echarts/funnel/option";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import { groupRawSeriesMetrics } from "metabase/visualizations/lib/dataset";
 import {
@@ -78,7 +82,7 @@ Object.assign(Funnel, {
   hasEmptyState: true,
 
   settings: {
-    ...columnSettings({ hidden: true }),
+    ...columnSettings(),
     ...dimensionSetting("funnel.dimension", {
       // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
       section: t`Data`,
@@ -115,19 +119,35 @@ Object.assign(Funnel, {
         const rowsOrder = settings["funnel.rows"];
         const rowsKeys = rows.map((row) => formatNullable(row[dimensionIndex]));
 
-        const getDefault = (keys: RowValue[]) =>
-          keys.map((key) => ({
+        const getDefault = (keys: RowValue[], existingRows?: any[]) => {
+          // Generate colors for the keys
+          const colorMapping =
+            existingRows?.reduce(
+              (acc, row) => {
+                if (row.color) {
+                  acc[row.key] = row.color;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            ) || {};
+
+          const colors = getColorsForValues(keys.map(String), colorMapping);
+
+          return keys.map((key) => ({
             key,
             name: key,
             enabled: true,
+            color: colors[String(key)],
           }));
+        };
         if (
           !rowsOrder ||
           !_.isArray(rowsOrder) ||
           !rowsOrder.every((setting) => setting.key !== undefined) ||
           orderDimension !== dimension
         ) {
-          return getUniqueFunnelRows(getDefault(rowsKeys));
+          return getUniqueFunnelRows(getDefault(rowsKeys, rowsOrder));
         }
 
         const removeMissingOrder = (keys: RowValue[], order: any) =>
@@ -137,13 +157,37 @@ Object.assign(Funnel, {
 
         const funnelRows = [
           ...removeMissingOrder(rowsKeys, rowsOrder),
-          ...getDefault(newKeys(rowsKeys, rowsOrder)),
+          ...getDefault(newKeys(rowsKeys, rowsOrder), rowsOrder),
         ];
 
         return getUniqueFunnelRows(funnelRows);
       },
-      props: {
-        hasEditSettings: false,
+      getProps: (
+        _object: RawSeries,
+        computedSettings: ComputedVisualizationSettings,
+        _onChange: (value: any) => void,
+        _extra: any,
+        onChangeSettings: (
+          settings: Partial<ComputedVisualizationSettings>,
+        ) => void,
+      ) => {
+        const funnelRows = computedSettings["funnel.rows"] as any[];
+
+        return {
+          hasEditSettings: true,
+          onChangeSeriesColor: (seriesKey: string, color: string) => {
+            if (funnelRows) {
+              onChangeSettings({
+                "funnel.rows": funnelRows.map((row) => {
+                  if (row.key !== seriesKey) {
+                    return row;
+                  }
+                  return { ...row, color };
+                }),
+              });
+            }
+          },
+        };
       },
       getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
         settings["funnel.dimension"] === null ||
@@ -174,6 +218,8 @@ Object.assign(Funnel, {
         options: [
           // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
           { name: t`Funnel`, value: "funnel" },
+          // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
+          { name: t`Funnel (Vertical)`, value: "echarts" },
           // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
           { name: t`Bar chart`, value: "bar" },
         ],
@@ -210,6 +256,65 @@ export function Funnel(props: VisualizationProps) {
 
   const renderingContext = useBrowserRenderingContext({ fontFamily });
 
+  // Create event handlers for vertical funnel (must be at top level for React hooks)
+  const echartsEventHandlers = useMemo(() => {
+    const [
+      {
+        data: { cols, rows },
+      },
+    ] = groupedRawSeries;
+
+    const dimensionIndex = cols.findIndex(
+      (col) => col.name === settings["funnel.dimension"],
+    );
+    const metricIndex = cols.findIndex(
+      (col) => col.name === settings["funnel.metric"],
+    );
+
+    return [
+      {
+        eventName: "click",
+        handler: (params: any) => {
+          if (params.componentType === "series") {
+            const sliceName = params.name;
+
+            // Find the row that matches this funnel segment
+            const dataRow = rows.find(
+              (row: any) => String(row[dimensionIndex]) === String(sliceName),
+            );
+
+            if (dataRow && props.onVisualizationClick) {
+              const dimensionCol = cols[dimensionIndex];
+              const metricCol = cols[metricIndex];
+
+              // Build the click object matching FunnelNormal format
+              const clickObject = {
+                value: dataRow[metricIndex], // The metric value
+                column: metricCol, // The metric column
+                dimensions: [
+                  {
+                    value: dataRow[dimensionIndex],
+                    column: dimensionCol,
+                  },
+                ],
+                settings,
+                event: params.event?.event,
+              };
+
+              // Check if it's clickable and trigger the handler
+              if (
+                !props.visualizationIsClickable ||
+                props.visualizationIsClickable(clickObject)
+              ) {
+                props.onVisualizationClick(clickObject);
+              }
+            }
+          }
+        },
+      },
+    ];
+  }, [groupedRawSeries, settings, props]);
+
   if (settings["funnel.type"] === "bar") {
     return (
       <TransformedVisualization
@@ -226,6 +331,28 @@ export function Funnel(props: VisualizationProps) {
   const canSelectTitle =
     !!onChangeCardAndRun &&
     (!isVisualizerViz || React.Children.count(titleMenuItems) === 1);
+  if (settings["funnel.type"] === "echarts") {
+    const option = getFunnelChartOption(groupedRawSeries, settings);
+
+    return (
+      <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>
+        {hasTitle && (
+          <ChartCaption
+            series={groupedRawSeries}
+            settings={settings}
+            icon={headerIcon}
+            getHref={getHref}
+            actionButtons={actionButtons}
+            onChangeCardAndRun={onChangeCardAndRun}
+          />
+        )}
+        <ResponsiveEChartsRenderer
+          option={option}
+          eventHandlers={echartsEventHandlers}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>

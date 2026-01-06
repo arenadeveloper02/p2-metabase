@@ -162,11 +162,22 @@ export const getCartesianChartOption = (
     });
   }
 
+  // Check if chart has bar series and dataZoom is enabled
+  const hasBarSeries = seriesOption.some(series => series.type === "bar");
+  const isDataZoomEnabled =
+    hasBarSeries && settings["bar.data_zoom_enabled"] === true;
+
+  // Calculate grid right padding to accommodate Y-axis dataZoom
+  const gridRight = isDataZoomEnabled
+    ? Math.max(chartMeasurements.padding.right || 0, 50)
+    : chartMeasurements.padding.right;
+
   return {
     ...getSharedEChartsOptions(isAnimated),
     grid: {
       ...chartMeasurements.padding,
       outerBoundsMode: "none",
+      right: gridRight,
     },
     dataset: echartsDataset,
     series: seriesOption,
@@ -183,5 +194,37 @@ export const getCartesianChartOption = (
       chartMeasurements,
       dataSeriesOptions,
     ),
+    // Add dataZoom for bar charts when enabled (mix zooming: slider, inside, and Y-axis)
+    ...(isDataZoomEnabled
+      ? {
+          dataZoom: [
+            {
+              // Slider data zoom (horizontal at bottom)
+              show: true,
+              type: "slider",
+              start: 0,
+              end: 100,
+              height: 20,
+              bottom: 10,
+            },
+            {
+              // Inside data zoom (mouse wheel/gesture)
+              type: "inside",
+              start: 0,
+              end: 100,
+            },
+            {
+              // Y-axis data zoom (vertical slider on the right)
+              show: true,
+              yAxisIndex: 0,
+              filterMode: "empty",
+              width: 30,
+              height: "80%",
+              showDataShadow: false,
+              right: 10,
+            },
+          ],
+        }
+      : {}),
   };
 };

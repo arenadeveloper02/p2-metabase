@@ -27,6 +27,14 @@ Object.assign(
     defaultSize: getDefaultSize("bar"),
     settings: {
       ...COMBO_CHARTS_SETTINGS_DEFINITIONS,
+      "bar.data_zoom_enabled": {
+        section: t`Display`,
+        title: t`Enable zoom controls`,
+        widget: "toggle",
+        default: false,
+        inline: true,
+        marginBottom: "1rem",
+      },
     } as any as VisualizationSettingsDefinitions,
   }),
 );

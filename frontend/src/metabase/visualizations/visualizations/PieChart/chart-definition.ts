@@ -1,3 +1,4 @@
+/* eslint-disable ttag/no-module-declaration */
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -100,7 +101,7 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       showColumnSetting: true,
       getDefault: (rawSeries: Series) => getDefaultPieColumns(rawSeries).metric,
     }),
-    ...columnSettings({ hidden: true }),
+    ...columnSettings(),
     ...dimensionSetting("pie.dimension", {
       hidden: true,
       get title() {
@@ -202,6 +203,20 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
         onChangeSettings,
       }),
       readDependencies: ["pie.dimension", "pie.rows"],
+    },
+    "pie.type": {
+      title: t`Chart type`,
+      section: t`Display`,
+      widget: "select",
+      props: {
+        options: [
+          { name: t`Pie/Donut`, value: "pie" },
+          { name: t`Donut (Classic)`, value: "donut-classic" },
+        ],
+      },
+      getDefault: () => {
+        return "pie";
+      },
     },
     "pie.show_legend": {
       get section() {
