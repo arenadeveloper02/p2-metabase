@@ -1,6 +1,5 @@
 import cx from "classnames";
-import React from "react";
-import { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -255,6 +254,7 @@ export function Funnel(props: VisualizationProps) {
   );
 
   const renderingContext = useBrowserRenderingContext({ fontFamily });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Create event handlers for vertical funnel (must be at top level for React hooks)
   const echartsEventHandlers = useMemo(() => {
@@ -332,10 +332,17 @@ export function Funnel(props: VisualizationProps) {
     !!onChangeCardAndRun &&
     (!isVisualizerViz || React.Children.count(titleMenuItems) === 1);
   if (settings["funnel.type"] === "echarts") {
-    const option = getFunnelChartOption(groupedRawSeries, settings);
+    const option = getFunnelChartOption(
+      groupedRawSeries,
+      settings,
+      containerRef,
+    );
 
     return (
-      <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>
+      <div
+        ref={containerRef}
+        className={cx(className, CS.flex, CS.flexColumn, CS.p1)}
+      >
         {hasTitle && (
           <ChartCaption
             series={groupedRawSeries}

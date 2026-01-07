@@ -1,9 +1,13 @@
+/* eslint-disable no-color-literals */
 import type { EChartsOption } from "echarts";
+import type React from "react";
 
 import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatValue } from "metabase/lib/formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
+
+import { getFunnelTooltipOption } from "./tooltip";
 
 export interface FunnelDataPoint {
   name: string;
@@ -16,6 +20,7 @@ export interface FunnelDataPoint {
 export function getFunnelChartOption(
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
+  containerRef?: React.RefObject<HTMLDivElement>,
 ): EChartsOption {
   const [
     {
@@ -24,16 +29,16 @@ export function getFunnelChartOption(
   ] = rawSeries;
 
   const dimensionIndex = cols.findIndex(
-    col => col.name === settings["funnel.dimension"],
+    (col) => col.name === settings["funnel.dimension"],
   );
   const metricIndex = cols.findIndex(
-    col => col.name === settings["funnel.metric"],
+    (col) => col.name === settings["funnel.metric"],
   );
 
   // Transform data for ECharts funnel - filter out null/empty values
   const data: FunnelDataPoint[] = rows
-    .filter(row => row[dimensionIndex] != null && row[metricIndex] != null)
-    .map(row => ({
+    .filter((row) => row[dimensionIndex] != null && row[metricIndex] != null)
+    .map((row) => ({
       name: String(row[dimensionIndex]),
       value: Number(row[metricIndex]),
     }))
@@ -41,7 +46,7 @@ export function getFunnelChartOption(
     .sort((a, b) => b.value - a.value);
 
   // Get colors from funnel.rows settings or generate default colors
-  const dimensionValues = data.map(d => d.name);
+  const dimensionValues = data.map((d) => d.name);
   let colorMapping: Record<string, string> = {};
 
   if (settings["funnel.rows"]) {
@@ -82,7 +87,7 @@ export function getFunnelChartOption(
 
   // Apply colors to data points
   // We'll configure labels at series level to show both names (outside) and values (inside)
-  const coloredData = data.map(d => ({
+  const coloredData = data.map((d) => ({
     ...d,
     itemStyle: {
       color: colors[d.name],
@@ -90,26 +95,41 @@ export function getFunnelChartOption(
   }));
 
   // Calculate max value for proper scaling
-  const maxValue = Math.max(...data.map(d => d.value), 1);
+  const maxValue = Math.max(...data.map((d) => d.value), 1);
+
+  // Get column display names for axis labels
+  const dimensionCol = cols[dimensionIndex];
+  const dimensionName =
+    dimensionCol?.display_name || settings["funnel.dimension"] || "";
 
   return {
-    tooltip: {
-      trigger: "item",
-      formatter: (params: any) => {
-        const dataPoint = data.find(d => d.name === params.name);
-        if (!dataPoint) {
-          return `${params.name}: ${params.value}`;
-        }
-
-        // Format metric value using the same formatter as labels
-        const formattedValue = formatMetricValue(dataPoint.value);
-
-        // Show only category name and formatted value
-        return `${params.name}: ${formattedValue}`;
+    tooltip: (containerRef
+      ? getFunnelTooltipOption(rawSeries, settings, containerRef, data)
+      : {
+          trigger: "item",
+          formatter: (params: any) => {
+            const dataPoint = data.find((d) => d.name === params.name);
+            if (!dataPoint) {
+              return `${params.name}: ${params.value}`;
+            }
+            const formattedValue = formatMetricValue(dataPoint.value);
+            return `${params.name}: ${formattedValue}`;
+          },
+        }) as any,
+    title: [
+      {
+        text: dimensionName,
+        left: "center",
+        top: 5,
+        textStyle: {
+          fontSize: 14,
+          fontWeight: "normal",
+          color: "#666",
+        },
       },
-    },
+    ],
     legend: {
-      data: data.map(d => d.name),
+      data: data.map((d) => d.name),
       bottom: 10,
     },
     series: [
@@ -119,7 +139,7 @@ export function getFunnelChartOption(
         left: "center",
         top: 20,
         bottom: 50,
-        width: "85%",
+        width: "70%",
         min: 0,
         max: maxValue,
         minSize: "0%",
@@ -166,7 +186,7 @@ export function getFunnelChartOption(
         left: "center",
         top: 20,
         bottom: 50,
-        width: "65%",
+        width: "50%",
         min: 0,
         max: maxValue,
         minSize: "0%",
@@ -178,7 +198,7 @@ export function getFunnelChartOption(
           show: true,
           position: "inside",
           formatter: (params: any) => {
-            const dataPoint = data.find(d => d.name === params.name);
+            const dataPoint = data.find((d) => d.name === params.name);
             return dataPoint ? formatMetricValue(dataPoint.value) : "";
           },
           color: "#fff",
@@ -189,7 +209,7 @@ export function getFunnelChartOption(
           show: false,
         },
         // Make this series invisible - only labels are visible
-        data: coloredData.map(d => ({
+        data: coloredData.map((d) => ({
           ...d,
           itemStyle: {
             color: "transparent",
