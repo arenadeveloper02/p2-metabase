@@ -581,61 +581,123 @@ const getColorConfig = (settings: ColorSettings = {}) => ({
     dark: baseColors.orion[110],
   },
   // Legacy colors (keeping existing ones for backward compatibility)
+
+  //commenting the colors introducing arena colors
+  // accent0: {
+  //   light: "#509EE3",
+  //   dark: "#509EE3",
+  // },
+  // accent1: {
+  //   light: "#88BF4D",
+  //   dark: "#88BF4D",
+  // },
+  // accent2: {
+  //   light: "#A989C5",
+  //   dark: "#A989C5",
+  // },
+  // accent3: {
+  //   light: "#EF8C8C",
+  //   dark: "#EF8C8C",
+  // },
+  // accent4: {
+  //   light: "#F9D45C",
+  //   dark: "#F9D45C",
+  // },
+  // accent5: {
+  //   light: "#F2A86F",
+  //   dark: "#F2A86F",
+  // },
+  // accent6: {
+  //   light: "#98D9D9",
+  //   dark: "#98D9D9",
+  // },
+  // accent7: {
+  //   light: "#7172AD",
+  //   dark: "#7172AD",
+  // },
+  // accent8: {
+  //   light: "#F975A5",
+  //   dark: "#F975A5",
+  // },
+  // accent9: {
+  //   light: "#C283DF",
+  //   dark: "#C283DF",
+  // },
+  // accent10: {
+  //   light: "#33B9DE",
+  //   dark: "#33B9DE",
+  // },
+  // accent11: {
+  //   light: "#E5D141",
+  //   dark: "#E5D141",
+  // },
+  // accent12: {
+  //   light: "#62D39D",
+  //   dark: "#62D39D",
+  // },
+  // accent13: {
+  //   light: "#FC9A6A",
+  //   dark: "#FC9A6A",
+  // },
   accent0: {
-    light: "#509EE3",
-    dark: "#509EE3",
-  },
-  accent1: {
-    light: "#88BF4D",
-    dark: "#88BF4D",
-  },
-  accent2: {
-    light: "#A989C5",
-    dark: "#A989C5",
-  },
-  accent3: {
-    light: "#EF8C8C",
-    dark: "#EF8C8C",
-  },
-  accent4: {
-    light: "#F9D45C",
-    dark: "#F9D45C",
-  },
-  accent5: {
-    light: "#F2A86F",
-    dark: "#F2A86F",
-  },
-  accent6: {
-    light: "#98D9D9",
-    dark: "#98D9D9",
-  },
-  accent7: {
-    light: "#7172AD",
-    dark: "#7172AD",
-  },
-  accent8: {
     light: "#F975A5",
     dark: "#F975A5",
   },
-  accent9: {
+  accent1: {
     light: "#C283DF",
     dark: "#C283DF",
   },
-  accent10: {
+  accent2: {
     light: "#33B9DE",
     dark: "#33B9DE",
   },
-  accent11: {
+  accent3: {
     light: "#E5D141",
     dark: "#E5D141",
   },
-  accent12: {
+  accent4: {
     light: "#62D39D",
     dark: "#62D39D",
   },
+  accent5: {
+    light: "#C64272",
+    dark: "#C64272",
+  },
+  accent6: {
+    light: "#8F50AC",
+    dark: "#8F50AC",
+  },
+  accent7: {
+    light: "#0086AB",
+    dark: "#0086AB",
+  },
+  accent8: {
+    light: "#B29E0E",
+    dark: "#B29E0E",
+  },
+  accent9: {
+    light: "#2FA06A",
+    dark: "#2FA06A",
+  },
+  accent10: {
+    light: "#FB97BC",
+    dark: "#FB97BC",
+  },
+  accent11: {
+    light: "#66CAE6",
+    dark: "#66CAE6",
+  },
+  accent12: {
+    light: "#ECDD71",
+    dark: "#ECDD71",
+  },
   accent13: {
-    light: "#FC9A6A",
-    dark: "#FC9A6A",
+    light: "#89DEB5",
+    dark: "#89DEB5",
+  },
+  accent14: {
+    light: "#D1A2E7",
+    dark: "#D1A2E7",
   },
   "bg-primary": {
     light: baseColors.white,

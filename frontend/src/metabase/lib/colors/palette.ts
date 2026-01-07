@@ -124,12 +124,14 @@ export const aliases: Record<string, (palette: ColorPalette) => string> = {
   "accent11-light": (palette) => tint(color(`accent11`, palette)),
   "accent12-light": (palette) => tint(color(`accent12`, palette)),
   "accent13-light": (palette) => tint(color(`accent13`, palette)),
+  "accent14-light": (palette) => tint(color(`accent14`, palette)),
   "accent8-dark": (palette) => shade(color(`accent8`, palette)),
   "accent9-dark": (palette) => shade(color(`accent9`, palette)),
   "accent10-dark": (palette) => shade(color(`accent10`, palette)),
   "accent11-dark": (palette) => shade(color(`accent11`, palette)),
   "accent12-dark": (palette) => shade(color(`accent12`, palette)),
   "accent13-dark": (palette) => shade(color(`accent13`, palette)),
+  "accent14-dark": (palette) => shade(color(`accent14`, palette)),
 };
 
 /**

@@ -36,6 +36,7 @@ const getBaseAccentsNames = (withGray = false) => {
   accents.push("accent11");
   accents.push("accent12");
   accents.push("accent13");
+  accents.push("accent14");
   return accents;
 };
 
