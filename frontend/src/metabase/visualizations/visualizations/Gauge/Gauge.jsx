@@ -12,7 +12,10 @@ import { formatValue } from "metabase/lib/formatting";
 import { color } from "metabase/ui/utils/colors";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { ChartSettingSegmentsEditor } from "metabase/visualizations/components/settings/ChartSettingSegmentsEditor";
-import { getGaugeChartOption } from "metabase/visualizations/echarts/gauge/option";
+import {
+  getGaugeChartOption,
+  getGaugeMeterOption,
+} from "metabase/visualizations/echarts/gauge/option";
 import { columnSettings } from "metabase/visualizations/lib/settings/column";
 import {
   getDefaultSize,
@@ -114,6 +117,7 @@ export default class Gauge extends Component {
         options: [
           { name: t`Gauge`, value: "gauge" },
           { name: t`Gauge (ECharts)`, value: "echarts" },
+          { name: t`Gauge Meter`, value: "meter" },
         ],
       },
       getDefault: () => "gauge",
@@ -123,14 +127,25 @@ export default class Gauge extends Component {
       section: t`Display`,
       widget: "number",
       getDefault: () => 0,
-      getHidden: (series, settings) => settings["gauge.type"] !== "echarts",
+      getHidden: (series, settings) =>
+        settings["gauge.type"] !== "echarts" &&
+        settings["gauge.type"] !== "meter",
     },
     "gauge.max": {
       title: t`Max`,
       section: t`Display`,
       widget: "number",
       getDefault: () => 100,
-      getHidden: (series, settings) => settings["gauge.type"] !== "echarts",
+      getHidden: (series, settings) =>
+        settings["gauge.type"] !== "echarts" &&
+        settings["gauge.type"] !== "meter",
+    },
+    "gauge.color": {
+      title: t`Color`,
+      section: t`Display`,
+      widget: "color",
+      getDefault: () => "#58D9F9",
+      getHidden: (series, settings) => settings["gauge.type"] !== "meter",
     },
     "gauge.range": {
       // currently not exposed in settings, just computed from gauge.segments
@@ -215,6 +230,24 @@ export default class Gauge extends Component {
     // Render ECharts version if selected
     if (settings["gauge.type"] === "echarts") {
       const option = getGaugeChartOption(series, settings);
+      return (
+        <div
+          className={cx(
+            className,
+            CS.flex,
+            CS.flexColumn,
+            CS.fullWidth,
+            CS.fullHeight,
+          )}
+        >
+          <ResponsiveEChartsRenderer option={option} />
+        </div>
+      );
+    }
+
+    // Render Gauge Meter version if selected
+    if (settings["gauge.type"] === "meter") {
+      const option = getGaugeMeterOption(series, settings);
       return (
         <div
           className={cx(
