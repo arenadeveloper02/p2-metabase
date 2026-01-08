@@ -15,6 +15,7 @@ interface ChartSettingColorPickerProps extends BoxProps {
   pillSize?: PillSize;
   onChange?: (newValue: string) => void;
   accentColorOptions?: AccentColorOptions;
+  additionalColors?: string[];
 }
 
 export const ChartSettingColorPicker = ({
@@ -30,17 +31,28 @@ export const ChartSettingColorPicker = ({
     harmony: false,
     gray: true,
   },
+  additionalColors = [],
   ...boxProps
 }: ChartSettingColorPickerProps) => {
   // For the SDK the ColorSelector is rendered inside a parent Mantine popover,
   // so as a nested popover it should not be rendered within a portal
   const withinPortal = !isEmbeddingSdk();
 
+  const colors = [...getAccentColors(accentColorOptions), ...additionalColors];
+
+  // Filter out invalid Box props
+  const {
+    onChangeSettings,
+    onChangeSeriesColor,
+    onUpdate,
+    ...validBoxProps
+  } = boxProps as any;
+
   return (
-    <Box className={cx(CS.flex, CS.alignCenter, className)} {...boxProps}>
+    <Box className={cx(CS.flex, CS.alignCenter, className)} {...validBoxProps}>
       <ColorSelector
         value={value}
-        colors={getAccentColors(accentColorOptions)}
+        colors={colors}
         withinPortal={withinPortal}
         onChange={onChange}
         pillSize={pillSize}

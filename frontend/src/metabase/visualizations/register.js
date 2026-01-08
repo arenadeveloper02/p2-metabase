@@ -28,11 +28,13 @@ import { ScatterPlot } from "./visualizations/ScatterPlot";
 import { SmartScalar } from "./visualizations/SmartScalar";
 import Table from "./visualizations/Table/Table";
 import { Text } from "./visualizations/Text";
+import { TextScalar } from "./visualizations/TextScalar";
 import { WaterfallChart } from "./visualizations/WaterfallChart";
 
 export default function () {
   registerVisualization(Scalar);
   registerVisualization(SmartScalar);
+  registerVisualization(TextScalar);
   registerVisualization(Progress);
   registerVisualization(Gauge);
   registerVisualization(Table);

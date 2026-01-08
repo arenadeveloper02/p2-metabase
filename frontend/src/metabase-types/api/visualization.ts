@@ -21,6 +21,7 @@ export const cardDisplayTypes = [
   "line",
   "pie",
   "scalar",
+  "textscalar",
   "row",
   "area",
   "combo",
