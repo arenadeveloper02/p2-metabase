@@ -4,7 +4,7 @@ import type { PillSize } from "metabase/common/components/ColorPill";
 import { ColorSelector } from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import { getAccentColors } from "metabase/lib/colors/groups";
+import { getAccentColors, getStatusColors } from "metabase/lib/colors/groups";
 import type { AccentColorOptions } from "metabase/lib/colors/types";
 import { Box, type BoxProps } from "metabase/ui";
 
@@ -38,7 +38,21 @@ export const ChartSettingColorPicker = ({
   // so as a nested popover it should not be rendered within a portal
   const withinPortal = !isEmbeddingSdk();
 
-  const colors = [...getAccentColors(accentColorOptions), ...additionalColors];
+  // Include status colors by default for all charts, but they won't be automatically applied
+  // Users can manually select them from the color palette if needed
+  const defaultAdditionalColors = getStatusColors();
+  const accentColors = getAccentColors(accentColorOptions);
+  
+  // Normalize all colors to uppercase hex format and remove duplicates
+  const normalizeColor = (color: string) => color.toUpperCase();
+  const allColors = [
+    ...accentColors.map(normalizeColor),
+    ...defaultAdditionalColors.map(normalizeColor),
+    ...additionalColors.map(normalizeColor),
+  ];
+  
+  // Remove duplicates while preserving order
+  const uniqueColors = Array.from(new Set(allColors));
 
   // Filter out invalid Box props
   const {
@@ -52,7 +66,7 @@ export const ChartSettingColorPicker = ({
     <Box className={cx(CS.flex, CS.alignCenter, className)} {...validBoxProps}>
       <ColorSelector
         value={value}
-        colors={colors}
+        colors={uniqueColors}
         withinPortal={withinPortal}
         onChange={onChange}
         pillSize={pillSize}

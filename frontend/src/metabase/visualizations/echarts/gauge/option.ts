@@ -233,6 +233,17 @@ export function getGaugeChartOption(
   };
 }
 
+interface GaugeSegment {
+  min: number;
+  max: number;
+  color?: string;
+  label?: string;
+}
+
+function segmentIsValid(s: GaugeSegment): boolean {
+  return !isNaN(s.min) && !isNaN(s.max);
+}
+
 export function getGaugeMeterOption(
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
@@ -367,6 +378,174 @@ export function getGaugeMeterOption(
             // Use the actual query value, not the parameter from ECharts
             return "{value|" + formattedValueString + "}";
           },
+          rich: {
+            value: {
+              fontSize: 50,
+              fontWeight: "bolder",
+              color: "#777",
+            },
+          },
+        },
+        data: [
+          {
+            value: clampedValue,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function getGaugeStageOption(
+  rawSeries: RawSeries,
+  settings: ComputedVisualizationSettings,
+): EChartsOption {
+  const [
+    {
+      data: { cols, rows },
+    },
+  ] = rawSeries;
+
+  // Get the value from the data
+  let value = 0;
+  if (rows.length > 0 && rows[0].length > 0) {
+    value = Number(rows[0][0]) || 0;
+  }
+
+  // Get segments/ranges from settings
+  const segments = (settings["gauge.segments"] || []).filter(
+    segmentIsValid,
+  ) as GaugeSegment[];
+
+  // Calculate min and max from segments or use defaults
+  let minValue = settings["gauge.min"] ?? 0;
+  let maxValue = settings["gauge.max"] ?? 100;
+
+  if (segments.length > 0) {
+    const allValues = [
+      ...segments.map((s: GaugeSegment) => s.min),
+      ...segments.map((s: GaugeSegment) => s.max),
+    ];
+    minValue = Math.min(...allValues);
+    maxValue = Math.max(...allValues);
+  }
+
+  // Clamp value to min/max range
+  const clampedValue = Math.min(Math.max(value, minValue), maxValue);
+
+  // Get column for formatting
+  const column = cols?.[0];
+  const columnSettings =
+    column && settings?.column ? settings.column(column) : {};
+
+  // Format value function - format the actual query value, not the clamped value
+  // Include prefix and suffix for the bottom detail value
+  const formattedValue = formatValue(value, {
+    column,
+    ...columnSettings,
+    compact: false,
+  });
+  const formattedValueString = String(formattedValue);
+
+  // Create a formatter function for axis labels that uses the same formatting
+  // but excludes prefix and suffix
+  const { prefix, suffix, ...axisLabelSettings } = columnSettings;
+  const formatAxisLabel = (labelValue: number): string => {
+    const formatted = formatValue(labelValue, {
+      column,
+      ...axisLabelSettings,
+      compact: false,
+    });
+    return String(formatted);
+  };
+
+  // Convert segments to ECharts color array format
+  // Format: [[ratio, color], [ratio, color], ...]
+  // Ratio is the position (0-1) where the color should start
+  const colorStops: Array<[number, string]> = [];
+  if (segments.length > 0) {
+    const range = maxValue - minValue;
+    segments.forEach((segment: GaugeSegment) => {
+      if (range > 0) {
+        const ratio = (segment.max - minValue) / range;
+        colorStops.push([ratio, segment.color || "#999"]);
+      }
+    });
+    // Ensure we have at least one color stop
+    if (colorStops.length === 0) {
+      colorStops.push([1, "#999"]);
+    }
+  } else {
+    // Default colors if no segments
+    colorStops.push([0.3, "#67e0e3"], [0.7, "#37a2da"], [1, "#fd666d"]);
+  }
+
+  // Calculate dynamic width based on the formatted value length
+  const estimatedCharWidth = 30;
+  const padding = 80;
+  const minWidth = 120;
+  const maxWidth = 400;
+  const calculatedWidth = Math.min(
+    Math.max(
+      formattedValueString.length * estimatedCharWidth + padding,
+      minWidth,
+    ),
+    maxWidth,
+  );
+
+  return {
+    series: [
+      {
+        type: "gauge",
+        min: minValue,
+        max: maxValue,
+        axisLine: {
+          lineStyle: {
+            width: 30,
+            color: colorStops,
+          },
+        },
+        pointer: {
+          itemStyle: {
+            color: "auto",
+          },
+        },
+        axisTick: {
+          distance: -30,
+          length: 8,
+          lineStyle: {
+            color: "#fff",
+            width: 2,
+          },
+        },
+        splitLine: {
+          distance: -30,
+          length: 30,
+          lineStyle: {
+            color: "#fff",
+            width: 4,
+          },
+        },
+        axisLabel: {
+          color: "inherit",
+          distance: 40,
+          fontSize: 20,
+          formatter: formatAxisLabel,
+        },
+        detail: {
+          valueAnimation: true,
+          formatter: function () {
+            // Use the actual query value, not the parameter from ECharts
+            return "{value|" + formattedValueString + "}";
+          },
+          color: "inherit",
+          backgroundColor: "#fff",
+          borderColor: "#999",
+          borderWidth: 2,
+          width: calculatedWidth,
+          lineHeight: 40,
+          height: 40,
+          borderRadius: 8,
           rich: {
             value: {
               fontSize: 50,

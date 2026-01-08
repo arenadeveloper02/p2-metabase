@@ -5,7 +5,7 @@ import _ from "underscore";
 import { ColorSelector } from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { color } from "metabase/lib/colors";
-import { getAccentColors } from "metabase/lib/colors/groups";
+import { getAccentColors, getStatusColors } from "metabase/lib/colors/groups";
 import { Box, Button, Icon, NumberInput, TextInput } from "metabase/ui";
 
 import S from "./ChartSettingSegmentsEditor.module.css";
@@ -127,6 +127,7 @@ function getColorPalette() {
     color("warning"),
     color("success"),
     color("bg-medium"),
+    ...getStatusColors(),
   ];
 }
 

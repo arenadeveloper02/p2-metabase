@@ -1,3 +1,4 @@
+/* eslint-disable no-color-literals */
 /* eslint-disable react/prop-types */
 import cx from "classnames";
 import * as d3 from "d3";
@@ -15,6 +16,7 @@ import { ChartSettingSegmentsEditor } from "metabase/visualizations/components/s
 import {
   getGaugeChartOption,
   getGaugeMeterOption,
+  getGaugeStageOption,
 } from "metabase/visualizations/echarts/gauge/option";
 import { columnSettings } from "metabase/visualizations/lib/settings/column";
 import {
@@ -118,6 +120,7 @@ export default class Gauge extends Component {
           { name: t`Gauge`, value: "gauge" },
           { name: t`Gauge (ECharts)`, value: "echarts" },
           { name: t`Gauge Meter`, value: "meter" },
+          { name: t`Stage Based Gauge`, value: "stage" },
         ],
       },
       getDefault: () => "gauge",
@@ -129,7 +132,8 @@ export default class Gauge extends Component {
       getDefault: () => 0,
       getHidden: (series, settings) =>
         settings["gauge.type"] !== "echarts" &&
-        settings["gauge.type"] !== "meter",
+        settings["gauge.type"] !== "meter" &&
+        settings["gauge.type"] !== "stage",
     },
     "gauge.max": {
       title: t`Max`,
@@ -138,7 +142,8 @@ export default class Gauge extends Component {
       getDefault: () => 100,
       getHidden: (series, settings) =>
         settings["gauge.type"] !== "echarts" &&
-        settings["gauge.type"] !== "meter",
+        settings["gauge.type"] !== "meter" &&
+        settings["gauge.type"] !== "stage",
     },
     "gauge.color": {
       title: t`Color`,
@@ -179,7 +184,9 @@ export default class Gauge extends Component {
       widget: ChartSettingSegmentsEditor,
       persistDefault: true,
       noPadding: true,
-      getHidden: (series, settings) => settings["gauge.type"] === "echarts",
+      getHidden: (series, settings) =>
+        settings["gauge.type"] === "echarts" ||
+        settings["gauge.type"] === "meter",
     },
   };
 
@@ -248,6 +255,24 @@ export default class Gauge extends Component {
     // Render Gauge Meter version if selected
     if (settings["gauge.type"] === "meter") {
       const option = getGaugeMeterOption(series, settings);
+      return (
+        <div
+          className={cx(
+            className,
+            CS.flex,
+            CS.flexColumn,
+            CS.fullWidth,
+            CS.fullHeight,
+          )}
+        >
+          <ResponsiveEChartsRenderer option={option} />
+        </div>
+      );
+    }
+
+    // Render Stage Based Gauge version if selected
+    if (settings["gauge.type"] === "stage") {
+      const option = getGaugeStageOption(series, settings);
       return (
         <div
           className={cx(
