@@ -322,6 +322,7 @@ const RowChartVisualization = ({
           labelledSeries={labelledSeries}
           hasXAxis={hasXAxis}
           hasYAxis={hasYAxis}
+          isModernDesign={settings["bar.modern_design"] === true}
         />
       </RowChartLegendLayout>
     </RowVisualizationRoot>

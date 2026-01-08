@@ -37,6 +37,14 @@ export const ROW_CHART_SETTINGS = {
       ],
     },
   },
+  "bar.modern_design": {
+    section: t`Display`,
+    title: t`Gradient`,
+    widget: "toggle",
+    default: false,
+    inline: true,
+    marginBottom: "1rem",
+  },
   ...GRAPH_GOAL_SETTINGS,
   "graph.x_axis.scale": {
     get section() {
