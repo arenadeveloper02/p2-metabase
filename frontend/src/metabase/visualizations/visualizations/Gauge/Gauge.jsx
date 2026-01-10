@@ -14,7 +14,6 @@ import { color } from "metabase/ui/utils/colors";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { ChartSettingSegmentsEditor } from "metabase/visualizations/components/settings/ChartSettingSegmentsEditor";
 import {
-  getGaugeChartOption,
   getGaugeMeterOption,
   getGaugeStageOption,
 } from "metabase/visualizations/echarts/gauge/option";
@@ -232,29 +231,15 @@ export default class Gauge extends Component {
       onHoverChange,
       visualizationIsClickable,
       onVisualizationClick,
+      width,
+      height,
     } = this.props;
 
-    // Render ECharts version if selected
-    if (settings["gauge.type"] === "echarts") {
-      const option = getGaugeChartOption(series, settings);
-      return (
-        <div
-          className={cx(
-            className,
-            CS.flex,
-            CS.flexColumn,
-            CS.fullWidth,
-            CS.fullHeight,
-          )}
-        >
-          <ResponsiveEChartsRenderer option={option} />
-        </div>
-      );
-    }
+
 
     // Render Gauge Meter version if selected
     if (settings["gauge.type"] === "meter") {
-      const option = getGaugeMeterOption(series, settings);
+      const option = getGaugeMeterOption(series, settings, width, height);
       return (
         <div
           className={cx(
@@ -272,7 +257,7 @@ export default class Gauge extends Component {
 
     // Render Stage Based Gauge version if selected
     if (settings["gauge.type"] === "stage") {
-      const option = getGaugeStageOption(series, settings);
+      const option = getGaugeStageOption(series, settings, width, height);
       return (
         <div
           className={cx(
@@ -295,19 +280,18 @@ export default class Gauge extends Component {
       },
     ] = series;
 
-    const width = this.props.width;
-    const height = this.props.height - PADDING_BOTTOM;
+    const d3Height = height - PADDING_BOTTOM;
 
     const viewBoxHeight =
       (ARC_DEGREES > 180 ? 50 : 0) + Math.sin(radians(ARC_DEGREES / 2)) * 50;
     const viewBoxWidth = 100;
 
     const svgAspectRatio = viewBoxHeight / viewBoxWidth;
-    const containerAspectRadio = height / width;
+    const containerAspectRadio = d3Height / width;
 
     let svgWidth;
     if (containerAspectRadio < svgAspectRatio) {
-      svgWidth = Math.min(MAX_WIDTH, height / svgAspectRatio);
+      svgWidth = Math.min(MAX_WIDTH, d3Height / svgAspectRatio);
     } else {
       svgWidth = Math.min(MAX_WIDTH, width);
     }
@@ -362,7 +346,7 @@ export default class Gauge extends Component {
           style={{
             width: svgWidth * expandWidthFactor,
             height: svgHeight,
-            top: (height - svgHeight) / 2,
+            top: (d3Height - svgHeight) / 2,
             left:
               (width - svgWidth) / 2 -
               // shift to the left the
