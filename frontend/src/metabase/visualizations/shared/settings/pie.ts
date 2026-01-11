@@ -61,6 +61,8 @@ export function getDefaultShowLabels(settings: ComputedVisualizationSettings) {
 
 export const getDefaultPercentVisibility = () => "legend";
 
+export const getDefaultShowLegendPosition = () => "top";
+
 export const getDefaultSliceThreshold = () => SLICE_THRESHOLD * 100;
 
 export function getKeyFromDimensionValue(dimensionValue: RowValue) {

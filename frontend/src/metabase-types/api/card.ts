@@ -327,6 +327,7 @@ export type VisualizationSettings = {
   "pie.decimal_places"?: number;
   "pie.slice_threshold"?: number;
   "pie.colors"?: Record<string, string>;
+  "pie.legend_position"?: "top" | "bottom" | "left" | "right";
 
   // Sankey settings
   "sankey.source"?: string;

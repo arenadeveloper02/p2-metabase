@@ -18,6 +18,7 @@ import {
   getDefaultPieColumns,
   getDefaultShowLabels,
   getDefaultShowLegend,
+  getDefaultShowLegendPosition,
   getDefaultShowTotal,
   getDefaultSliceThreshold,
   getDefaultSortRows,
@@ -229,6 +230,27 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       getDefault: getDefaultShowLegend,
       inline: true,
       marginBottom: "1rem",
+    },
+    "pie.legend_position": {
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Legend position`;
+      },
+      widget: "select",
+      getDefault: getDefaultShowLegendPosition,
+      props: {
+        options: [
+          { name: t`Top`, value: "top" },
+          { name: t`Bottom`, value: "bottom" },
+          { name: t`Left`, value: "left" },
+          { name: t`Right`, value: "right" },
+        ],
+      },
+      getHidden: (_series, settings) =>
+        settings["pie.type"] !== "donut-classic" || !settings["pie.show_legend"],
+      readDependencies: ["pie.type", "pie.show_legend"],
     },
     "pie.show_total": {
       get section() {
