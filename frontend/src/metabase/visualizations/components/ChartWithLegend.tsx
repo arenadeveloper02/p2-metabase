@@ -53,6 +53,7 @@ type ChartWithLegendProps = {
   isDashboard?: boolean;
   isDocument?: boolean;
   onToggleSeriesVisibility?: (event: MouseEvent, index: number) => void;
+  legendPosition?: "top" | "bottom" | "left" | "right";
   forwardedRef?: Ref<HTMLDivElement>;
 };
 
@@ -74,6 +75,7 @@ const ChartWithLegendInner = ({
   isDashboard,
   isDocument,
   onToggleSeriesVisibility = () => {},
+  legendPosition,
   forwardedRef,
 }: ChartWithLegendProps) => {
   const [stableWidth, setStableWidth] = useState(width);
@@ -110,7 +112,44 @@ const ChartWithLegendInner = ({
     const isHorizontal =
       calculatedGridSize.width > calculatedGridSize.height / GRID_ASPECT_RATIO;
 
-    if (isHorizontal && adjustedWidth > HIDE_HORIZONTAL_LEGEND_THRESHOLD) {
+    if (legendPosition) {
+      if (legendPosition === "top" || legendPosition === "bottom") {
+        type = "vertical";
+        LegendComponent = LegendHorizontal;
+      } else {
+        type = "horizontal";
+        LegendComponent = LegendVertical;
+      }
+
+      if (type === "horizontal" && adjustedWidth < HIDE_SECONDARY_INFO_THRESHOLD) {
+        processedLegendTitles = legendTitles.map((title) =>
+          Array.isArray(title) ? title.slice(0, 1) : title,
+        );
+      } else if (type === "vertical") {
+        processedLegendTitles = legendTitles.map((title) =>
+          Array.isArray(title) ? title.join(" ") : title,
+        );
+      }
+
+      const isHorizontalLayout = type === "horizontal";
+      if (isHorizontalLayout) {
+        const desiredWidth = adjustedHeight * aspectRatio;
+        if (desiredWidth > adjustedWidth * (4 / 5)) {
+          flexChart = true;
+        } else {
+          chartWidth = desiredWidth;
+        }
+        chartHeight = adjustedHeight;
+      } else {
+        const desiredHeight = adjustedWidth * (1 / aspectRatio);
+        if (desiredHeight > adjustedHeight * (3 / 4)) {
+          flexChart = true;
+        } else {
+          chartHeight = desiredHeight;
+        }
+        chartWidth = adjustedWidth;
+      }
+    } else if (isHorizontal && adjustedWidth > HIDE_HORIZONTAL_LEGEND_THRESHOLD) {
       type = "horizontal";
       LegendComponent = LegendVertical;
 
@@ -120,7 +159,7 @@ const ChartWithLegendInner = ({
         );
       }
       const desiredWidth = adjustedHeight * aspectRatio;
-      if (desiredWidth > adjustedWidth * (2 / 3)) {
+      if (desiredWidth > adjustedWidth * (4 / 5)) {
         flexChart = true;
       } else {
         chartWidth = desiredWidth;
@@ -181,6 +220,7 @@ const ChartWithLegendInner = ({
         DashboardS.fullscreenNormalText,
         styles.ChartWithLegend,
         styles[layout.type],
+        legendPosition ? styles[legendPosition] : styles[layout.type],
         layout.flexChart && styles.flexChart,
       )}
       style={{

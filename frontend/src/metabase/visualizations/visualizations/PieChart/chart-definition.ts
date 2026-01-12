@@ -230,6 +230,24 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       inline: true,
       marginBottom: "1rem",
     },
+    "pie.legend_position": {
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Legend position`;
+      },
+      widget: "select",
+      props: {
+        options: [
+          { get name() { return t`Top`; }, value: "top" },
+          { get name() { return t`Bottom`; }, value: "bottom" },
+          { get name() { return t`Left`; }, value: "left" },
+          { get name() { return t`Right`; }, value: "right" },
+        ],
+      },
+      getDefault: () => "right",
+    },
     "pie.show_total": {
       get section() {
         return t`Display`;

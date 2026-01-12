@@ -92,3 +92,29 @@
   flex-shrink: 1;
   min-width: 66%;
 }
+/* POSITIONS */
+.ChartWithLegend.top {
+  flex-direction: column;
+}
+
+.ChartWithLegend.bottom {
+  flex-direction: column-reverse;
+}
+
+.ChartWithLegend.left {
+  flex-direction: row;
+}
+
+.ChartWithLegend.right {
+  flex-direction: row-reverse;
+}
+
+.ChartWithLegend.top .LegendWrapper,
+.ChartWithLegend.bottom .LegendWrapper {
+  flex-direction: column;
+}
+
+.ChartWithLegend.left .LegendWrapper,
+.ChartWithLegend.right .LegendWrapper {
+  flex-direction: row;
+}

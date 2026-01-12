@@ -454,7 +454,8 @@ export function PieChart(props: VisualizationProps) {
            className={props.className}
            chartClassName={S.PieChartContainer}
            gridSize={props.gridSize}
-          aspectRatio={1.2}
+           legendPosition={settings["pie.legend_position"]}
+           aspectRatio={1.2}
           hovered={props.hovered}
           isDashboard={isDashboard}
           onToggleSeriesVisibility={(e, index) => {
