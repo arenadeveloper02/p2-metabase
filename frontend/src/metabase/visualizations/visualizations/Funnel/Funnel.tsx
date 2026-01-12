@@ -227,6 +227,19 @@ Object.assign(Funnel, {
       getDefault: (series: RawSeries) => (series.length > 1 ? "bar" : "funnel"),
       useRawSeries: true,
     },
+    "funnel.values_below_labels": {
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Show values below labels`;
+      },
+      widget: "toggle",
+      getDefault: () => false,
+      inline: true,
+      getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
+        settings["funnel.type"] !== "echarts",
+    },
   },
 });
 

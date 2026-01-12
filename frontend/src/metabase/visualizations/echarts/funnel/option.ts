@@ -45,6 +45,8 @@ export function getFunnelChartOption(
     // Sort by value descending for proper pyramid shape
     .sort((a, b) => b.value - a.value);
 
+  const valuesBelowLabels = settings["funnel.values_below_labels"];
+
   // Get colors from funnel.rows settings or generate default colors
   const dimensionValues = data.map((d) => d.name);
   let colorMapping: Record<string, string> = {};
@@ -150,12 +152,33 @@ export function getFunnelChartOption(
         label: {
           show: true,
           position: "outer",
-          formatter: "{b}",
-          color: "#333",
+          formatter: (params: any) => {
+            if (valuesBelowLabels) {
+              const dataPoint = data.find(d => d.name === params.name);
+              const formattedValue = dataPoint ? formatMetricValue(dataPoint.value) : "";
+              return `{value|${formattedValue}}\n{name|${params.name}}`;
+            }
+            return params.name;
+          },
+          color: "#2D354C",
+          fontSize: 12,
+          rich: {
+            name: {
+              color: "#949AAB",
+              fontSize: 12,
+              lineHeight: 16,
+            },
+            value: {
+              color: "#2D354C",
+              fontSize: 14,
+              fontWeight: "bold",
+              lineHeight: 20,
+            },
+          },
         },
         labelLine: {
           show: true,
-          length: 20,
+          length: valuesBelowLabels ? 40 : 25,
           lineStyle: {
             width: 1,
             type: "solid",
@@ -195,7 +218,7 @@ export function getFunnelChartOption(
         gap: 2,
         // Label configuration: values inside
         label: {
-          show: true,
+          show: !valuesBelowLabels,
           position: "inside",
           formatter: (params: any) => {
             const dataPoint = data.find((d) => d.name === params.name);
@@ -208,7 +231,8 @@ export function getFunnelChartOption(
         labelLine: {
           show: false,
         },
-        // Make this series invisible - only labels are visible
+        // Make this series invisible and silent - events pass through to the main series
+        silent: true,
         data: coloredData.map((d) => ({
           ...d,
           itemStyle: {
@@ -217,10 +241,10 @@ export function getFunnelChartOption(
             borderWidth: 0,
           },
         })),
-        // Emphasis configuration for scaling labels on hover
+        // Emphasis configuration
         emphasis: {
           label: {
-            fontSize: 18,
+            fontSize: 14,
             fontWeight: "bold",
           },
         },
