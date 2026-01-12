@@ -1,5 +1,5 @@
 import type { EChartsCoreOption } from "echarts/core";
-import type { YAXisOption } from "echarts/types/dist/shared";
+import type { XAXisOption, YAXisOption } from "echarts/types/dist/shared";
 import type { OptionSourceData } from "echarts/types/src/util/types";
 
 import { alpha } from "metabase/lib/colors";
@@ -195,11 +195,6 @@ export const getCartesianChartOption = (
           axisTick: {
             show: false, // Hide ticks for cleaner look
           },
-          axisLabel: {
-            ...(axesConfig.xAxis.axisLabel || {}),
-            margin: 12,
-            color: renderingContext.getColor("text-medium"),
-          },
         }
       : axesConfig.xAxis;
 
@@ -212,11 +207,6 @@ export const getCartesianChartOption = (
           },
           axisTick: {
             show: false,
-          },
-          axisLabel: {
-            ...axis.axisLabel,
-            color: renderingContext.getColor("text-medium"),
-            margin: 8,
           },
           splitLine:
             index === 0
@@ -236,8 +226,8 @@ export const getCartesianChartOption = (
       : axesConfig.yAxis;
 
     modernAxesConfig = {
-      xAxis: modernXAxis,
-      yAxis: modernYAxis,
+      xAxis: modernXAxis as XAXisOption,
+      yAxis: modernYAxis as YAXisOption[],
     };
   }
 
@@ -248,7 +238,6 @@ export const getCartesianChartOption = (
       ...chartMeasurements.padding,
       outerBoundsMode: "none",
       right: gridRight,
-      ...(isModernDesign ? { containLabel: true } : {}),
     },
     dataset: echartsDataset,
     series: seriesOption,

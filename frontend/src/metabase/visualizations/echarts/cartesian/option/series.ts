@@ -522,8 +522,8 @@ const buildEChartsBarSeries = (
     type: "bar",
     z: Z_INDEXES.series,
     yAxisIndex,
-    barGap: isModernDesign ? "25%" : 0,
-    barCategoryGap: isModernDesign ? "5%" : undefined,
+    barGap: 0,
+    barCategoryGap: undefined,
     barMinHeight: 1,
     stack,
     barWidth: computeBarWidth(

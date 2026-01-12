@@ -91,6 +91,8 @@ export function useModelsAndOption(
         model.dimensionModel.column.display_name,
       );
     }
+
+
     return model;
   }, [
     card.display,
