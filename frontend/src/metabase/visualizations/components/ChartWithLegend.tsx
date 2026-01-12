@@ -188,11 +188,20 @@ const ChartWithLegendInner = ({
         paddingBottom: PADDING,
         paddingLeft: PADDING,
         paddingRight: PADDING,
+        // Adjust alignment based on context
+        justifyContent: isDashboard || isDocument ? 'flex-start' : 'center',
       }}
       ref={forwardedRef}
     >
       {legend && (
-        <div className={cx(styles.LegendWrapper)} data-testid="chart-legend">
+        <div 
+          className={cx(styles.LegendWrapper)} 
+          data-testid="chart-legend"
+          style={{
+            // Don't let legend grow in dashboards/documents
+            flexGrow: isDashboard || isDocument ? 0 : 0,
+          }}
+        >
           {legend}
         </div>
       )}
@@ -205,17 +214,7 @@ const ChartWithLegendInner = ({
       >
         {layout.hasDimensions && children}
       </div>
-      {/* spacer div to balance legend */}
-      {legend && (
-        <div
-          className={cx(styles.LegendSpacer)}
-          // don't center the chart on dashboards
-          style={isDashboard || isDocument ? { flexBasis: 0 } : {}}
-          data-testid="chart-legend-spacer"
-        >
-          {legend}
-        </div>
-      )}
+
     </div>
   );
 };

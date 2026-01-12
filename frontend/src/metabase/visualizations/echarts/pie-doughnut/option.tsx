@@ -63,9 +63,6 @@ export function getDonutChartData(
     const value = Number(row[metricIndex]) || 0;
     dataMap.set(key, value);
   });
-
-  // Calculate slice threshold (default to 2.5% if not set)
-  const sliceThreshold = (settings["pie.slice_threshold"] ?? 2.5) / 100;
   
   // Generate candidate slices based on pieRows and hiddenSlices
   let candidateSlices: DoughnutDataPoint[] = [];
@@ -90,27 +87,15 @@ export function getDonutChartData(
 
   // Logic for "Other" grouping and Max Slices
   const MAX_SLICES = 20;
-  const keptSlices: DoughnutDataPoint[] = [];
+
+  // Sort candidates by value descending
+  candidateSlices.sort((a, b) => b.value - a.value);
+
+  // Initialize keptSlices with all candidates; pooledSlices is empty initially
+  // We bypass 'pie.slice_threshold' to strictly enforce "Top 20" logic
+  // as requested ("always 20 slices").
+  const keptSlices: DoughnutDataPoint[] = [...candidateSlices];
   const pooledSlices: DoughnutDataPoint[] = [];
-
-  // 1. Separate by Threshold
-  candidateSlices.forEach((slice) => {
-    const percentage = totalValue > 0 ? slice.value / totalValue : 0;
-    if (percentage < sliceThreshold) {
-      pooledSlices.push(slice);
-    } else {
-      keptSlices.push(slice);
-    }
-  });
-
-  // 2. Promote single pooled slice if it exists
-  if (pooledSlices.length === 1) {
-    keptSlices.push(pooledSlices[0]);
-    pooledSlices.length = 0;
-  }
-
-  // 3. Enforce Max Slices (sort by value descending)
-  keptSlices.sort((a, b) => b.value - a.value);
 
   while (keptSlices.length + (pooledSlices.length > 0 ? 1 : 0) > MAX_SLICES) {
     // Move smallest to pool (last element)
@@ -223,10 +208,12 @@ export function getDoughnutChartOption(
     const otherSlice = data.find(d => d.name === getOtherSliceName());
     
     // If hovering "Other" and it has detailed children, show those.
-    // Otherwise show the top-level slices.
+    // Otherwise show ONLY the hovered slice.
     let tooltipData = data;
     if (isOtherHovered && otherSlice?.children) {
       tooltipData = otherSlice.children;
+    } else {
+      tooltipData = data.filter(d => d.name === params.name);
     }
 
     // Generate rows
@@ -254,7 +241,7 @@ export function getDoughnutChartOption(
     const tooltipModel = {
       header: String(settings["pie.dimension"] || "Data"),
       rows: tooltipRows,
-      footer: showTotal
+      footer: (showTotal && tooltipData.length > 1)
         ? {
             name: t`Total`,
             values: [formatMetric(tooltipTotal), formatPercent(1, "chart")], // 100%
@@ -275,7 +262,9 @@ export function getDoughnutChartOption(
   // Since Legend is external now, we don't checking "pie.legend_position".
   // We center the donut occupying most space.
   const center = ["50%", "50%"];
-  const radius = ["40%", "70%"]; 
+
+  const hasLabels = showLabels || showPercentOnChart;
+  const radius = hasLabels ? ["35%", "55%"] : ["40%", "70%"];
   
   const actualWidth = width ?? 500;
   const actualHeight = height ?? 400;
@@ -285,13 +274,16 @@ export function getDoughnutChartOption(
   const cy = actualHeight * 0.5;
 
   const minDim = Math.min(actualWidth, actualHeight);
-  const innerRadiusPx = (minDim / 2) * 0.4; // 40% of half-min-dimension
+  // Adjust inner calculation to match the dynamic radius
+  // 55% radius -> ~27% minDim. 
+  // We use a safe approximation for text width.
+  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.35 : 0.4); 
   // Available width is diameter of hole minus some padding
   const textMaxWidth = innerRadiusPx * 2 * 0.9;
 
   return {
     tooltip: {
-      ...getTooltipBaseOption(containerRef),
+      ...getTooltipBaseOption(containerRef as React.RefObject<HTMLDivElement>),
       trigger: "item",
       formatter: tooltipFormatter,
     },
@@ -320,7 +312,7 @@ export function getDoughnutChartOption(
         type: "pie",
         radius,
         center,
-        avoidLabelOverlap: false,
+        avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 10,
           borderColor: "#fff",
