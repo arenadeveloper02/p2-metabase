@@ -14,8 +14,10 @@ import type { ComputedVisualizationSettings } from "metabase/visualizations/type
 import type { RawSeries } from "metabase-types/api";
 
 import {
+  DIMENSIONS,
   OTHER_SLICE_KEY,
   getOtherSliceName,
+  getTotalText,
 } from "../pie/constants";
 
 export interface DoughnutDataPoint {
@@ -131,6 +133,8 @@ export function getDoughnutChartOption(
   width?: number,
   height?: number,
   containerRef?: React.RefObject<HTMLDivElement>,
+  hoveredName?: string,
+  renderingContext?: any,
 ): EChartsOption {
   const { data, total, metricCol, metricColSettings } = chartData;
   
@@ -253,9 +257,17 @@ export function getDoughnutChartOption(
   };
 
   // Calculate center text for "show total"
-  let centerText = "";
+  let centerValue = "";
+  let centerLabel = "";
   if (showTotal && total > 0) {
-    centerText = formatMetric(total);
+    const hoveredSlice = hoveredName ? data.find(d => d.name === hoveredName) : null;
+    if (hoveredSlice) {
+      centerValue = formatMetric(hoveredSlice.value);
+      centerLabel = hoveredSlice.name;
+    } else {
+      centerValue = formatMetric(total);
+      centerLabel = getTotalText();
+    }
   }
 
   // Determine dynamic chart position and radius
@@ -290,20 +302,43 @@ export function getDoughnutChartOption(
     // No internal legend
     graphic: showTotal
       ? {
-          type: "text",
-          style: {
-            x: cx,
-            y: cy,
-            text: centerText,
-            fontSize: 24,
-            fontWeight: "bold",
-            align: "center",
-            verticalAlign: "middle",
-            fill: "#000",
-            width: textMaxWidth,
-            overflow: "truncate",
-            ellipsis: "...",
-          },
+          type: "group",
+          left: "center",
+          top: "center",
+          children: [
+            {
+              // Value
+              type: "text",
+              style: {
+                text: centerValue,
+                fontSize: DIMENSIONS.total.valueFontSize,
+                fontWeight: DIMENSIONS.total.fontWeight,
+                align: "center",
+                fill: renderingContext?.getColor?.("text-primary") || "#000",
+                width: textMaxWidth,
+                overflow: "truncate",
+                ellipsis: "...",
+              },
+              left: "center",
+              top: centerLabel ? -14 : 0,
+            },
+            {
+              // Label
+              type: "text",
+              style: {
+                text: centerLabel,
+                fontSize: DIMENSIONS.total.labelFontSize,
+                fontWeight: DIMENSIONS.total.fontWeight,
+                align: "center",
+                fill: renderingContext?.getColor?.("text-secondary") || "#949AAB",
+                width: textMaxWidth,
+                overflow: "truncate",
+                ellipsis: "...",
+              },
+              left: "center",
+              top: 14,
+            },
+          ],
         }
       : undefined,
     series: [
@@ -324,9 +359,9 @@ export function getDoughnutChartOption(
         },
         emphasis: {
           label: {
-            show: true,
+            show: showLabels || showPercentOnChart,
             fontWeight: "bold",
-            formatter: (params: any) => params.name,
+            formatter: (params: any) => getLabelText(params.dataIndex),
           },
         },
         labelLine: {

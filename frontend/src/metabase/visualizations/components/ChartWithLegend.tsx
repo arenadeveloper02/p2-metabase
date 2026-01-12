@@ -189,7 +189,8 @@ const ChartWithLegendInner = ({
         paddingLeft: PADDING,
         paddingRight: PADDING,
         // Adjust alignment based on context
-        justifyContent: isDashboard || isDocument ? 'flex-start' : 'center',
+        justifyContent: 'center',
+        columnGap: 32,
       }}
       ref={forwardedRef}
     >
@@ -198,8 +199,8 @@ const ChartWithLegendInner = ({
           className={cx(styles.LegendWrapper)} 
           data-testid="chart-legend"
           style={{
-            // Don't let legend grow in dashboards/documents
-            flexGrow: isDashboard || isDocument ? 0 : 0,
+            // Don't let legend grow to minimize gap with chart
+            flexGrow: 0,
           }}
         >
           {legend}

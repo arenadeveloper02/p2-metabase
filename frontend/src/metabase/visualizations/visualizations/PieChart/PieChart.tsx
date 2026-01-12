@@ -229,18 +229,34 @@ export function PieChart(props: VisualizationProps) {
     return getDonutChartData(rawSeriesWithRemappings, settings, hiddenSlices);
   }, [rawSeriesWithRemappings, settings, hiddenSlices]);
 
+  // Calculate Full Data (ignoring hidden state) for the Legend List
+  // This ensures Legend shows the "Top 20" structure even if some are hidden.
+  const fullDonutData = useMemo(() => {
+    if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings)
+      return null;
+    return getDonutChartData(rawSeriesWithRemappings, settings, new Set());
+  }, [rawSeriesWithRemappings, settings]);
+
   const doughnutOption = useMemo(() => {
     if (!donutData) {
       return null;
     }
+
+    const hoveredIndex = props.hovered?.pieLegendHoverIndex;
+    const hoveredName =
+      hoveredIndex != null ? fullDonutData?.data[hoveredIndex]?.name : undefined;
+
     return getDoughnutChartOption(
       donutData,
       settings,
       chartSize.width,
       chartSize.height,
       containerRef,
+      hoveredName,
+      renderingContext,
     );
-  }, [donutData, settings, chartSize]);
+  }, [donutData, settings, chartSize, props.hovered, fullDonutData]);
+
 
   // Create event handlers for classic doughnut
   const doughnutEventHandlers = useMemo(() => {
@@ -326,15 +342,29 @@ export function PieChart(props: VisualizationProps) {
             }
         },
       },
+      {
+        eventName: "mouseover",
+        handler: (params: any) => {
+          if (params.componentType === "series" && fullDonutData) {
+            const index = fullDonutData.data.findIndex(d => d.name === params.name);
+            if (index !== -1) {
+              onHoverChange({
+                index,
+                element: params.event?.event?.target,
+              });
+            }
+          }
+        },
+      },
+      {
+        eventName: "mouseout",
+        handler: () => {
+          onHoverChange(null);
+        },
+      },
     ];
-  }, [settings, rawSeriesWithRemappings, props]);
+  }, [settings, rawSeriesWithRemappings, props, fullDonutData, onHoverChange]);
 
-  // Calculate Full Data (ignoring hidden state) for the Legend List
-  // This ensures Legend shows the "Top 20" structure even if some are hidden.
-  const fullDonutData = useMemo(() => {
-     if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings) return null;
-     return getDonutChartData(rawSeriesWithRemappings, settings, new Set());
-  }, [rawSeriesWithRemappings, settings]);
 
   const classicLegendItems = useMemo(() => {
       // Use fullDonutData to populate legend so it matches the "Top 20 + Other" logic
@@ -449,6 +479,7 @@ export function PieChart(props: VisualizationProps) {
           className={props.className}
           chartClassName={S.PieChartContainer}
           gridSize={adjustedGridSize}
+          aspectRatio={1.2}
           hovered={props.hovered}
           isDashboard={isDashboard}
           onToggleSeriesVisibility={(e, index) => {
