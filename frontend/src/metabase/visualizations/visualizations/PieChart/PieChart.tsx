@@ -443,42 +443,17 @@ export function PieChart(props: VisualizationProps) {
   if (settings["pie.type"] === "donut-classic") {
        if (!doughnutOption) return null;
        const [titles, colors, hiddenIndices] = classicLegendItems as [string[][], string[], number[]];
-       
-       // Adjust gridSize based on legend position setting
-       const legendPosition = settings["pie.legend_position"] || "top";
-       let adjustedGridSize = props.gridSize;
-       
-       // Manipulate grid size to force desired legend position
-       // ChartWithLegend places legend vertically if width > height/(4/3)
-       // Otherwise it places it horizontally
-       // Use extreme values to ensure the layout is forced
-       if (adjustedGridSize) {
-         if (legendPosition === "left" || legendPosition === "right") {
-           // Force horizontal layout (very wide) -> legend will be vertical
-           adjustedGridSize = {
-             width: 100,
-             height: 1,
-           };
-         } else {
-           // Force vertical layout (very tall) -> legend will be horizontal  
-           adjustedGridSize = {
-             width: 1,
-             height: 100,
-           };
-         }
-       }
-       
-       return (
-        <ChartWithLegend
-          key="donut-classic"
-          legendTitles={titles}
-          legendHiddenIndices={hiddenIndices}
-          legendColors={colors}
-          showLegend={showLegend}
-          onHoverChange={onHoverChange}
-          className={props.className}
-          chartClassName={S.PieChartContainer}
-          gridSize={adjustedGridSize}
+              return (
+         <ChartWithLegend
+           key="donut-classic"
+           legendTitles={titles}
+           legendHiddenIndices={hiddenIndices}
+           legendColors={colors}
+           showLegend={showLegend}
+           onHoverChange={onHoverChange}
+           className={props.className}
+           chartClassName={S.PieChartContainer}
+           gridSize={props.gridSize}
           aspectRatio={1.2}
           hovered={props.hovered}
           isDashboard={isDashboard}
