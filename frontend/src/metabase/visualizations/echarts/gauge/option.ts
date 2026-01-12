@@ -341,6 +341,8 @@ export function getGaugeStageOption(
     series: [
       {
         type: "gauge",
+        startAngle: 180,
+        endAngle: 0,
         min: minValue,
         max: maxValue,
         radius: "100%",
@@ -394,7 +396,7 @@ export function getGaugeStageOption(
           lineHeight: 40 * scale,
           height: 40 * scale,
           borderRadius: 8 * scale,
-          offsetCenter: [0, "35%"],
+          offsetCenter: [0, "40%"],
           rich: {
             value: {
               fontSize: 50 * scale,
