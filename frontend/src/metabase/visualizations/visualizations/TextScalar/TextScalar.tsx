@@ -176,7 +176,6 @@ export class TextScalar extends Component<
       props: {
         placeholder: "Auto",
       },
-      getDefault: () => 70, // Default to 70px to match Scalar's default font size
     },
     "textscalar.font_weight": {
       get title() {
@@ -307,7 +306,7 @@ export class TextScalar extends Component<
 
     const textColor = settings["textscalar.color"];
     const hoverColor = settings["textscalar.hover_color"];
-    const fontSize = settings["textscalar.font_size"];
+    const fontSize = settings["textscalar.font_size"] ?? 70;
     const fontWeight = settings["textscalar.font_weight"] || "normal";
 
     const textStyle: React.CSSProperties = {
