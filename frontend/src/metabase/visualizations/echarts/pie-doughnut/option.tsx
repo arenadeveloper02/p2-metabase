@@ -87,29 +87,33 @@ export function getDonutChartData(
   // Calculate total of CANDIDATES (visible data)
   const totalValue = candidateSlices.reduce((sum, s) => sum + s.value, 0);
 
-  // Logic for "Other" grouping and Max Slices
-  const MAX_SLICES = 20;
+  // Logic for "Other" grouping based on percentage threshold
+  const threshold = (settings["pie.slice_threshold"] ?? 0) / 100;
 
-  // Sort candidates by value descending
-  candidateSlices.sort((a, b) => b.value - a.value);
+  // Identify slices below threshold
+  const [keptSlices, pooledSlices] = candidateSlices.reduce(
+    (acc, slice) => {
+      const percentage = totalValue > 0 ? slice.value / totalValue : 0;
+      if (percentage < threshold) {
+        acc[1].push(slice);
+      } else {
+        acc[0].push(slice);
+      }
+      return acc;
+    },
+    [[], []] as [DoughnutDataPoint[], DoughnutDataPoint[]],
+  );
 
-  // Initialize keptSlices with all candidates; pooledSlices is empty initially
-  // We bypass 'pie.slice_threshold' to strictly enforce "Top 20" logic
-  // as requested ("always 20 slices").
-  const keptSlices: DoughnutDataPoint[] = [...candidateSlices];
-  const pooledSlices: DoughnutDataPoint[] = [];
-
-  while (keptSlices.length + (pooledSlices.length > 0 ? 1 : 0) > MAX_SLICES) {
-    // Move smallest to pool (last element)
-    const smallest = keptSlices.pop();
-    if (smallest) pooledSlices.push(smallest);
+  // If there's only one slice below threshold, don't hide it (match standard Pie chart behavior)
+  if (pooledSlices.length === 1) {
+    keptSlices.push(pooledSlices.pop()!);
   }
 
   // 4. Create "Other" slice if pool is not empty
   if (pooledSlices.length > 0) {
     // Sort pooled slices by value descending for the specific drill-down view
     pooledSlices.sort((a, b) => b.value - a.value);
-    
+
     const otherVal = pooledSlices.reduce((sum, s) => sum + s.value, 0);
     keptSlices.push({
       name: getOtherSliceName(),
@@ -118,6 +122,9 @@ export function getDonutChartData(
       children: pooledSlices,
     });
   }
+
+  // Final sort of kept slices (including "Other")
+  keptSlices.sort((a, b) => b.value - a.value);
 
   return {
     data: keptSlices,
