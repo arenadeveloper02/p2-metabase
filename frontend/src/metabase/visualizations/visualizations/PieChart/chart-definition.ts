@@ -246,7 +246,7 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
           { get name() { return t`Right`; }, value: "right" },
         ],
       },
-      getDefault: () => "right",
+      getDefault: () => "left",
     },
     "pie.show_total": {
       get section() {
