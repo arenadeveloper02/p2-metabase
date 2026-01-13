@@ -224,12 +224,12 @@ export function getDoughnutChartOption(
     const otherSlice = data.find(d => d.name === getOtherSliceName());
     
     // If hovering "Other" and it has detailed children, show those.
-    // Otherwise show ONLY the hovered slice.
+    // Otherwise show ALL top-level slices (standard Metabase Pie behavior).
     let tooltipData = data;
     if (isOtherHovered && otherSlice?.children) {
       tooltipData = otherSlice.children;
     } else {
-      tooltipData = data.filter(d => d.name === params.name);
+      tooltipData = data;
     }
 
     // Generate rows
