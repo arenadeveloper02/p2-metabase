@@ -124,7 +124,12 @@ export function getDonutChartData(
   }
 
   // Final sort of kept slices (including "Other")
-  keptSlices.sort((a, b) => b.value - a.value);
+  keptSlices.sort((a, b) => {
+    const otherName = getOtherSliceName();
+    if (a.name === otherName) return 1;
+    if (b.name === otherName) return -1;
+    return b.value - a.value;
+  });
 
   return {
     data: keptSlices,
