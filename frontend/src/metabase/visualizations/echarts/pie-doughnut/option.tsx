@@ -322,7 +322,7 @@ export function getDoughnutChartOption(
   const center = ["50%", "50%"];
 
   const hasLabels = showLabels || showPercentOnChart;
-  const radius = hasLabels ? ["35%", "55%"] : ["40%", "70%"];
+  const radius = hasLabels ? ["50%", "70%"] : ["55%", "85%"];
   
   const actualWidth = width ?? 500;
   const actualHeight = height ?? 400;
@@ -333,9 +333,9 @@ export function getDoughnutChartOption(
 
   const minDim = Math.min(actualWidth, actualHeight);
   // Adjust inner calculation to match the dynamic radius
-  // 55% radius -> ~27% minDim. 
+  // 70% radius -> ~35% minDim. 
   // We use a safe approximation for text width.
-  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.35 : 0.4); 
+  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.5 : 0.55); 
   // Available width is diameter of hole minus some padding
   const textMaxWidth = innerRadiusPx * 2 * 0.9;
 
