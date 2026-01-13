@@ -423,6 +423,33 @@ export function getPieRows(
     });
   }
 
+  // Enforce Max Slice Count (7 including "Other")
+  const MAX_SLICES = 7;
+  const enabledRows = newPieRows.filter((r) => !r.hidden && r.enabled);
+  const normalSlices = enabledRows.filter((r) => !r.isOther);
+  const otherSlices = enabledRows.filter((r) => r.isOther);
+  
+  const currentTotalSlices = normalSlices.length + (otherSlices.length > 0 ? 1 : 0);
+
+  if (currentTotalSlices > MAX_SLICES) {
+    const numToKeep = MAX_SLICES - 1; // Keep top 6, 7th is Other
+    
+    // Sort normal slices to pick which ones to move to Other
+    normalSlices.sort((a, b) => {
+      const valA = checkNumber(checkNotNull(keyToCurrentDataRow.get(a.key))[metricDesc.index]);
+      const valB = checkNumber(checkNotNull(keyToCurrentDataRow.get(b.key))[metricDesc.index]);
+      return valB - valA;
+    });
+
+    const keptKeys = new Set(normalSlices.slice(0, numToKeep).map((r) => r.key));
+    
+    newPieRows.forEach((r) => {
+      if (!r.hidden && r.enabled && !r.isOther && !keptKeys.has(r.key)) {
+        r.isOther = true;
+      }
+    });
+  }
+
   return newPieRows;
 }
 
