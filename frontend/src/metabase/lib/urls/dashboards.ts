@@ -2,7 +2,12 @@ import slugg from "slugg";
 
 import { stringifyHashOptions } from "metabase/lib/browser";
 import MetabaseSettings from "metabase/lib/settings";
-import type { DashCardId, Dashboard, DashboardTabId } from "metabase-types/api";
+import type {
+  DashCardId,
+  DashboardId,
+  DashboardTabId,
+} from "metabase-types/api";
+import type { EntityToken } from "metabase-types/api/entity";
 
 import { appendSlug } from "./utils";
 
@@ -14,7 +19,10 @@ type DashboardUrlBuilderOpts = {
 };
 
 export function dashboard(
-  dashboard: Pick<Dashboard, "id" | "name">,
+  dashboard: {
+    id: DashboardId;
+    name?: string;
+  },
   {
     addCardWithId,
     editMode,
@@ -26,7 +34,7 @@ export function dashboard(
   const path =
     typeof dashboard.id === "string"
       ? `${dashboard.id}`
-      : `/dashboard/${appendSlug(dashboard.id, slugg(dashboard.name))}`;
+      : `/dashboard/${appendSlug(dashboard.id, dashboard.name ? slugg(dashboard.name) : null)}`;
 
   const query = tabId
     ? new URLSearchParams({ tab: `${tabId}` }).toString()
@@ -46,7 +54,7 @@ export function publicDashboard(uuid: string) {
   return `${siteUrl}/public/dashboard/${uuid}`;
 }
 
-export function embedDashboard(token: string) {
+export function embedDashboard(token: EntityToken) {
   const siteUrl = MetabaseSettings.get("site-url");
   return `${siteUrl}/embed/dashboard/${token}`;
 }

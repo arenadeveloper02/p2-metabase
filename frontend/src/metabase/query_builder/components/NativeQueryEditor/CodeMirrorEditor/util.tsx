@@ -1,13 +1,16 @@
-import type { EditorState } from "@codemirror/state";
+import type { EditorState, SelectionRange } from "@codemirror/state";
 import { createSelector } from "@reduxjs/toolkit";
 import { shallowEqual } from "react-redux";
 import { t } from "ttag";
 
+import { METAKEY } from "metabase/lib/browser";
+import { getEngineNativeType } from "metabase/lib/engine";
 import { isNotNull } from "metabase/lib/types";
+import { PLUGIN_METABOT } from "metabase/plugins";
 import * as Lib from "metabase-lib";
 import type { CardId, CardType } from "metabase-types/api";
 
-import type { Location } from "../types";
+import type { Location, SelectionRange as Range } from "../types";
 
 export function convertIndexToPosition(value: string, index: number): Location {
   let row = 0;
@@ -26,6 +29,16 @@ export function convertIndexToPosition(value: string, index: number): Location {
   return {
     row,
     column,
+  };
+}
+
+export function convertSelectionToRange(
+  value: string,
+  selection: SelectionRange,
+): Range {
+  return {
+    start: convertIndexToPosition(value, selection.from),
+    end: convertIndexToPosition(value, selection.to),
   };
 }
 
@@ -229,10 +242,46 @@ export function matchCardIdAtCursor(
 
 export const getReferencedCardIds = createSelector(
   (query: Lib.Query) => Lib.templateTags(query),
-  tags =>
+  (tags) =>
     Object.values(tags)
-      .filter(tag => tag.type === "card")
-      .map(tag => tag["card-id"])
+      .filter((tag) => tag.type === "card")
+      .map((tag) => tag["card-id"])
       .filter(isNotNull),
-  { argsMemoizeOptions: { resultEqualityCheck: shallowEqual } },
+  {
+    argsMemoizeOptions: { resultEqualityCheck: shallowEqual },
+    memoizeOptions: {
+      resultEqualityCheck: shallowEqual,
+    },
+  },
 );
+
+export const getPlaceholderText = (engine?: string | null): string => {
+  if (!engine) {
+    return "";
+  }
+
+  const SQLPlaceholder = "SELECT * FROM TABLE_NAME";
+  const MongoPlaceholder = `[ { "$project": { "_id": "$_id" } } ]`;
+
+  const engineType = getEngineNativeType(engine);
+
+  if (PLUGIN_METABOT.isEnabled() && engineType === "sql") {
+    return t`Write your SQL here, or press ${METAKEY} + Shift + i to have SQL generated for you.`;
+  }
+
+  switch (true) {
+    case engineType === "sql":
+      return SQLPlaceholder;
+    case engine === "mongo":
+      return MongoPlaceholder;
+    default:
+      return "";
+  }
+};
+
+export function getSelectedRanges(state: EditorState): Range[] {
+  const value = state.doc.toString();
+  return state.selection.ranges.map((range) =>
+    convertSelectionToRange(value, range),
+  );
+}

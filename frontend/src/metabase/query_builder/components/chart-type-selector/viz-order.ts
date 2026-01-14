@@ -6,6 +6,7 @@ export const DEFAULT_VIZ_ORDER: CardDisplayType[] = [
   "line",
   "pie",
   "scalar",
+  "textscalar",
   "row",
   "area",
   "combo",

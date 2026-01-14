@@ -1,4 +1,9 @@
-import { setupEnterprisePlugins } from "__support__/enterprise";
+import { Route } from "react-router";
+
+import {
+  setupEnterpriseOnlyPlugin,
+  setupEnterprisePlugins,
+} from "__support__/enterprise";
 import {
   setupDashboardQuestionCandidatesEndpoint,
   setupUserKeyValueEndpoints,
@@ -23,7 +28,6 @@ const getProps = (
   isBookmarked: false,
   canUpload: false,
   uploadsEnabled: true,
-  isPersonalCollectionChild: false,
   onUpdateCollection: jest.fn(),
   onCreateBookmark: jest.fn(),
   saveFile: jest.fn(),
@@ -33,24 +37,29 @@ const getProps = (
 
 export const setup = ({
   collection,
-  hasEnterprisePlugins = false,
+  enterprisePlugins,
   tokenFeatures,
   ...otherProps
 }: {
   collection?: Partial<Collection>;
-  hasEnterprisePlugins?: boolean;
+  enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][] | "*";
   tokenFeatures?: Partial<TokenFeatures>;
 } & Partial<Omit<CollectionHeaderProps, "collection">> = {}) => {
   setupDashboardQuestionCandidatesEndpoint([]);
   setupUserKeyValueEndpoints({
     key: "collection-menu",
-    namespace: "user_acknowledgement",
-    value: true,
+    namespace: "indicator-menu",
+    value: [],
   });
   setupUserKeyValueEndpoints({
     key: "move-to-dashboard",
     namespace: "user_acknowledgement",
     value: true,
+  });
+  setupUserKeyValueEndpoints({
+    key: "events-menu",
+    namespace: "user_acknowledgement",
+    value: false,
   });
 
   const props = getProps({
@@ -63,13 +72,22 @@ export const setup = ({
   });
   const state = createMockState({ settings });
 
-  if (hasEnterprisePlugins) {
-    setupEnterprisePlugins();
+  if (enterprisePlugins) {
+    if (enterprisePlugins === "*") {
+      setupEnterprisePlugins();
+    } else {
+      enterprisePlugins.forEach(setupEnterpriseOnlyPlugin);
+    }
   }
 
-  renderWithProviders(<CollectionHeader {...props} />, {
-    storeInitialState: state,
-  });
+  renderWithProviders(
+    <Route path="/" component={() => <CollectionHeader {...props} />} />,
+    {
+      storeInitialState: state,
+      initialRoute: "/",
+      withRouter: true,
+    },
+  );
 
   return props;
 };

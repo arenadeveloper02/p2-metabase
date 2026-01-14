@@ -2,11 +2,15 @@ import { useCallback, useState } from "react";
 import { useMount } from "react-use";
 import { t } from "ttag";
 
-import { Sidesheet, SidesheetCard } from "metabase/common/components/Sidesheet";
+import { EntityIdCard } from "metabase/common/components/EntityIdCard";
+import {
+  Sidesheet,
+  SidesheetCard,
+  SidesheetCardTitle,
+} from "metabase/common/components/Sidesheet";
 import { SidesheetEditableDescription } from "metabase/common/components/Sidesheet/components/SidesheetEditableDescription";
-import { EntityIdCard } from "metabase/components/EntityIdCard";
 import { PLUGIN_COLLECTION_COMPONENTS } from "metabase/plugins";
-import { Stack, Title } from "metabase/ui";
+import { Stack } from "metabase/ui";
 import type { Collection } from "metabase-types/api";
 
 export const CollectionInfoSidebar = ({
@@ -46,17 +50,16 @@ export const CollectionInfoSidebar = ({
       size="md"
       onClose={onClose}
     >
-      <Stack spacing="lg">
+      <Stack gap="lg">
         <SidesheetCard pb="md">
-          <Stack spacing="md">
-            <Stack spacing="xs">
-              <Title lh={1} fz="sm" color="text-light" pb={0}>
-                {t`Description`}
-              </Title>
+          <Stack gap="md">
+            <Stack gap="xs">
+              <SidesheetCardTitle>{t`Description`}</SidesheetCardTitle>
               <SidesheetEditableDescription
                 description={description}
                 onChange={handleChangeDescription}
                 canWrite={canWrite}
+                maxLength={255}
               />
             </Stack>
             <PLUGIN_COLLECTION_COMPONENTS.CollectionAuthorityLevelDisplay

@@ -36,7 +36,6 @@ const TEST_SEARCH_RESULTS: CollectionItem[] = [
   createMockCollectionItem({
     name,
     id: index + 1,
-    getUrl: () => "/",
   }),
 );
 
@@ -145,7 +144,7 @@ describe("SearchBar", () => {
       for (const cardName of ["Card ABC", "Card BCD"]) {
         await userEvent.tab();
 
-        const filteredElement = resultItems.find(element =>
+        const filteredElement = resultItems.find((element) =>
           element.textContent?.includes(cardName),
         );
 

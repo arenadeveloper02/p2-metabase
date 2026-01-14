@@ -1,12 +1,14 @@
 import { useState } from "react";
 
-import AutocompleteInput from "metabase/core/components/AutocompleteInput";
+import AutocompleteInput from "metabase/common/components/AutocompleteInput";
+import type { VisualizationSettings } from "metabase-types/api";
 
 interface ChartSettingLinkUrlInputProps {
   value: string | undefined | null;
   onChange: (value: string) => void;
   id?: string;
   options?: string[];
+  onChangeSettings?: (settings: Partial<VisualizationSettings>) => void;
 }
 
 const linkVariablePattern = /.*{{([^{}]*)$/;
@@ -16,7 +18,7 @@ const filterOptions = (value: string | undefined, options: string[]) => {
     const match = value.match(linkVariablePattern);
     if (match) {
       const suggestionFilter = match[1];
-      return options.filter(option =>
+      return options.filter((option) =>
         option.toLowerCase().includes(suggestionFilter.toLowerCase()),
       );
     }
@@ -39,9 +41,9 @@ const ChartSettingLinkUrlInput = ({
     const partial = match?.[1];
 
     if (partial) {
-      setFocusedValue(v => v.replace(`{{${partial}`, `{{${suggestion}}}`));
+      setFocusedValue((v) => v.replace(`{{${partial}`, `{{${suggestion}}}`));
     } else if (partial === "") {
-      setFocusedValue(v => `${v}${suggestion}}}`);
+      setFocusedValue((v) => `${v}${suggestion}}}`);
     }
   };
 
@@ -52,7 +54,9 @@ const ChartSettingLinkUrlInput = ({
 
   const handleBlur = () => {
     setIsFocused(false);
-    onChange(focusedValue);
+    if (focusedValue !== (value ?? "")) {
+      onChange(focusedValue);
+    }
   };
 
   return (

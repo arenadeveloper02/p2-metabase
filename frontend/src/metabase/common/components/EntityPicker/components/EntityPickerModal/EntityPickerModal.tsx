@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useDebounce, usePreviousDistinct } from "react-use";
@@ -11,13 +12,22 @@ import { t } from "ttag";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
 import { useListRecentsQuery, useSearchQuery } from "metabase/api";
-import { useModalOpen } from "metabase/hooks/use-modal-open";
-import { useUniqueId } from "metabase/hooks/use-unique-id";
-import { Box, Flex, Icon, Modal, Skeleton, TextInput } from "metabase/ui";
-import { Repeat } from "metabase/ui/components/feedback/Skeleton/Repeat";
+import { useModalOpen } from "metabase/common/hooks/use-modal-open";
+import { useUniqueId } from "metabase/common/hooks/use-unique-id";
+import resizeObserver from "metabase/lib/resize-observer";
+import {
+  Box,
+  Flex,
+  Icon,
+  Modal,
+  Repeat,
+  Skeleton,
+  TextInput,
+} from "metabase/ui";
 import type {
   RecentContexts,
   RecentItem,
+  SearchModel,
   SearchRequest,
   SearchResult,
   SearchResultId,
@@ -45,11 +55,7 @@ import { RecentsTab } from "../RecentsTab";
 import { SearchTab } from "../SearchTab";
 
 import { ButtonBar } from "./ButtonBar";
-import {
-  ModalBody,
-  ModalContent,
-  SinglePickerView,
-} from "./EntityPickerModal.styled";
+import S from "./EntitityPickerModal.module.css";
 import { TabsView } from "./TabsView";
 
 export type EntityPickerModalOptions = {
@@ -58,12 +64,15 @@ export type EntityPickerModalOptions = {
   confirmButtonText?: string | ((model?: string) => string);
   cancelButtonText?: string;
   hasRecents?: boolean;
+  showDatabases?: boolean;
+  showLibrary?: boolean;
 };
 
 export const defaultOptions: EntityPickerModalOptions = {
   showSearch: true,
   hasConfirmButtons: true,
   hasRecents: true,
+  showLibrary: true,
 };
 
 export const DEFAULT_RECENTS_CONTEXT: RecentContexts[] = [
@@ -102,6 +111,8 @@ export interface EntityPickerModalProps<
   isLoadingTabs?: boolean;
   searchExtraButtons?: ReactNode[];
   children?: ReactNode;
+  disableCloseOnEscape?: boolean;
+  searchModels?: (SearchModel | "table")[];
 }
 
 export function EntityPickerModal<
@@ -126,8 +137,12 @@ export function EntityPickerModal<
   onConfirm,
   onItemSelect,
   isLoadingTabs = false,
+  disableCloseOnEscape = false,
   children,
+  searchModels: _searchModels,
 }: EntityPickerModalProps<Id, Model, Item>) {
+  const [modalContentMinWidth, setModalContentMinWidth] = useState(920);
+  const modalContentRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchScope, setSearchScope] =
     useState<EntityPickerSearchScope>("everywhere");
@@ -138,7 +153,10 @@ export function EntityPickerModal<
         refetchOnMountOrArgChange: true,
       },
     );
-  const searchModels = useMemo(() => getSearchModels(passedTabs), [passedTabs]);
+  const searchModels = useMemo(
+    () => _searchModels || getSearchModels(passedTabs),
+    [passedTabs, _searchModels],
+  );
 
   const folderModels = useMemo(
     () => getSearchFolderModels(passedTabs),
@@ -173,7 +191,7 @@ export function EntityPickerModal<
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
   useDebounce(() => setDebouncedSearchQuery(searchQuery), 200, [searchQuery]);
 
-  const { data, isFetching } = useSearchQuery(
+  const { data, isFetching, requestId } = useSearchQuery(
     {
       q: debouncedSearchQuery,
       models: searchModels,
@@ -204,66 +222,86 @@ export function EntityPickerModal<
       return [];
     }
 
-    const relevantModelRecents = recentItems.filter(recentItem => {
+    const relevantModelRecents = recentItems.filter((recentItem) => {
       return searchModels.includes(recentItem.model);
     });
 
     return recentFilter(relevantModelRecents);
   }, [recentItems, recentFilter, searchModels]);
 
-  const tabs: EntityPickerTab<Id, Model, Item>[] = (function getTabs() {
-    const computedTabs: EntityPickerTab<Id, Model, Item>[] = [];
-    const hasRecentsTab =
-      hydratedOptions.hasRecents && filteredRecents.length > 0;
-    const hasSearchTab = !!searchQuery;
-    // This is to prevent different tab being initially open and then flickering back
-    // to recents tab once recents have loaded (due to computeInitialTab)
-    const shouldOptimisticallyAddRecentsTabWhileLoading =
-      defaultToRecentTab && isLoadingRecentItems;
+  const tabs: EntityPickerTab<Id, Model, Item>[] = useMemo(
+    function getTabs() {
+      const computedTabs: EntityPickerTab<Id, Model, Item>[] = [];
+      const hasRecentsTab =
+        hydratedOptions.hasRecents && filteredRecents.length > 0;
+      const hasSearchTab = !!searchQuery;
+      // This is to prevent different tab being initially open and then flickering back
+      // to recents tab once recents have loaded (due to computeInitialTab)
+      const shouldOptimisticallyAddRecentsTabWhileLoading =
+        defaultToRecentTab && isLoadingRecentItems;
 
-    if (hasRecentsTab || shouldOptimisticallyAddRecentsTabWhileLoading) {
-      computedTabs.push({
-        id: RECENTS_TAB_ID,
-        models: [],
-        folderModels: [],
-        displayName: t`Recents`,
-        icon: "clock",
-        render: ({ onItemSelect }) => (
-          <RecentsTab
-            isLoading={isLoadingRecentItems}
-            recentItems={filteredRecents}
-            selectedItem={selectedItem}
-            onItemSelect={onItemSelect}
-          />
-        ),
-      });
-    }
+      if (hasRecentsTab || shouldOptimisticallyAddRecentsTabWhileLoading) {
+        computedTabs.push({
+          id: RECENTS_TAB_ID,
+          models: [],
+          folderModels: [],
+          displayName: t`Recents`,
+          icon: "clock",
+          render: ({ onItemSelect }) => (
+            <RecentsTab
+              isLoading={isLoadingRecentItems}
+              recentItems={filteredRecents}
+              selectedItem={selectedItem}
+              onItemSelect={onItemSelect}
+            />
+          ),
+        });
+      }
 
-    computedTabs.push(...passedTabs);
+      computedTabs.push(...passedTabs);
 
-    if (hasSearchTab) {
-      computedTabs.push({
-        id: SEARCH_TAB_ID,
-        models: [],
-        folderModels: [],
-        displayName: getSearchTabText(finalSearchResults, searchQuery),
-        icon: "search",
-        render: ({ onItemSelect }) => (
-          <SearchTab
-            folder={selectedFolder}
-            isLoading={isFetching}
-            searchScope={searchScope}
-            searchResults={finalSearchResults ?? []}
-            selectedItem={selectedItem}
-            onItemSelect={onItemSelect}
-            onSearchScopeChange={setSearchScope}
-          />
-        ),
-      });
-    }
+      if (hasSearchTab) {
+        computedTabs.push({
+          id: SEARCH_TAB_ID,
+          models: [],
+          folderModels: [],
+          displayName: getSearchTabText(finalSearchResults, searchQuery),
+          icon: "search",
+          render: ({ onItemSelect }) => (
+            <SearchTab
+              folder={selectedFolder}
+              isLoading={isFetching}
+              searchScope={searchScope}
+              searchResults={finalSearchResults ?? []}
+              searchEngine={data?.engine}
+              searchRequestId={requestId}
+              searchTerm={searchQuery}
+              selectedItem={selectedItem}
+              onItemSelect={onItemSelect}
+              onSearchScopeChange={setSearchScope}
+            />
+          ),
+        });
+      }
 
-    return computedTabs;
-  })();
+      return computedTabs;
+    },
+    [
+      data?.engine,
+      defaultToRecentTab,
+      filteredRecents,
+      finalSearchResults,
+      hydratedOptions.hasRecents,
+      isFetching,
+      isLoadingRecentItems,
+      passedTabs,
+      requestId,
+      searchQuery,
+      searchScope,
+      selectedFolder,
+      selectedItem,
+    ],
+  );
 
   const hasTabs = tabs.length > 1;
   const initialTabId = useMemo(
@@ -279,10 +317,10 @@ export function EntityPickerModal<
     (item: Item, tabId: EntityPickerTabId) => {
       if (tabId !== SEARCH_TAB_ID && tabId !== RECENTS_TAB_ID) {
         if (isSearchFolder(item, folderModels)) {
-          setTabFolderState(state => ({ ...state, [tabId]: item }));
+          setTabFolderState((state) => ({ ...state, [tabId]: item }));
           setSearchScope("folder");
         } else {
-          setTabFolderState(state => ({ ...state, [tabId]: undefined }));
+          setTabFolderState((state) => ({ ...state, [tabId]: undefined }));
           setSearchScope("everywhere");
         }
       }
@@ -336,16 +374,43 @@ export function EntityPickerModal<
 
   useWindowEvent(
     "keydown",
-    event => {
+    (event) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        !disableCloseOnEscape && onClose();
       }
     },
-    { capture: true, once: true },
+    { capture: true },
   );
 
   const titleId = useUniqueId("entity-picker-modal-title-");
+
+  const modalContentResizeHandler = useCallback(
+    (entry: ResizeObserverEntry) => {
+      const width = entry.contentRect.width;
+      setModalContentMinWidth((currentWidth) =>
+        currentWidth < width ? width : currentWidth,
+      );
+    },
+    [],
+  );
+
+  const modalContentCallbackRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (element) {
+        resizeObserver.subscribe(element, modalContentResizeHandler);
+        modalContentRef.current = element;
+      } else {
+        if (modalContentRef.current) {
+          resizeObserver.unsubscribe(
+            modalContentRef.current,
+            modalContentResizeHandler,
+          );
+        }
+      }
+    },
+    [modalContentResizeHandler],
+  );
 
   return (
     <Modal.Root
@@ -359,16 +424,19 @@ export function EntityPickerModal<
        * Height is specified here to make that assertion pass.
        */
       h="100vh"
+      w="100vw"
       trapFocus={trapFocus}
       closeOnEscape={false} // we're doing this manually in useWindowEvent
       yOffset="10dvh"
     >
       <Modal.Overlay />
-      <ModalContent
-        h="100%"
-        maw="57.5rem"
-        mah="40rem"
+      <Modal.Content
+        className={S.modalContent}
         aria-labelledby={titleId}
+        miw={`min(${modalContentMinWidth}px, 80vw)`}
+        w="fit-content"
+        maw="80vw"
+        ref={modalContentCallbackRef}
       >
         <Modal.Header
           px="2.5rem"
@@ -381,17 +449,18 @@ export function EntityPickerModal<
           </Modal.Title>
           <Modal.CloseButton size={21} pos="relative" top="1px" />
         </Modal.Header>
-        <ModalBody p="0">
+        <Modal.Body className={S.modalBody} p="0">
           {hydratedOptions.showSearch && (
             <Box px="2.5rem" mb="1.5rem">
               <TextInput
+                classNames={{ input: S.textInput }}
                 data-autofocus
                 type="search"
-                icon={<Icon name="search" size={16} />}
+                leftSection={<Icon name="search" size={16} />}
                 miw={400}
                 placeholder={getSearchInputPlaceholder(selectedFolder)}
                 value={searchQuery}
-                onChange={e => handleQueryChange(e.target.value ?? "")}
+                onChange={(e) => handleQueryChange(e.target.value ?? "")}
               />
             </Box>
           )}
@@ -405,11 +474,14 @@ export function EntityPickerModal<
                   onTabChange={handleTabChange}
                 />
               ) : (
-                <SinglePickerView data-testid="single-picker-view">
+                <div
+                  className={S.singlePickerView}
+                  data-testid="single-picker-view"
+                >
                   {tabs[0]?.render({
-                    onItemSelect: item => handleSelectItem(item, tabs[0].id),
+                    onItemSelect: (item) => handleSelectItem(item, tabs[0].id),
                   }) ?? null}
-                </SinglePickerView>
+                </div>
               )}
               {!!hydratedOptions.hasConfirmButtons && onConfirm && (
                 <ButtonBar
@@ -430,8 +502,8 @@ export function EntityPickerModal<
             <EntityPickerLoadingSkeleton />
           )}
           {children}
-        </ModalBody>
-      </ModalContent>
+        </Modal.Body>
+      </Modal.Content>
     </Modal.Root>
   );
 }
@@ -448,7 +520,7 @@ const assertValidProps = (
 };
 
 const EntityPickerLoadingSkeleton = () => (
-  <Box data-testid="loading-indicator">
+  <Box data-testid="loading-indicator" className={S.loadingSkeleton}>
     <Flex px="2rem" gap="1.5rem" mb="3.5rem">
       <Repeat times={3}>
         <Skeleton h="2rem" w="5rem" mb="0.5rem" />

@@ -13,7 +13,7 @@ import { useCallback } from "react";
 import { usePreviousDistinct } from "react-use";
 import { t } from "ttag";
 
-import { Sortable } from "metabase/core/components/Sortable";
+import { Sortable } from "metabase/common/components/Sortable";
 import { Stack } from "metabase/ui";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type {
@@ -68,7 +68,7 @@ export function SmartScalarComparisonWidget({
 
   const handleChangeComparison = useCallback(
     (comparison: SmartScalarComparison) => {
-      const nextValue = value.map(item =>
+      const nextValue = value.map((item) =>
         item.id === comparison.id ? comparison : item,
       );
       onChange(nextValue);
@@ -78,7 +78,7 @@ export function SmartScalarComparisonWidget({
 
   const handleRemoveComparison = useCallback(
     (comparison: SmartScalarComparison) => {
-      const nextValue = value.filter(item => item.id !== comparison.id);
+      const nextValue = value.filter((item) => item.id !== comparison.id);
       onChange(nextValue);
     },
     [value, onChange],

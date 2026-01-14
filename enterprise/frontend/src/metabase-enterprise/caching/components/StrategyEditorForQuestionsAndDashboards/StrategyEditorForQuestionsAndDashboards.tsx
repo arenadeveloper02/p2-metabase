@@ -1,30 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { InjectedRouter, Route } from "react-router";
-import { withRouter } from "react-router";
 import { t } from "ttag";
 import _ from "underscore";
 
-import { Panel } from "metabase/admin/performance/components/StrategyEditorForDatabases.styled";
+import { SettingsPageWrapper } from "metabase/admin/components/SettingsSection";
 import { StrategyForm } from "metabase/admin/performance/components/StrategyForm";
-import { rootId } from "metabase/admin/performance/constants/simple";
 import { useCacheConfigs } from "metabase/admin/performance/hooks/useCacheConfigs";
 import { useConfirmIfFormIsDirty } from "metabase/admin/performance/hooks/useConfirmIfFormIsDirty";
 import { useSaveStrategy } from "metabase/admin/performance/hooks/useSaveStrategy";
 import { skipToken, useSearchQuery } from "metabase/api";
+import { DelayedLoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
+import { Sidesheet } from "metabase/common/components/Sidesheet";
 import { ClientSortableTable } from "metabase/common/components/Table/ClientSortableTable";
 import type { ColumnItem } from "metabase/common/components/Table/types";
-import { DelayedLoadingAndErrorWrapper } from "metabase/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
-import {
-  Box,
-  Button,
-  Center,
-  Flex,
-  Icon,
-  Skeleton,
-  Stack,
-  Text,
-} from "metabase/ui";
-import { Repeat } from "metabase/ui/components/feedback/Skeleton/Repeat";
+import { Center, Flex, Repeat, Skeleton, Stack } from "metabase/ui";
 import type { CacheableModel } from "metabase-types/api";
 import { CacheDurationUnit } from "metabase-types/api";
 import { SortDirection } from "metabase-types/api/sorting";
@@ -43,13 +31,7 @@ import { formatValueForSorting } from "./utils";
 
 type CacheableItemResult = DashboardResult | QuestionResult;
 
-const _StrategyEditorForQuestionsAndDashboards = ({
-  router,
-  route,
-}: {
-  router: InjectedRouter;
-  route?: Route;
-}) => {
+export const StrategyEditorForQuestionsAndDashboards = () => {
   const [
     // The targetId is the id of the object that is currently being edited
     targetId,
@@ -75,16 +57,16 @@ const _StrategyEditorForQuestionsAndDashboards = ({
   const dashboardIds = useMemo(
     () =>
       configs
-        .filter(config => config.model === "dashboard")
-        .map(c => c.model_id),
+        .filter((config) => config.model === "dashboard")
+        .map((c) => c.model_id),
     [configs],
   );
 
   const questionIds = useMemo(
     () =>
       configs
-        .filter(config => config.model === "question")
-        .map(c => c.model_id),
+        .filter((config) => config.model === "question")
+        .map((c) => c.model_id),
     [configs],
   );
 
@@ -102,6 +84,7 @@ const _StrategyEditorForQuestionsAndDashboards = ({
       ? {
           models: ["card"],
           ids: questionIds,
+          include_dashboard_questions: true,
           //FIXME: Add `ancestors: true` once jds/ancestors-for-all-the-things is merged
         }
       : skipToken,
@@ -137,7 +120,7 @@ const _StrategyEditorForQuestionsAndDashboards = ({
     }
     // Filter out items that have no match in the dashboard and question list
     const hydratedCacheableItems: CacheableItem[] = [...items.values()].filter(
-      item => item.name !== undefined,
+      (item) => item.name !== undefined,
     );
 
     return hydratedCacheableItems;
@@ -148,7 +131,7 @@ const _StrategyEditorForQuestionsAndDashboards = ({
      * disappears from the table, it should no longer be the target */
     function removeTargetIfNoLongerInTable() {
       const isTargetIdInTable = cacheableItems.some(
-        item => item.id === targetId,
+        (item) => item.id === targetId,
       );
       if (targetId !== null && !isTargetIdInTable) {
         setTargetId(null);
@@ -187,7 +170,7 @@ const _StrategyEditorForQuestionsAndDashboards = ({
     confirmationModal,
     isStrategyFormDirty,
     setIsStrategyFormDirty,
-  } = useConfirmIfFormIsDirty(router, route);
+  } = useConfirmIfFormIsDirty();
 
   /** Change the target, but first confirm if the form is unsaved */
   const updateTarget: UpdateTarget = useCallback(
@@ -248,34 +231,19 @@ const _StrategyEditorForQuestionsAndDashboards = ({
   }, [updateTarget, isStrategyFormDirty]);
 
   return (
-    <Flex
-      role="region"
-      aria-label={t`Dashboard and question caching`}
-      w="100%"
-      direction="row"
-      justify="space-between"
-      onKeyDown={e => {
-        if (e.key === "Escape" && !e.ctrlKey && !e.metaKey) {
-          closeForm();
-        }
-      }}
+    <SettingsPageWrapper
+      title={t`Caching for dashboards and questions`}
+      description={t`Here are the dashboards and questions that have their own caching policies, which override any default or database policies you’ve set.`}
     >
       <Stack
-        spacing="sm"
-        lh="1.5rem"
-        pt="md"
-        pb="md"
-        px="2.5rem"
+        gap="xl"
         style={{
           flex: 1,
           overflowY: "auto",
         }}
       >
-        <Box component="aside" maw="32rem" id={explanatoryAsideId}>
-          {t`Here are the dashboards and questions that have their own caching policies, which override any default or database policies you’ve set.`}
-        </Box>
         {confirmationModal}
-        <Flex maw="60rem">
+        <Flex>
           <DelayedLoadingAndErrorWrapper
             error={error}
             loading={loading}
@@ -285,6 +253,7 @@ const _StrategyEditorForQuestionsAndDashboards = ({
               <ClientSortableTable<CacheableItem>
                 className={Styles.CacheableItemTable}
                 columns={tableColumns}
+                data-testid="cache-config-table"
                 rows={cacheableItems}
                 rowRenderer={rowRenderer}
                 defaultSortColumn="name"
@@ -305,41 +274,28 @@ const _StrategyEditorForQuestionsAndDashboards = ({
         </Flex>
       </Stack>
 
-      {targetId !== null && targetModel !== null && (
-        <Panel className={Styles.StrategyFormPanel}>
-          <Button
-            variant="subtle"
-            pos="absolute"
-            p="1rem"
-            top="1rem"
-            style={{ insetInlineEnd: "1rem" }}
-            onClick={() => {
-              closeForm();
-            }}
-          >
-            <Text color="var(--mb-color-text-dark)">
-              <Icon name="close" />
-            </Text>
-          </Button>
+      <Sidesheet
+        isOpen={targetId !== null && targetModel !== null}
+        onClose={closeForm}
+        title={targetName ?? `Untitled ${targetModel}`}
+      >
+        {targetModel && (
           <StrategyForm
             targetId={targetId}
             targetModel={targetModel}
-            targetName={targetName ?? `Untitled ${targetModel}`}
+            targetName=""
             setIsDirty={setIsStrategyFormDirty}
             saveStrategy={saveStrategy}
             savedStrategy={savedStrategy}
             shouldAllowInvalidation={true}
-            shouldShowName={targetId !== rootId}
+            shouldShowName={false}
+            isInSidebar
           />
-        </Panel>
-      )}
-    </Flex>
+        )}
+      </Sidesheet>
+    </SettingsPageWrapper>
   );
 };
-
-export const StrategyEditorForQuestionsAndDashboards = withRouter(
-  _StrategyEditorForQuestionsAndDashboards,
-);
 
 const TableSkeleton = ({ columns }: { columns: ColumnItem[] }) => (
   <ClientSortableTable<{ id: number }>
@@ -359,11 +315,7 @@ const TableSkeleton = ({ columns }: { columns: ColumnItem[] }) => (
 );
 
 const NoResultsTableRow = () => (
-  <tr className={Styles.NoResultsTableRow}>
-    <td colSpan={3}>
-      <Center fw="bold" c="text-light">
-        {t`No dashboards or questions have their own caching policies yet.`}
-      </Center>
-    </td>
-  </tr>
+  <Center fw="bold" c="text-light">
+    {t`No dashboards or questions have their own caching policies yet.`}
+  </Center>
 );

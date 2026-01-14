@@ -1,68 +1,70 @@
+import { useDisclosure } from "@mantine/hooks";
 import type { MouseEvent } from "react";
 import { useCallback, useMemo } from "react";
-import { push } from "react-router-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
-import { useHasTokenFeature, useUserSetting } from "metabase/common/hooks";
-import { useIsAtHomepageDashboard } from "metabase/common/hooks/use-is-at-homepage-dashboard";
-import TippyPopoverWithTrigger from "metabase/components/PopoverWithTrigger/TippyPopoverWithTrigger";
-import { Tree } from "metabase/components/tree";
 import {
-  PERSONAL_COLLECTIONS,
-  getCollectionIcon,
-} from "metabase/entities/collections";
-import { OnboardingDismissedToast } from "metabase/home/components/Onboarding";
+  isExamplesCollection,
+  isLibraryCollection,
+  isRootTrashCollection,
+} from "metabase/collections/utils";
+import CollapseSection from "metabase/common/components/CollapseSection";
+import { Tree } from "metabase/common/components/tree";
+import { useSetting, useUserSetting } from "metabase/common/hooks";
+import { useIsAtHomepageDashboard } from "metabase/common/hooks/use-is-at-homepage-dashboard";
+import { useShowOtherUsersCollections } from "metabase/common/hooks/use-show-other-users-collections";
+import type { CollectionTreeItem } from "metabase/entities/collections";
 import {
   getCanAccessOnboardingPage,
   getIsNewInstance,
 } from "metabase/home/selectors";
 import { isSmallScreen } from "metabase/lib/dom";
-import { useDispatch, useSelector } from "metabase/lib/redux";
+import { useSelector } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
 import { WhatsNewNotification } from "metabase/nav/components/WhatsNewNotification";
-import { addUndo } from "metabase/redux/undo";
-import { getHasOwnDatabase } from "metabase/selectors/data";
-import { getSetting } from "metabase/selectors/settings";
-import { Icon, type IconName, type IconProps, Tooltip } from "metabase/ui";
-import type Database from "metabase-lib/v1/metadata/Database";
-import type { Bookmark, Collection, User } from "metabase-types/api";
+import {
+  PLUGIN_DATA_STUDIO,
+  PLUGIN_REMOTE_SYNC,
+  PLUGIN_TENANTS,
+} from "metabase/plugins";
+import {
+  getIsTenantUser,
+  getUser,
+  getUserCanWriteToCollections,
+} from "metabase/selectors/user";
+import { ActionIcon, Icon, Tooltip } from "metabase/ui";
+import type { Bookmark, Collection } from "metabase-types/api";
 
 import {
-  CollectionMenuList,
-  CollectionsMoreIcon,
-  CollectionsMoreIconContainer,
   PaddedSidebarLink,
-  PaddedSidebarLinkDismissible,
   SidebarContentRoot,
   SidebarHeading,
-  SidebarHeadingWrapper,
   SidebarSection,
   TrashSidebarSection,
 } from "../MainNavbar.styled";
-import { SidebarCollectionLink, SidebarLink } from "../SidebarItems";
-import { AddDatabase } from "../SidebarItems/AddDatabase";
-import { DwhUploadCSV } from "../SidebarItems/DwhUploadCSV/DwhUploadCSV";
-import { trackOnboardingChecklistOpened } from "../analytics";
+import { SidebarCollectionLink } from "../SidebarItems";
+import {
+  trackAddDataModalOpened,
+  trackNewCollectionFromNavInitiated,
+} from "../analytics";
 import type { SelectedItem } from "../types";
 
+import { AddDataModal } from "./AddDataModal";
 import BookmarkList from "./BookmarkList";
 import { BrowseNavSection } from "./BrowseNavSection";
+import { GettingStartedSection } from "./GettingStartedSection";
 
-interface CollectionTreeItem extends Collection {
-  icon: IconName | IconProps;
-  children: CollectionTreeItem[];
-}
 type Props = {
-  isAdmin: boolean;
   isOpen: boolean;
-  currentUser: User;
   bookmarks: Bookmark[];
   hasDataAccess: boolean;
   collections: CollectionTreeItem[];
-  databases: Database[];
   selectedItems: SelectedItem[];
+  sharedTenantCollections?: Collection[];
+  canCreateSharedCollection: boolean;
+  showExternalCollectionsSection: boolean;
   handleCloseNavbar: () => void;
   handleLogout: () => void;
   handleCreateNewCollection: () => void;
@@ -77,31 +79,41 @@ type Props = {
 const OTHER_USERS_COLLECTIONS_URL = Urls.otherUsersPersonalCollections();
 
 export function MainNavbarView({
-  isAdmin,
-  currentUser,
   bookmarks,
   collections,
-  databases,
   selectedItems,
   hasDataAccess,
   reorderBookmarks,
   handleCreateNewCollection,
   handleCloseNavbar,
+  sharedTenantCollections,
+  canCreateSharedCollection,
+  showExternalCollectionsSection,
 }: Props) {
   const [expandBookmarks = true, setExpandBookmarks] = useUserSetting(
     "expand-bookmarks-in-nav",
   );
-  const [isOnboardingLinkDismissed, setIsOnboardingLinkDismissed] =
-    useUserSetting("dismissed-onboarding-sidebar-link");
+  const [expandCollections = true, setExpandCollections] = useUserSetting(
+    "expand-collections-in-nav",
+  );
 
   const isAtHomepageDashboard = useIsAtHomepageDashboard();
+  const canWriteToCollections = useSelector(getUserCanWriteToCollections);
+  const currentUser = useSelector(getUser);
+  const useTenants = useSetting("use-tenants");
+  const isTenantUser = useSelector(getIsTenantUser);
+
+  const [
+    addDataModalOpened,
+    { open: openAddDataModal, close: closeAddDataModal },
+  ] = useDisclosure(false);
 
   const {
     card: cardItem,
     collection: collectionItem,
     dashboard: dashboardItem,
     "non-entity": nonEntityItem,
-  } = _.indexBy(selectedItems, item => item.type);
+  } = _.indexBy(selectedItems, (item) => item.type);
 
   const onItemSelect = useCallback(() => {
     if (isSmallScreen()) {
@@ -121,61 +133,50 @@ export function MainNavbarView({
     [isAtHomepageDashboard, onItemSelect],
   );
 
-  const [[trashCollection], collectionsWithoutTrash] = useMemo(
-    () => _.partition(collections, c => c.type === "trash"),
-    [collections],
-  );
+  const { regularCollections, trashCollection, examplesCollection } =
+    useMemo(() => {
+      const trashCollection = collections.find(isRootTrashCollection);
+      const examplesCollection = collections.find(isExamplesCollection);
 
-  const ONBOARDING_URL = "/getting-started";
+      const regularCollections = collections.filter((c) => {
+        const isNormalCollection =
+          !isRootTrashCollection(c) && !isExamplesCollection(c);
+        return isNormalCollection && !isLibraryCollection(c);
+      });
+
+      const collectionsByCategory = {
+        trashCollection,
+        examplesCollection,
+      };
+
+      return {
+        ...collectionsByCategory,
+        regularCollections:
+          useTenants && isTenantUser
+            ? PLUGIN_TENANTS.getFlattenedCollectionsForNavbar({
+                currentUser,
+                sharedTenantCollections,
+                regularCollections,
+              })
+            : regularCollections,
+      };
+    }, [
+      collections,
+      isTenantUser,
+      useTenants,
+      sharedTenantCollections,
+      currentUser,
+    ]);
+
   const isNewInstance = useSelector(getIsNewInstance);
   const canAccessOnboarding = useSelector(getCanAccessOnboardingPage);
-  const showOnboardingLink =
-    !isOnboardingLinkDismissed && isNewInstance && canAccessOnboarding;
-  const isOnboardingPageSelected = nonEntityItem?.url === ONBOARDING_URL;
+  const shouldDisplayGettingStarted = isNewInstance && canAccessOnboarding;
 
-  const dispatch = useDispatch();
+  const showOtherUsersCollections = useShowOtherUsersCollections();
 
-  const dismissOnboardingLink = () => {
-    setIsOnboardingLinkDismissed(true);
-
-    if (isOnboardingPageSelected) {
-      dispatch(push("/"));
-    }
-
-    dispatch(
-      addUndo({
-        icon: "gear",
-        message: <OnboardingDismissedToast />,
-      }),
-    );
-  };
-
-  // Instances with DWH enabled already have uploads enabled by default.
-  // It is not possible to turn the uploads off, nor to delete the attached database.
-  const hasAttachedDWHFeature = useHasTokenFeature("attached_dwh");
-
-  const uploadDbId = useSelector(
-    state => getSetting(state, "uploads-settings")?.db_id,
-  );
-
-  const rootCollection = collections.find(
-    c => c.id === "root" || c.id === null,
-  );
-  const canCurateRootCollection = rootCollection?.can_write;
-  const canUploadToDatabase = databases
-    ?.find(db => db.id === uploadDbId)
-    ?.canUpload();
-
-  /**
-   * the user must have:
-   *   - "write" permissions for the root collection AND
-   *   - "upload" permissions for the attached DWH
-   */
-  const canUpload = canCurateRootCollection && canUploadToDatabase;
-  const showUploadCSVButton = hasAttachedDWHFeature && canUpload;
-
-  const isAdditionalDatabaseAdded = getHasOwnDatabase(databases);
-  const showAddDatabaseButton = isAdmin && !isAdditionalDatabaseAdded;
+  const collectionsHeading = showExternalCollectionsSection
+    ? t`Internal Collections`
+    : t`Collections`;
 
   return (
     <ErrorBoundary>
@@ -190,28 +191,32 @@ export function MainNavbarView({
             >
               {t`Home`}
             </PaddedSidebarLink>
-            {showOnboardingLink && (
-              <PaddedSidebarLinkDismissible
-                icon="learn"
-                right={
-                  <Tooltip label={t`Hide page`} offset={16} position="right">
-                    <Icon
-                      className="dismiss"
-                      name="eye_crossed_out"
-                      onClick={dismissOnboardingLink}
-                    />
-                  </Tooltip>
-                }
-                url={ONBOARDING_URL}
-                isSelected={isOnboardingPageSelected}
-                onClick={() => trackOnboardingChecklistOpened()}
-              >
-                {/* eslint-disable-next-line no-literal-metabase-strings -- We only show this to non-whitelabelled instances */}
-                {t`How to use Metabase`}
-              </PaddedSidebarLinkDismissible>
-            )}
-            {showUploadCSVButton && <DwhUploadCSV />}
           </SidebarSection>
+
+          {shouldDisplayGettingStarted && (
+            <SidebarSection>
+              <ErrorBoundary>
+                <GettingStartedSection
+                  nonEntityItem={nonEntityItem}
+                  onAddDataModalOpen={() => {
+                    trackAddDataModalOpened("getting-started");
+                    openAddDataModal();
+                  }}
+                >
+                  {examplesCollection && (
+                    <Tree
+                      data={[examplesCollection]}
+                      selectedId={collectionItem?.id}
+                      onSelect={onItemSelect}
+                      TreeNode={SidebarCollectionLink}
+                      role="tree"
+                      aria-label="examples-collection-tree"
+                    />
+                  )}
+                </GettingStartedSection>
+              </ErrorBoundary>
+            </SidebarSection>
+          )}
 
           {bookmarks.length > 0 && (
             <SidebarSection>
@@ -228,20 +233,74 @@ export function MainNavbarView({
             </SidebarSection>
           )}
 
+          {/* Tenant users don't see the section about "External collections" */}
+          {showExternalCollectionsSection && (
+            <PLUGIN_TENANTS.MainNavSharedCollections
+              canCreateSharedCollection={canCreateSharedCollection}
+              sharedTenantCollections={sharedTenantCollections}
+            />
+          )}
+
+          {PLUGIN_DATA_STUDIO.isEnabled && (
+            <PLUGIN_DATA_STUDIO.NavbarLibrarySection
+              collections={collections}
+              selectedId={collectionItem?.id}
+              onItemSelect={onItemSelect}
+            />
+          )}
+
           <SidebarSection>
             <ErrorBoundary>
-              <CollectionSectionHeading
-                currentUser={currentUser}
-                handleCreateNewCollection={handleCreateNewCollection}
-              />
-              <Tree
-                data={collectionsWithoutTrash}
-                selectedId={collectionItem?.id}
-                onSelect={onItemSelect}
-                TreeNode={SidebarCollectionLink}
-                role="tree"
-                aria-label="collection-tree"
-              />
+              <CollapseSection
+                header={<SidebarHeading>{collectionsHeading}</SidebarHeading>}
+                initialState={expandCollections ? "expanded" : "collapsed"}
+                iconPosition="right"
+                iconSize={8}
+                onToggle={setExpandCollections}
+                rightAction={
+                  canWriteToCollections && !isTenantUser ? (
+                    <Tooltip label={t`Create a new collection`}>
+                      <ActionIcon
+                        aria-label={t`Create a new collection`}
+                        color="var(--mb-color-text-medium)"
+                        onClick={() => {
+                          trackNewCollectionFromNavInitiated();
+                          handleCreateNewCollection();
+                        }}
+                      >
+                        <Icon name="add" />
+                      </ActionIcon>
+                    </Tooltip>
+                  ) : null
+                }
+                role="section"
+                aria-label={t`Collections`}
+              >
+                {PLUGIN_REMOTE_SYNC.CollectionsNavTree ? (
+                  <PLUGIN_REMOTE_SYNC.CollectionsNavTree
+                    collections={regularCollections}
+                    selectedId={collectionItem?.id}
+                    onSelect={onItemSelect}
+                  />
+                ) : (
+                  <Tree
+                    data={regularCollections}
+                    selectedId={collectionItem?.id}
+                    onSelect={onItemSelect}
+                    TreeNode={SidebarCollectionLink}
+                    role="tree"
+                    aria-label="collection-tree"
+                  />
+                )}
+                {showOtherUsersCollections && (
+                  <PaddedSidebarLink
+                    icon="group"
+                    url={OTHER_USERS_COLLECTIONS_URL}
+                  >
+                    {t`Other users' personal collections`}
+                  </PaddedSidebarLink>
+                )}
+              </CollapseSection>
             </ErrorBoundary>
           </SidebarSection>
 
@@ -251,6 +310,7 @@ export function MainNavbarView({
                 nonEntityItem={nonEntityItem}
                 onItemSelect={onItemSelect}
                 hasDataAccess={hasDataAccess}
+                onAddDataModalOpen={openAddDataModal}
               />
             </ErrorBoundary>
           </SidebarSection>
@@ -268,68 +328,13 @@ export function MainNavbarView({
               </ErrorBoundary>
             </TrashSidebarSection>
           )}
-          {showAddDatabaseButton && (
-            <SidebarSection>
-              <ErrorBoundary>
-                <AddDatabase />
-              </ErrorBoundary>
-            </SidebarSection>
-          )}
+          <div>
+            <WhatsNewNotification />
+          </div>
         </div>
-        <WhatsNewNotification />
       </SidebarContentRoot>
-    </ErrorBoundary>
-  );
-}
-interface CollectionSectionHeadingProps {
-  currentUser: User;
-  handleCreateNewCollection: () => void;
-}
-function CollectionSectionHeading({
-  currentUser,
-  handleCreateNewCollection,
-}: CollectionSectionHeadingProps) {
-  const renderMenu = useCallback(
-    ({ closePopover }: { closePopover: () => void }) => (
-      <CollectionMenuList>
-        <SidebarLink
-          icon="add"
-          onClick={() => {
-            closePopover();
-            handleCreateNewCollection();
-          }}
-        >
-          {t`New collection`}
-        </SidebarLink>
-        {currentUser.is_superuser && (
-          <SidebarLink
-            icon={
-              getCollectionIcon(
-                PERSONAL_COLLECTIONS as Collection,
-              ) as unknown as IconName
-            }
-            url={OTHER_USERS_COLLECTIONS_URL}
-            onClick={closePopover}
-          >
-            {t`Other users' personal collections`}
-          </SidebarLink>
-        )}
-      </CollectionMenuList>
-    ),
-    [currentUser, handleCreateNewCollection],
-  );
 
-  return (
-    <SidebarHeadingWrapper>
-      <SidebarHeading>{t`Collections`}</SidebarHeading>
-      <CollectionsMoreIconContainer>
-        <TippyPopoverWithTrigger
-          renderTrigger={({ onClick }) => (
-            <CollectionsMoreIcon name="ellipsis" onClick={onClick} />
-          )}
-          popoverContent={renderMenu}
-        />
-      </CollectionsMoreIconContainer>
-    </SidebarHeadingWrapper>
+      <AddDataModal opened={addDataModalOpened} onClose={closeAddDataModal} />
+    </ErrorBoundary>
   );
 }

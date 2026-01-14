@@ -34,7 +34,7 @@ You can select from a variety of handsome buttons:
 
 For most actions, when people click on a button, they'll be prompted to input values in the fields defined by that action.
 
-Many types of actions rely on knowing the entity IDs for the model to determine which records to update or delete. To have people select the ID for the action, you'll need to:
+Many types of actions rely on knowing the Entity ID for the model to determine which records to update or delete. To have people select the ID for the action, you'll need to:
 
 1. Click on the pencil icon to edit the dashboard.
 2. Add an action to the dashboard (if you haven't already).
@@ -50,11 +50,11 @@ If you also wire that filter up to a card with a model on the dashboard, you can
 
 You can add as many buttons as you want, and wire them up to one or more filters.
 
-## Actions are unavailable for public dashboards and dashboards in static embeds
+## Actions are unavailable for public dashboards and dashboards in guest embeds
 
-While you can add actions to dashboards and use them in your Metabase, actions won't work on dashboards accessed via [public links](./introduction.md#sharing-dashboards-with-public-links), or dashboards in static embeds.
+While you can add actions to dashboards and use them in your Metabase, actions won't work on dashboards accessed via [public links](./introduction.md#sharing-dashboards-with-public-links), or dashboards in guest embeds.
 
-If you want people outside of your Metabase to use an action, you can create a [public form for an action](../actions/custom.md#make-public), or expose actions via [interactive embedding](../embedding/interactive-embedding.md).
+If you want people outside of your Metabase to use an action, you can create a [public form for an action](../actions/custom.md#make-public), or expose actions via [modular embedding](../embedding/modular-embedding.md) with SSO or [full app embedding](../embedding/full-app-embedding.md).
 
 ## Further reading
 

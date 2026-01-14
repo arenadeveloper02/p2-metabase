@@ -2,11 +2,19 @@ import type {
   DashCardId,
   DashboardCard,
   DashboardId,
+  DashboardTab,
+  VirtualDashboardCard,
   WritebackActionId,
 } from "metabase-types/api";
 
 import { visitDashboard } from "./e2e-misc-helpers";
-import { menu, popover, sidebar, sidesheet } from "./e2e-ui-elements-helpers";
+import {
+  filterWidget,
+  menu,
+  popover,
+  sidebar,
+  sidesheet,
+} from "./e2e-ui-elements-helpers";
 
 // Metabase utility functions for commonly-used patterns
 export function selectDashboardFilter(
@@ -37,25 +45,18 @@ export function ensureDashboardCardHasText(text: string, index = 0) {
   cy.findAllByTestId("dashcard").eq(index).should("contain", text);
 }
 
+export function getEmbeddedDashboardCardMenu(index = 0) {
+  return getDashboardCard(index).findByTestId(
+    "public-or-embedded-dashcard-menu",
+  );
+}
+
 export function getDashboardCardMenu(index = 0) {
   return getDashboardCard(index).findByTestId("dashcard-menu");
 }
 
 export function showDashboardCardActions(index = 0) {
-  getDashboardCard(index).realHover({ scrollBehavior: "bottom" });
-}
-
-/**
- * Given a dashcard HTML element, will return the element for the action icon
- * with the given label text (e.g. "Click behavior", "Replace", "Duplicate", etc)
- */
-export function findDashCardAction(
-  dashcardElement: Cypress.Chainable<JQuery<HTMLElement>>,
-  labelText: string,
-) {
-  return dashcardElement
-    .realHover({ scrollBehavior: "bottom" })
-    .findByLabelText(labelText);
+  return getDashboardCard(index).realHover({ scrollBehavior: "bottom" });
 }
 
 export function removeDashboardCard(index = 0) {
@@ -64,7 +65,7 @@ export function removeDashboardCard(index = 0) {
     .findByTestId("dashboardcard-actions-panel")
     .should("be.visible")
     .icon("close")
-    .click();
+    .click({ force: true });
 }
 
 export function showDashcardVisualizationSettings(index = 0) {
@@ -90,11 +91,17 @@ export function saveDashboard({
     "saveDashboard-saveDashboardCards",
   );
   cy.intercept("GET", "/api/dashboard/*").as("saveDashboard-getDashboard");
+  cy.intercept("GET", "/api/dashboard/*/query_metadata*").as(
+    "saveDashboard-getDashboardMetadata",
+  );
+
+  cy.findByText(editBarText).should("be.visible");
   cy.button(buttonLabel).click();
 
   if (awaitRequest) {
     cy.wait("@saveDashboard-saveDashboardCards");
     cy.wait("@saveDashboard-getDashboard");
+    cy.wait("@saveDashboard-getDashboardMetadata");
   }
 
   cy.findByText(editBarText).should("not.exist");
@@ -102,14 +109,11 @@ export function saveDashboard({
 }
 
 export function checkFilterLabelAndValue(label: string, value: string) {
-  cy.get("fieldset").find("legend").invoke("text").should("eq", label);
-
-  cy.get("fieldset").contains(value);
+  filterWidget().findByLabelText(label, { exact: false }).should("exist");
+  filterWidget().contains(value);
 }
 
-export function setFilter(type: string, subType?: string, name?: string) {
-  cy.icon("filter").click();
-
+function _setFilter(type: string, subType?: string, name?: string) {
   popover().findByText("Add a filter or parameter").should("be.visible");
   popover().findByText(type).click();
 
@@ -121,6 +125,24 @@ export function setFilter(type: string, subType?: string, name?: string) {
   if (name) {
     sidebar().findByLabelText("Label").clear().type(name);
   }
+}
+
+export function setFilter(type: string, subType?: string, name?: string) {
+  dashboardHeader().findByLabelText("Add a filter or parameter").click();
+  _setFilter(type, subType, name);
+}
+
+export function setDashCardFilter(
+  dashcardIndex: number,
+  type: string,
+  subType?: string,
+  name?: string,
+) {
+  getDashboardCard(dashcardIndex)
+    .realHover({ scrollBehavior: "bottom" })
+    .findByLabelText("Add a filter")
+    .click({ force: true });
+  _setFilter(type, subType, name);
 }
 
 export function getRequiredToggle() {
@@ -209,7 +231,9 @@ export function addHeadingWhileEditing(
 ) {
   cy.findByLabelText("Add a heading or text box").click();
   popover().findByText("Heading").click();
-  cy.findByPlaceholderText("Heading").type(string, options);
+  cy.findByPlaceholderText(
+    "You can connect widgets to {{variables}} in heading cards.",
+  ).type(string, options);
 }
 
 export function openQuestionsSidebar() {
@@ -290,8 +314,7 @@ export function resizeDashboardCard({
   y: number;
 }) {
   card.within(() => {
-    const resizeHandle = cy.get(".react-resizable-handle");
-    resizeHandle
+    cy.get(".react-resizable-handle")
       .trigger("mousedown", { button: 0 })
       .wait(200)
       .trigger("mousemove", {
@@ -329,6 +352,16 @@ export function openDashboardMenu(option?: string) {
   }
 }
 
+export function assertDashboardCardTitle(index: number, title: string) {
+  getDashboardCard(index)
+    .findByTestId("legend-caption-title")
+    .should("have.text", title);
+}
+
+export function clickOnCardTitle(index: number) {
+  getDashboardCard(index).findByTestId("legend-caption-title").click();
+}
+
 export const dashboardHeader = () => {
   return cy.findByTestId("dashboard-header");
 };
@@ -345,19 +378,43 @@ export function dashboardParameterSidebar() {
   return cy.findByTestId("dashboard-parameter-sidebar");
 }
 
+export function applyFilterToast() {
+  return cy.findByTestId("filter-apply-toast");
+}
+
+export function applyFilterButton() {
+  return applyFilterToast().button("Apply");
+}
+
+export function cancelFilterButton() {
+  return applyFilterToast().button("Cancel");
+}
+
+export function setDashboardParameterName(name: string) {
+  dashboardParameterSidebar().findByLabelText("Label").clear().type(name);
+}
+
+export function setDashboardParameterType(type: string) {
+  dashboardParameterSidebar()
+    .findByText("Filter or parameter type")
+    .next()
+    .click();
+  popover().findByText(type).click();
+}
+
+export function setDashboardParameterOperator(operatorName: string) {
+  dashboardParameterSidebar().findByText("Filter operator").next().click();
+  popover().findByText(operatorName).click();
+}
+
 export function dashboardParametersDoneButton() {
   return dashboardParameterSidebar().button("Done");
 }
 
-/**
- * @param {Object} option
- * @param {number=} option.id
- * @param {number=} option.col
- * @param {number=} option.row
- * @param {number=} option.size_x
- * @param {number=} option.size_y
- * @param {string=} option.text
- */
+export function dashboardParametersPopover() {
+  return popover({ testId: "parameter-value-dropdown" } as any);
+}
+
 export function getTextCardDetails({
   id = getNextUnsavedDashboardCardId(),
   col = 0,
@@ -365,7 +422,10 @@ export function getTextCardDetails({
   size_x = 4,
   size_y = 6,
   text = "Text card",
-} = {}) {
+  ...cardDetails
+}: Partial<VirtualDashboardCard> & {
+  text?: string;
+} = {}): Partial<VirtualDashboardCard> {
   return {
     id,
     card_id: null,
@@ -383,7 +443,20 @@ export function getTextCardDetails({
       },
       text,
     },
-  } as const;
+    ...cardDetails,
+  };
+}
+export function getDashboardTabDetails({
+  id,
+  name,
+}: Pick<DashboardTab, "id" | "name" | "position">): Pick<
+  DashboardTab,
+  "id" | "name" | "position"
+> {
+  return {
+    id,
+    name,
+  };
 }
 
 export function getHeadingCardDetails({
@@ -393,7 +466,10 @@ export function getHeadingCardDetails({
   size_x = 24,
   size_y = 1,
   text = "Heading text details",
-} = {}) {
+  ...cardDetails
+}: Partial<VirtualDashboardCard> & {
+  text?: string;
+} = {}): Partial<VirtualDashboardCard> {
   return {
     id,
     card_id: null,
@@ -412,6 +488,7 @@ export function getHeadingCardDetails({
       "dashcard.background": false,
       text,
     },
+    ...cardDetails,
   };
 }
 
@@ -539,4 +616,16 @@ export function assertDashboardFullWidth() {
     "max-width",
     MAX_WIDTH,
   );
+}
+
+export function clickBehaviorSidebar(
+  dashcardIndex = 0,
+): Cypress.Chainable<JQuery<HTMLElement>> {
+  showDashboardCardActions(dashcardIndex);
+
+  getDashboardCard(dashcardIndex)
+    .findByLabelText("Click behavior")
+    .click({ force: true });
+
+  return cy.findByTestId("click-behavior-sidebar");
 }

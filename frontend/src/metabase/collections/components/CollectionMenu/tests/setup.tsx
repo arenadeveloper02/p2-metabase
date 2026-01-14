@@ -2,14 +2,14 @@
 import fetchMock from "fetch-mock";
 import { Route } from "react-router";
 
-import { setupEnterprisePlugins } from "__support__/enterprise";
+import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import {
   setupDashboardQuestionCandidatesEndpoint,
   setupStaleItemsEndpoint,
   setupUserKeyValueEndpoints,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
-import { renderWithProviders } from "__support__/ui";
+import { renderWithProviders, screen, waitFor } from "__support__/ui";
 import type {
   Collection,
   DashboardQuestionCandidate,
@@ -29,10 +29,9 @@ export interface SetupOpts {
   tokenFeatures?: TokenFeatures;
   isAdmin?: boolean;
   isPersonalCollectionChild?: boolean;
-  hasEnterprisePlugins?: boolean;
+  enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][];
   dashboardQuestionCandidates?: DashboardQuestionCandidate[];
   moveToDashboard?: boolean;
-  collectionMenu?: boolean;
   numberOfCollectionItems?: number;
   numberOfStaleItems?: number;
 }
@@ -41,11 +40,9 @@ export const setup = ({
   collection = createMockCollection(),
   tokenFeatures = createMockTokenFeatures(),
   isAdmin = false,
-  isPersonalCollectionChild = false,
-  hasEnterprisePlugins = false,
+  enterprisePlugins,
   dashboardQuestionCandidates = [],
   moveToDashboard = false,
-  collectionMenu = false,
   numberOfCollectionItems = 10,
   numberOfStaleItems = 0,
 }: SetupOpts) => {
@@ -56,14 +53,20 @@ export const setup = ({
   });
   setupDashboardQuestionCandidatesEndpoint(dashboardQuestionCandidates);
   setupUserKeyValueEndpoints({
-    namespace: "user_acknowledgement",
+    namespace: "indicator-menu",
     key: "collection-menu",
-    value: collectionMenu,
+    value: [],
   });
 
   setupUserKeyValueEndpoints({
     namespace: "user_acknowledgement",
     key: "move-to-dashboard",
+    value: moveToDashboard,
+  });
+
+  setupUserKeyValueEndpoints({
+    namespace: "user_acknowledgement",
+    key: "clean-stale-items",
     value: moveToDashboard,
   });
 
@@ -74,9 +77,9 @@ export const setup = ({
 
   const onUpdateCollection = jest.fn();
 
-  if (hasEnterprisePlugins) {
+  if (enterprisePlugins) {
     setupStaleItemsEndpoint(numberOfStaleItems);
-    setupEnterprisePlugins();
+    enterprisePlugins.forEach((plugin) => setupEnterpriseOnlyPlugin(plugin));
   }
 
   renderWithProviders(
@@ -87,7 +90,6 @@ export const setup = ({
           <CollectionMenu
             collection={collection}
             isAdmin={isAdmin}
-            isPersonalCollectionChild={isPersonalCollectionChild}
             onUpdateCollection={onUpdateCollection}
           />
         )}
@@ -97,4 +99,26 @@ export const setup = ({
   );
 
   return { onUpdateCollection };
+};
+
+export const assertIndicatorVisible = async () => {
+  await waitFor(async () =>
+    expect(
+      (await screen.findByTestId("menu-indicator-root")).querySelector(
+        "[class*=indicator]",
+      ),
+    ).toBeInTheDocument(),
+  );
+};
+
+export const assertIndicatorHidden = async () => {
+  await fetchMock.callHistory.flush();
+  await waitFor(() =>
+    expect(screen.queryByTestId("thing-is-loading")).not.toBeInTheDocument(),
+  );
+  expect(
+    (await screen.findByTestId("menu-indicator-root")).querySelector(
+      "[class*=indicator]",
+    ),
+  ).not.toBeInTheDocument();
 };

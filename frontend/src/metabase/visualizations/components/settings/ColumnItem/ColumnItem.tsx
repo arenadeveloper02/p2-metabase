@@ -2,8 +2,14 @@ import cx from "classnames";
 
 import CS from "metabase/css/core/index.css";
 import type { AccentColorOptions } from "metabase/lib/colors/types";
-import type { IconProps } from "metabase/ui";
-import { Flex, Group, Icon, Text } from "metabase/ui";
+import {
+  Flex,
+  type FlexProps,
+  Group,
+  Icon,
+  type IconProps,
+  Text,
+} from "metabase/ui";
 
 import { ChartSettingActionIcon } from "../ChartSettingActionIcon";
 import { ChartSettingColorPicker } from "../ChartSettingColorPicker";
@@ -25,6 +31,7 @@ export interface ColumnItemProps {
   onEnable?: (target: HTMLElement) => void;
   onColorChange?: (newColor: string) => void;
   accentColorOptions?: AccentColorOptions;
+  onDragStart?: FlexProps["onDragStart"];
 }
 
 export const ColumnItem = ({
@@ -42,6 +49,7 @@ export const ColumnItem = ({
   onEnable,
   onColorChange,
   accentColorOptions,
+  onDragStart,
 }: ColumnItemProps) => (
   <Flex
     w="100%"
@@ -65,12 +73,15 @@ export const ColumnItem = ({
     px="sm"
     py="xs"
     my="sm"
+    draggable={draggable}
+    onDragStart={onDragStart}
   >
-    <Group noWrap spacing="xs" p="xs">
+    <Group wrap="nowrap" gap="xs" p="xs">
       {draggable && (
         <Icon
           className={cx(CS.flexNoShrink, ColumnItemS.ColumnItemDragHandle)}
           name="grabber"
+          data-testid="drag-handle"
         />
       )}
       {onColorChange && color && (
@@ -82,38 +93,38 @@ export const ColumnItem = ({
         />
       )}
     </Group>
-    <Group className={CS.flex1} px="xs" noWrap>
+    <Group className={CS.flex1} px="xs" wrap="nowrap">
       {icon && <Icon name={icon} className={CS.flexNoShrink} />}
       <Text lh="normal" fw="bold" className={CS.textWrap}>
         {title}
       </Text>
     </Group>
-    <Group noWrap spacing="sm" p="xs">
+    <Group wrap="nowrap" gap="sm" p="xs">
       {onEdit && (
         <ChartSettingActionIcon
           icon="ellipsis"
-          onClick={e => onEdit(e.currentTarget)}
+          onClick={(e) => onEdit(e.currentTarget)}
           data-testid={`${title}-settings-button`}
         />
       )}
       {onAdd && (
         <ChartSettingActionIcon
           icon="add"
-          onClick={e => onAdd(e.currentTarget)}
+          onClick={(e) => onAdd(e.currentTarget)}
           data-testid={`${title}-add-button`}
         />
       )}
       {onRemove && (
         <ChartSettingActionIcon
           icon={removeIcon}
-          onClick={e => onRemove(e.currentTarget)}
+          onClick={(e) => onRemove(e.currentTarget)}
           data-testid={`${title}-hide-button`}
         />
       )}
       {onEnable && (
         <ChartSettingActionIcon
           icon="eye_crossed_out"
-          onClick={e => onEnable(e.currentTarget)}
+          onClick={(e) => onEnable(e.currentTarget)}
           data-testid={`${title}-show-button`}
         />
       )}

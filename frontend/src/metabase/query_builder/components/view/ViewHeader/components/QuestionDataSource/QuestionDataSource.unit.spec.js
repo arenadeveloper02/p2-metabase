@@ -2,8 +2,12 @@
 import { Component } from "react";
 
 import { createMockMetadata } from "__support__/metadata";
-import { setupCardEndpoints } from "__support__/server-mocks/card";
+import {
+  setupCardEndpoints,
+  setupTableEndpoints,
+} from "__support__/server-mocks";
 import { getIcon, renderWithProviders, screen } from "__support__/ui";
+import { deserializeCardFromUrl } from "metabase/lib/card";
 import * as Urls from "metabase/lib/urls";
 import * as Lib from "metabase-lib";
 import { SAMPLE_METADATA } from "metabase-lib/test-helpers";
@@ -23,6 +27,9 @@ import {
   PRODUCTS,
   PRODUCTS_ID,
   SAMPLE_DB_ID,
+  createOrdersTable,
+  createPeopleTable,
+  createProductsTable,
   createSampleDatabase,
 } from "metabase-types/api/mocks/presets";
 
@@ -105,14 +112,12 @@ const ORDERS_PEOPLE_JOIN_CONDITION = [
 
 const PRODUCTS_JOIN = {
   alias: "Products",
-  ident: "WS62Exm69R6ffcsJ-aswG",
   condition: ORDERS_PRODUCT_JOIN_CONDITION,
   "source-table": PRODUCTS_ID,
 };
 
 const PEOPLE_JOIN = {
   alias: "People",
-  ident: "V0nl07W2JKSFu1-w2pL_i",
   condition: ORDERS_PEOPLE_JOIN_CONDITION,
   "source-table": PEOPLE_ID,
 };
@@ -153,10 +158,25 @@ const ORDER_DETAIL_QUERY = {
 
 const SOURCE_QUESTION_ID = 305;
 const SOURCE_QUESTION_VIRTUAL_ID = `card__${SOURCE_QUESTION_ID}`;
-const SOURCE_QUESTION_NAME = "Another saved question";
 const SOURCE_QUESTION_COLLECTION_SCHEMA_NAME = "Everything else";
 
 // Factories
+
+const ORDERS_TABLE = createOrdersTable();
+const PRODUCTS_TABLE = createProductsTable();
+const PEOPLE_TABLE = createPeopleTable();
+
+const MULTI_SCHEMA_TABLE1 = createMockTable({
+  id: MULTI_SCHEMA_TABLE1_ID,
+  db_id: MULTI_SCHEMA_DB_ID,
+  schema: "first_schema",
+});
+
+const MULTI_SCHEMA_TABLE2 = createMockTable({
+  id: MULTI_SCHEMA_TABLE2_ID,
+  db_id: MULTI_SCHEMA_DB_ID,
+  schema: "second_schema",
+});
 
 function getMetadata() {
   return createMockMetadata({
@@ -164,18 +184,7 @@ function getMetadata() {
       createSampleDatabase(),
       createMockDatabase({
         id: MULTI_SCHEMA_DB_ID,
-        tables: [
-          createMockTable({
-            id: MULTI_SCHEMA_TABLE1_ID,
-            db_id: MULTI_SCHEMA_DB_ID,
-            schema: "first_schema",
-          }),
-          createMockTable({
-            id: MULTI_SCHEMA_TABLE2_ID,
-            db_id: MULTI_SCHEMA_DB_ID,
-            schema: "second_schema",
-          }),
-        ],
+        tables: [MULTI_SCHEMA_TABLE1, MULTI_SCHEMA_TABLE2],
       }),
     ],
   });
@@ -199,29 +208,6 @@ function getAdHocProductsQuestion() {
 
 function getAdHocPeopleQuestion() {
   return getAdHocQuestion({ dataset_query: PEOPLE_QUERY });
-}
-
-function getNestedQuestionTableMock(isMultiSchemaDB) {
-  const dbId = isMultiSchemaDB ? MULTI_SCHEMA_DB_ID : SAMPLE_DB_ID;
-  const metadata = getMetadata();
-
-  return {
-    id: SOURCE_QUESTION_VIRTUAL_ID,
-    db: metadata.database(dbId),
-    db_id: dbId,
-    display_name: SOURCE_QUESTION_NAME,
-    schema_name: SOURCE_QUESTION_COLLECTION_SCHEMA_NAME,
-    schema: {
-      id: `-1337:${SOURCE_QUESTION_COLLECTION_SCHEMA_NAME}`,
-      name: SOURCE_QUESTION_COLLECTION_SCHEMA_NAME,
-      database: {
-        id: -1337,
-        is_saved_questions: true,
-      },
-    },
-    displayName: () => SOURCE_QUESTION_NAME,
-    hasSchema: () => isMultiSchemaDB,
-  };
 }
 
 class ErrorBoundary extends Component {
@@ -248,6 +234,11 @@ function setup({
   const originalQuestion = originalCard && new Question(originalCard, metadata);
 
   setupCardEndpoints(SOURCE_CARD);
+  setupTableEndpoints(ORDERS_TABLE);
+  setupTableEndpoints(PRODUCTS_TABLE);
+  setupTableEndpoints(PEOPLE_TABLE);
+  setupTableEndpoints(MULTI_SCHEMA_TABLE1);
+  setupTableEndpoints(MULTI_SCHEMA_TABLE2);
 
   const onError = jest.fn();
   renderWithProviders(
@@ -263,9 +254,22 @@ function setup({
   return { onError, question };
 }
 
-jest.mock("metabase/core/components/Link", () => ({ to: href, ...props }) => (
+jest.mock("metabase/common/components/Link", () => ({ to: href, ...props }) => (
   <a href={href} {...props} />
 ));
+
+function getQuestionFromUrl(relativeUrl) {
+  const url = new URL(relativeUrl, document.location.href);
+  const card = deserializeCardFromUrl(url.hash);
+  return new Question(card, getMetadata());
+}
+
+function areQuestionUrlsEquivalent(url1, url2) {
+  return Lib.areLegacyQueriesEqual(
+    getQuestionFromUrl(url1).datasetQuery(),
+    getQuestionFromUrl(url2).datasetQuery(),
+  );
+}
 
 describe("QuestionDataSource", () => {
   const GUI_TEST_CASE = {
@@ -353,13 +357,15 @@ describe("QuestionDataSource", () => {
   });
 
   describe("common", () => {
-    ALL_TEST_CASES.forEach(testCase => {
+    ALL_TEST_CASES.forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
-        it("displays database name", () => {
+        it("displays database name", async () => {
           const { question } = setup({ card });
-          const node = screen.queryByText(question.database().displayName());
+          const node = await screen.findByText(
+            question.database().displayName(),
+          );
           expect(node).toBeInTheDocument();
           expect(node.closest("a")).toHaveAttribute(
             "href",
@@ -367,10 +373,10 @@ describe("QuestionDataSource", () => {
           );
         });
 
-        it("shows nothing if a user doesn't have data permissions", () => {
+        it("shows nothing if a user doesn't have data permissions", async () => {
           setup({ card, hasPermissions: false });
           expect(
-            screen.getByTestId("head-crumbs-container"),
+            await screen.findByTestId("head-crumbs-container"),
           ).toBeEmptyDOMElement();
         });
       });
@@ -378,39 +384,43 @@ describe("QuestionDataSource", () => {
   });
 
   describe("GUI", () => {
-    Object.values(GUI_TEST_CASE).forEach(testCase => {
+    Object.values(GUI_TEST_CASE).forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
-        it("displays table name", () => {
+        it("displays table name", async () => {
           const { question } = setup({ card });
-          const node = screen.queryByText(
+          const node = await screen.findByText(
             new RegExp(question.legacyQueryTable().displayName()),
           );
           expect(node).toBeInTheDocument();
           expect(node.closest("a")).not.toBeInTheDocument();
         });
 
-        it("displays table link in subhead variant", () => {
+        it("displays table link in subhead variant", async () => {
           const { question } = setup({ card, subHead: true });
-          const node = screen.queryByText(
+          const node = await screen.findByText(
             new RegExp(question.legacyQueryTable().displayName()),
           );
-          expect(node.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(question.legacyQueryTable().newQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              node.closest("a").href,
+              ML_Urls.getUrl(question.legacyQueryTable().newQuestion()),
+            ),
+          ).toBe(true);
         });
 
-        it("displays table link in object detail view", () => {
+        it("displays table link in object detail view", async () => {
           const { question } = setup({ card, isObjectDetail: true });
-          const node = screen.queryByText(
+          const node = await screen.findByText(
             new RegExp(question.legacyQueryTable().displayName()),
           );
-          expect(node.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(question.legacyQueryTable().newQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              node.closest("a").href,
+              ML_Urls.getUrl(question.legacyQueryTable().newQuestion()),
+            ),
+          ).toBe(true);
         });
       });
     });
@@ -420,13 +430,13 @@ describe("QuestionDataSource", () => {
     [
       GUI_TEST_CASE.SAVED_GUI_MULTI_SCHEMA_DB,
       GUI_TEST_CASE.AD_HOC_MULTI_SCHEMA_DB,
-    ].forEach(testCase => {
+    ].forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
-        it("displays schema name", () => {
+        it("displays schema name", async () => {
           const { question } = setup({ card });
-          const node = screen.queryByText(
+          const node = await screen.findByText(
             question.legacyQueryTable().schema_name,
           );
           expect(node).toBeInTheDocument();
@@ -443,26 +453,30 @@ describe("QuestionDataSource", () => {
     [
       GUI_TEST_CASE.SAVED_GUI_PRODUCTS_JOIN,
       GUI_TEST_CASE.AD_HOC_PRODUCTS_JOIN,
-    ].forEach(testCase => {
+    ].forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
-        it("displays 2 joined tables (metabase#17961)", () => {
+        it("displays 2 joined tables (metabase#17961)", async () => {
           setup({ card, subHead: true });
 
-          const orders = screen.queryByText(/Orders/);
-          const products = screen.queryByText(/Products/);
+          const orders = await screen.findByText(/Orders/);
+          const products = await screen.findByText(/Products/);
 
           expect(orders).toBeInTheDocument();
-          expect(orders.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(getAdHocOrdersQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              orders.closest("a").href,
+              ML_Urls.getUrl(getAdHocOrdersQuestion()),
+            ),
+          ).toBe(true);
           expect(products).toBeInTheDocument();
-          expect(products.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(getAdHocProductsQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              products.closest("a").href,
+              ML_Urls.getUrl(getAdHocProductsQuestion()),
+            ),
+          ).toBe(true);
         });
       });
     });
@@ -470,32 +484,38 @@ describe("QuestionDataSource", () => {
     [
       GUI_TEST_CASE.SAVED_GUI_PRODUCTS_PEOPLE_JOIN,
       GUI_TEST_CASE.AD_HOC_PRODUCTS_PEOPLE_JOIN,
-    ].forEach(testCase => {
+    ].forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
-        it("displays > 2 joined tables (metabase#17961)", () => {
+        it("displays > 2 joined tables (metabase#17961)", async () => {
           setup({ card, subHead: true });
 
-          const orders = screen.queryByText(/Orders/);
-          const products = screen.queryByText(/Products/);
-          const people = screen.queryByText(/People/);
+          const orders = await screen.findByText(/Orders/);
+          const products = await screen.findByText(/Products/);
+          const people = await screen.findByText(/People/);
 
           expect(orders).toBeInTheDocument();
-          expect(orders.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(getAdHocOrdersQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              orders.closest("a").href,
+              ML_Urls.getUrl(getAdHocOrdersQuestion()),
+            ),
+          ).toBe(true);
           expect(products).toBeInTheDocument();
-          expect(products.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(getAdHocProductsQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              products.closest("a").href,
+              ML_Urls.getUrl(getAdHocProductsQuestion()),
+            ),
+          ).toBe(true);
           expect(people).toBeInTheDocument();
-          expect(people.closest("a")).toHaveAttribute(
-            "href",
-            ML_Urls.getUrl(getAdHocPeopleQuestion()),
-          );
+          expect(
+            areQuestionUrlsEquivalent(
+              people.closest("a").href,
+              ML_Urls.getUrl(getAdHocPeopleQuestion()),
+            ),
+          ).toBe(true);
         });
       });
     });
@@ -548,19 +568,12 @@ describe("QuestionDataSource", () => {
       },
     };
 
-    Object.values(NESTED_TEST_CASES).forEach(testCase => {
+    Object.values(NESTED_TEST_CASES).forEach((testCase) => {
       const { card, questionType } = testCase;
 
       describe(questionType, () => {
         it("does not display virtual schema (metabase#12616)", () => {
-          const { question } = setup({ card, subHead: true });
-
-          const isMultiSchemaDB =
-            card.dataset_query.database === MULTI_SCHEMA_DB_ID;
-
-          // eslint-disable-next-line no-restricted-syntax
-          question.legacyQuery({ useStructuredQuery: true }).table = () =>
-            getNestedQuestionTableMock(isMultiSchemaDB);
+          setup({ card, subHead: true });
 
           const node = screen.queryByText(
             SOURCE_QUESTION_COLLECTION_SCHEMA_NAME,
@@ -571,12 +584,12 @@ describe("QuestionDataSource", () => {
     });
   });
 
-  it("should show info icon on an ad-hoc question header", () => {
+  it("should show info icon on an ad-hoc question header", async () => {
     setup({ card: SOURCE_CARD });
-    expect(screen.getByLabelText("More info")).toBeInTheDocument();
+    expect(await screen.findByLabelText("More info")).toBeInTheDocument();
   });
 
-  it("should show info icon on a subheader", () => {
+  it("should show info icon on a subheader", async () => {
     setup({ card: SOURCE_CARD, subHead: true });
     expect(screen.queryByLabelText("More info")).not.toBeInTheDocument();
   });

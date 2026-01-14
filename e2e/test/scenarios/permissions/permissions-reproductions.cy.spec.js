@@ -15,7 +15,7 @@ const { nocollection } = USERS;
 const PG_DB_ID = 2;
 
 // NOTE: This issue wasn't specifically related to PostgreSQL. We simply needed to add another DB to reproduce it.
-describe.skip("issue 13347", { tags: "@external" }, () => {
+describe("issue 13347", { tags: ["@external", "@skip"] }, () => {
   beforeEach(() => {
     cy.intercept("POST", "/api/dataset").as("dataset");
 
@@ -56,7 +56,7 @@ describe.skip("issue 13347", { tags: "@external" }, () => {
     );
   });
 
-  ["QB", "Native"].forEach(test => {
+  ["QB", "Native"].forEach((test) => {
     it(`${test.toUpperCase()} version:\n should be able to select question (from "Saved Questions") which belongs to the database user doesn't have data-permissions for (metabase#13347)`, () => {
       cy.signIn("none");
 
@@ -78,7 +78,7 @@ describe("postgres > user > query", { tags: "@external" }, () => {
   beforeEach(() => {
     H.restore("postgres-12");
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
 
     // Update basic permissions (the same starting "state" as we have for the "Sample Database")
     cy.updatePermissionsGraph({
@@ -105,7 +105,7 @@ describe("postgres > user > query", { tags: "@external" }, () => {
     cy.intercept("POST", "/api/dataset/pivot").as("pivotDataset");
   });
 
-  it("should handle the use of `regexextract` in a sandboxed table (metabase#14873)", () => {
+  it("should handle the use of `regexExtract` in a sandboxed table (metabase#14873)", () => {
     const CC_NAME = "Firstname";
     // We need ultra-wide screen to avoid scrolling (custom column is rendered at the last position)
     cy.viewport(2200, 1200);
@@ -149,7 +149,7 @@ describe("postgres > user > query", { tags: "@external" }, () => {
   });
 });
 
-describe.skip("issue 17777", () => {
+describe("issue 17777", { tags: "@skip" }, () => {
   function hideTables(tables) {
     cy.request("PUT", "/api/table", {
       ids: tables,
@@ -196,7 +196,7 @@ describe("issue 19603", () => {
 
     // Archive second collection (nested under the first one)
     cy.request("GET", "/api/collection/").then(({ body }) => {
-      const { id } = body.find(c => c.slug === "second_collection");
+      const { id } = body.find((c) => c.slug === "second_collection");
 
       H.archiveCollection(id);
     });
@@ -231,7 +231,7 @@ describe("issue 20436", () => {
 
     H.restore();
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
 
     cy.updatePermissionsGraph({
       [ALL_USERS_GROUP]: {
@@ -272,7 +272,7 @@ describe("issue 20436", () => {
   });
 });
 
-describe("UI elements that make no sense for users without data permissions (metabase#22447, metabase##22449, metabase#22450)", () => {
+describe("UI elements that make no sense for users without data permissions (metabase#22447, metabase#22449, metabase#22450)", () => {
   beforeEach(() => {
     H.restore();
   });
@@ -306,19 +306,13 @@ describe("UI elements that make no sense for users without data permissions (met
       cy.icon("refresh").should("not.exist");
     });
 
-    cy.visit("/collection/root");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("New").click();
-
-    H.popover()
-      .should("contain", "Dashboard")
-      .and("contain", "Collection")
-      .and("not.contain", "Question");
+    H.newButton().click();
+    H.popover().should("contain", "Dashboard").and("not.contain", "Question");
   });
 
   it("should not show visualization or question settings to users with block data permissions", () => {
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
     cy.updatePermissionsGraph({
       [ALL_USERS_GROUP]: {
         [SAMPLE_DB_ID]: { "view-data": "blocked" },
@@ -332,23 +326,21 @@ describe("UI elements that make no sense for users without data permissions (met
 
     H.visitQuestion(ORDERS_QUESTION_ID);
 
-    cy.findByTextEnsureVisible("There was a problem with your question");
+    cy.findByTextEnsureVisible(
+      "Sorry, you don't have permission to run this query.",
+    );
 
-    cy.findByTestId("viz-settings-button").should("not.exist");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Visualization").should("not.exist");
+    H.queryBuilderFooter()
+      .findByTestId("viz-settings-button")
+      .should("not.exist");
+    H.queryBuilderFooter().findByText("Visualization").should("not.exist");
 
     cy.findByTestId("qb-header-action-panel").within(() => {
       cy.icon("refresh").should("not.exist");
     });
-    cy.visit("/collection/root");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("New").click();
 
-    H.popover()
-      .should("contain", "Dashboard")
-      .and("contain", "Collection")
-      .and("not.contain", "Question");
+    H.newButton().click();
+    H.popover().should("contain", "Dashboard").and("not.contain", "Question");
   });
 });
 
@@ -405,7 +397,7 @@ describe("issue 22695 ", () => {
 
     H.restore();
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
 
     cy.updatePermissionsGraph({
       [ALL_USERS_GROUP]: {
@@ -491,7 +483,7 @@ describe("issue 22727", () => {
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
-    cy.findByTestId("save-question-modal").then(modal => {
+    cy.findByTestId("save-question-modal").then((modal) => {
       // This part reproduces https://github.com/metabase/metabase/issues/20717
       cy.findByText(/^Replace original qeustion/).should("not.exist");
 
@@ -585,7 +577,7 @@ describe("issue 24966", () => {
   beforeEach(() => {
     H.restore();
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
     H.blockUserGroupPermissions(USER_GROUPS.ALL_USERS_GROUP);
 
     // Add user attribute to existing user
@@ -655,7 +647,7 @@ describe("issue 24966", () => {
     cy.findByLabelText("Widget").click();
     cy.button("Add filter").click();
     cy.location("search").should("eq", "?text=Widget");
-    cy.get("@dashcardId").then(id => {
+    cy.get("@dashcardId").then((id) => {
       H.assertDatasetReqIsSandboxed({ requestAlias: `@dashcardQuery${id}` });
     });
   });

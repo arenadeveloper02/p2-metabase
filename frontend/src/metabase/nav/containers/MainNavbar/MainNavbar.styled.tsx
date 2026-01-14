@@ -1,17 +1,21 @@
+// eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
 import { NAV_SIDEBAR_WIDTH } from "metabase/nav/constants";
 import {
   breakpointMaxSmall,
   breakpointMinSmall,
-  space,
 } from "metabase/styled-components/theme";
-import { Box, type BoxProps, Icon } from "metabase/ui";
+import { Box, type BoxProps } from "metabase/ui";
 
 import { SidebarLink } from "./SidebarItems";
 import { ExpandToggleButton } from "./SidebarItems/SidebarItems.styled";
 
-export const Sidebar = styled.aside<{ isOpen: boolean }>`
+export const Sidebar = styled.aside<{
+  isOpen: boolean;
+  side: "left" | "right";
+  width?: string;
+}>`
   ${({ isOpen }) => (isOpen ? "" : "display: none")};
 
   height: 100%;
@@ -19,16 +23,19 @@ export const Sidebar = styled.aside<{ isOpen: boolean }>`
   flex-shrink: 0;
   align-items: center;
   background-color: var(--mb-color-bg-white);
-  overflow: auto;
   z-index: 4;
-  width: ${NAV_SIDEBAR_WIDTH};
-  border-inline-end: 1px solid var(--mb-color-border);
+  width: ${(props) => props.width ?? NAV_SIDEBAR_WIDTH};
+  ${(props) =>
+    props.side === "left"
+      ? "border-inline-end: 1px solid var(--mb-color-border);"
+      : "border-inline-start: 1px solid var(--mb-color-border);"}
 
   ${breakpointMaxSmall} {
     width: 90vw;
     position: absolute;
     top: 0;
-    inset-inline-start: 0;
+    ${(props) =>
+      props.side === "left" ? "inset-inline-start: 0;" : "inset-inline-end: 0;"}
   }
 `;
 
@@ -36,18 +43,18 @@ export const NavRoot = styled.nav<{ isOpen: boolean }>`
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  padding-top: ${space(1)};
+  padding-top: var(--mantine-spacing-sm);
   height: 100%;
   background-color: transparent;
   overflow-x: hidden;
   overflow-y: auto;
 
   ${breakpointMinSmall} {
-    width: ${props => (props.isOpen ? NAV_SIDEBAR_WIDTH : 0)};
+    width: ${(props) => (props.isOpen ? NAV_SIDEBAR_WIDTH : 0)};
   }
 
   ${breakpointMaxSmall} {
-    width: ${props => (props.isOpen ? "90vw" : 0)};
+    width: ${(props) => (props.isOpen ? "90vw" : 0)};
   }
 `;
 
@@ -59,23 +66,17 @@ export const SidebarContentRoot = styled.div`
 `;
 
 export const SidebarSection = styled(Box)<BoxProps>`
-  margin-top: ${space(1)};
-  margin-bottom: ${space(2)};
-  padding-inline-start: ${space(2)};
-  padding-inline-end: ${space(2)};
-`;
+  margin-top: var(--mantine-spacing-sm);
+  margin-bottom: var(--mantine-spacing-md);
+  padding-inline-start: var(--mantine-spacing-md);
+  padding-inline-end: var(--mantine-spacing-md);
+` as unknown as typeof Box;
 
 export const TrashSidebarSection = styled(SidebarSection)`
   ${ExpandToggleButton} {
     width: 12px;
   }
-`;
-
-export const SidebarHeadingWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: ${space(1)};
-`;
+` as unknown as typeof Box;
 
 export const SidebarHeading = styled.h4`
   color: var(--mb-color-text-medium);
@@ -83,21 +84,7 @@ export const SidebarHeading = styled.h4`
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.45px;
-  padding-inline-start: ${space(2)};
-`;
-
-export const CollectionsMoreIconContainer = styled.button`
-  margin-inline-start: auto;
-  margin-inline-end: ${space(1)};
-  cursor: pointer;
-`;
-
-export const CollectionsMoreIcon = styled(Icon)`
-  color: var(--mb-color-text-medium);
-`;
-
-export const CollectionMenuList = styled.ul`
-  padding: 0.5rem;
+  padding-inline-start: var(--mantine-spacing-md);
 `;
 
 export const LoadingAndErrorContainer = styled.div`
@@ -117,14 +104,4 @@ export const LoadingAndErrorContent = styled.div`
 
 export const PaddedSidebarLink = styled(SidebarLink)`
   padding-inline-start: 12px;
-`;
-
-export const PaddedSidebarLinkDismissible = styled(PaddedSidebarLink)`
-  & .dismiss {
-    display: none;
-  }
-
-  &:hover .dismiss {
-    display: block;
-  }
 `;

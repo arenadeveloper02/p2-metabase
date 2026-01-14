@@ -1,9 +1,10 @@
 (ns metabase.api.open-api-test
   (:require
    [clojure.test :refer :all]
+   [metabase.api-routes.core :as routes]
    [metabase.api.macros :as api.macros]
    [metabase.api.open-api :as open-api]
-   [metabase.api.routes :as routes]
+   [metabase.lib.schema.common :as lib.schema.common]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]))
 
@@ -20,7 +21,7 @@
   [{:keys [id]} :- [:map
                     [:id ms/PositiveInt]]
    {:keys [value]} :- [:map
-                       [:value ms/NonBlankString]]]
+                       [:value ::lib.schema.common/non-blank-string]]]
   {:id    (str id)
    :value value})
 
@@ -47,12 +48,12 @@
    _query-params
    {:keys [data]} :- [:map
                       [:data [:map
-                              [:name {:optional true} [:maybe ms/NonBlankString]]
+                              [:name {:optional true} [:maybe ::lib.schema.common/non-blank-string]]
                               [:dashcards (ms/maps-with-unique-key
                                            [:sequential [:map
                                                          [:id int?]
                                                          [:params {:optional true} [:maybe [:sequential [:map
-                                                                                                         [:param_id ms/NonBlankString]
+                                                                                                         [:param_id ::lib.schema.common/non-blank-string]
                                                                                                          [:target  :any]]]]]]]
                                            :id)]]]]]
   {:id id :data data})
@@ -92,7 +93,7 @@
                          {:in       :query
                           :name     "value"
                           :required true
-                          :schema   {:$ref "#/components/schemas/metabase.lib.schema.common~1non-blank-string"}}]}}
+                          :schema   {:$ref "#/components/schemas/metabase.lib.schema.common.non-blank-string"}}]}}
           (-> (open-api/open-api-spec (api.macros/ns-handler 'metabase.api.open-api-test) "")
               (get-in [:paths "/{id}"])))))
 
@@ -117,15 +118,13 @@
   (is (=? {:post
            {:parameters [{:in       :query
                           :name     "collection"
-                          :required false
-                          :schema   {:type :array
-                                     :items
-                                     {:type    :integer
-                                      :minimum 1}}}
+                          :required true
+                          :schema   {:oneOf [{:type :array :items {:type :integer :minimum 1}}
+                                             {:type :null}]}}
                          {:in       :query
                           :name     "settings"
-                          :required false
-                          :schema   {:type :boolean}}
+                          :required true
+                          :schema   {:oneOf [{:type :boolean} {:type :null}]}}
                          {:in       :query
                           :name     "data-model"
                           :required false
@@ -161,18 +160,19 @@
                  {:type     :object
                   :required ["dashcards"]
                   :properties
-                  {"name"      {:description string?
-                                :$ref        "#/components/schemas/metabase.lib.schema.common~1non-blank-string"}
+                  {"name"      {:oneOf [{:$ref "#/components/schemas/metabase.lib.schema.common.non-blank-string"}
+                                        {:type :null}]}
                    "dashcards" {:type :array
                                 :description string?
                                 :items       {:type       :object
                                               :required   ["id"]
                                               :properties {"id"     {:type :integer}
-                                                           "params" {:type  :array
-                                                                     :items {:type       :object
-                                                                             :required   ["param_id" "target"]
-                                                                             :properties {"param_id" {}
-                                                                                          "target"   {}}}}}}}}}}}}}}}}
+                                                           "params" {:oneOf [{:type  :array
+                                                                              :items {:type       :object
+                                                                                      :required   ["param_id" "target"]
+                                                                                      :properties {"param_id" {}
+                                                                                                   "target"   {}}}}
+                                                                             {:type :null}]}}}}}}}}}}}}}
           (-> (open-api/open-api-spec (api.macros/ns-handler 'metabase.api.open-api-test) "")
               (get-in [:paths "/complex/{id}"])))))
 
@@ -180,9 +180,26 @@
   (is (=? {:paths      {"/{id}/upload" {:post {}}
                         "/{id}"        {:get  {}
                                         :post {}}}
-           :components {:schemas {"metabase.lib.schema.common/non-blank-string" {:type :string, :minLength 1}}}}
+           :components {:schemas {"metabase.lib.schema.common.non-blank-string" {:type :string, :minLength 1}}}}
           (open-api/open-api-spec (api.macros/ns-handler 'metabase.api.open-api-test) ""))))
 
 (deftest ^:parallel openapi-all-routes
   (testing "Make sure we can successfully generate an OpenAPI spec for the entire API"
     (is (open-api/root-open-api-object #'routes/routes))))
+
+(deftest ^:parallel get-core-fn!-test
+  (is (= {:status 200, :headers {}, :body 12345}
+         (->
+          (api.macros/defendpoint :get "add/:a"
+            "Adds id, qp-one, qp-two, and body."
+            [{:keys [a]} :- [:map [:a :int]]
+             {:keys [b c]} :- [:map [:b :int] [:c :int]]
+             {:keys [d]} :- [:map [:d :int]]
+             {{e :e} :headers} :- [:map [:headers [:map [:e :int]]]]]
+            (+ a b c d e))
+          (api.macros/call-core-fn
+           {:a 5}                   ;; route params
+           {:b 40 :c 300}           ;; query params
+           {:d 2000}                ;; body
+           {:headers {:e "10000"}}) ;; the entire ring request map
+          ))))

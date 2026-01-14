@@ -69,13 +69,12 @@ describe("scenarios > metrics > question", () => {
 
   it("should be able to add a filter with an ad-hoc question", () => {
     H.createQuestion(ORDERS_SCALAR_METRIC, { visitQuestion: true });
-    cy.findByTestId("qb-header-action-panel")
-      .button(/Filter/)
-      .click();
-    H.modal().within(() => {
+    H.filter();
+    H.popover().within(() => {
       cy.findByText("Product").click();
+      cy.findByText("Category").click();
       cy.findByText("Gadget").click();
-      cy.button("Apply filters").click();
+      cy.button("Apply filter").click();
     });
     cy.findByTestId("scalar-container")
       .findByText("4,939")
@@ -93,8 +92,9 @@ describe("scenarios > metrics > question", () => {
     H.enterCustomColumnDetails({
       formula: `[${ORDERS_TIMESERIES_METRIC.name}] * 2`,
       name: "Expression",
+      format: true,
     });
-    H.popover().button("Update").click();
+    H.popover().button("Update").should("not.be.disabled").click();
     H.echartsContainer().findByText("Expression").should("be.visible");
   });
 
@@ -117,6 +117,7 @@ describe("scenarios > metrics > question", () => {
       .findByTestId("pinned-dimensions")
       .findByLabelText("Created At")
       .findByText("by month")
+      .realHover()
       .click();
     H.popover().findByText("Year").click();
     H.assertQueryBuilderRowCount(5);
@@ -144,7 +145,7 @@ describe("scenarios > metrics > question", () => {
     H.popover().findByText("See these Orders").click();
     cy.wait("@dataset");
     cy.findByTestId("qb-filters-panel")
-      .findByText("Created At is Mar 1–31, 2024")
+      .findByText("Created At: Month is Mar 1–31, 2024")
       .should("be.visible");
     H.assertQueryBuilderRowCount(445);
   });
@@ -210,5 +211,57 @@ describe("scenarios > metrics > question", () => {
 
     H.queryBuilderHeader().button("Save").click();
     H.modal().findByText("Replace or save as new?").should("not.exist");
+  });
+});
+
+describe("metrics", () => {
+  beforeEach(() => {
+    H.resetSnowplow();
+    H.restore();
+    cy.signInAsAdmin();
+    H.enableTracking();
+  });
+
+  afterEach(() => {
+    H.expectNoBadSnowplowEvents();
+  });
+
+  it("should bookmark a metric", () => {
+    H.createQuestion({ ...ORDERS_SCALAR_METRIC, name: "Metric Foo" });
+    H.createQuestion({ ...ORDERS_SCALAR_METRIC, name: "Metric Bar" });
+    H.createQuestion(
+      { ...ORDERS_SCALAR_METRIC, name: "Metric Baz" },
+      { visitQuestion: true },
+    );
+    cy.findByTestId("qb-header").findByLabelText("Bookmark").click();
+    H.expectUnstructuredSnowplowEvent({
+      event: "bookmark_added",
+      event_detail: "metric",
+      triggered_from: "qb_action_panel",
+    });
+
+    H.navigationSidebar().findByText("Our analytics").click();
+    cy.findAllByTestId("collection-entry")
+      .filter(":contains(Metric Bar)")
+      .icon("ellipsis")
+      .click();
+    H.popover().findByText("Bookmark").click();
+    H.expectUnstructuredSnowplowEvent({
+      event: "bookmark_added",
+      event_detail: "metric",
+      triggered_from: "collection_list",
+    });
+
+    H.navigationSidebar().findByText("Metrics").click();
+    cy.findAllByRole("row")
+      .filter(":contains(Metric Foo)")
+      .icon("ellipsis")
+      .click();
+    H.popover().findByText("Bookmark").click();
+    H.expectUnstructuredSnowplowEvent({
+      event: "bookmark_added",
+      event_detail: "metric",
+      triggered_from: "browse_metrics",
+    });
   });
 });

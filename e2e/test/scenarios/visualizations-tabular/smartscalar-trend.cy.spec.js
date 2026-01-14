@@ -95,9 +95,9 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
       cy.get("input").click().type("0");
       cy.get("input").should("have.value", 2);
 
-      // should not allow invalid input and floor to round the number
-      cy.get("input").click().type("4.9");
-      cy.get("input").should("have.value", 4);
+      // should not allow decimal input (ignores dot input)
+      cy.get("input").click().type("1.2");
+      cy.get("input").should("have.value", 12);
 
       // should allow valid input
       cy.get("input").click().type("3{enter}");
@@ -135,7 +135,7 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
 
     // another column
     H.menu().findByText("Value from another column…").click();
-    H.popover().findByText("Mega Count").click();
+    H.selectDropdown().findByText("Mega Count").click();
     H.menu().button("Done").click();
 
     cy.findByTestId("scalar-previous-value").within(() => {
@@ -145,7 +145,7 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
     });
 
     cy.findByTestId("chartsettings-sidebar").findByText("(Mega Count)").click();
-    H.menu().findByLabelText("Column").click();
+    H.menu().findByRole("textbox", { name: "Column" }).click();
     H.popover().findByText("Count").click();
     H.menu().button("Done").click();
 
@@ -291,7 +291,7 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
     H.popover().button("Done").click();
 
     cy.findByTestId("chartsettings-field-picker")
-      .find('input[type="search"]')
+      .findByRole("textbox")
       .should("have.value", "Mega Count")
       .click();
 
@@ -377,7 +377,7 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
     cy.icon("arrow_down").should(
       "have.css",
       "color",
-      Color(colors.success).string(),
+      Color(colors.success).rgb().string(),
     );
 
     // style
@@ -393,6 +393,30 @@ describe("scenarios > visualizations > trend chart (SmartScalar)", () => {
 
     // decimal places
     cy.findByLabelText("Number of decimal places").click().type("4").blur();
+    cy.findByTestId("scalar-container").findByText("34’400.0000%");
+
+    // negative decimal places flip to positive
+    cy.findByLabelText("Number of decimal places")
+      .click()
+      .clear()
+      .type("-3")
+      .blur();
+    cy.findByTestId("scalar-container").findByText("34’400.000%");
+
+    // non-integer decimal places round to nearest integer
+    cy.findByLabelText("Number of decimal places")
+      .click()
+      .clear()
+      .type("2.4")
+      .blur();
+    cy.findByTestId("scalar-container").findByText("34’400.00%");
+
+    // negative non-integer decimal places round to nearest integer and flip to positive
+    cy.findByLabelText("Number of decimal places")
+      .click()
+      .clear()
+      .type("-3.8")
+      .blur();
     cy.findByTestId("scalar-container").findByText("34’400.0000%");
 
     // multiply by a number

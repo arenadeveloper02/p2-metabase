@@ -1,4 +1,5 @@
 import ActionViz from "metabase/actions/components/ActionViz";
+import { ListViz } from "metabase/list-view/components/ListViz";
 import {
   registerVisualization,
   setDefaultVisualization,
@@ -11,6 +12,7 @@ import { DashCardPlaceholder } from "./visualizations/DashCardPlaceholder";
 import { Funnel } from "./visualizations/Funnel";
 import Gauge from "./visualizations/Gauge";
 import { Heading } from "./visualizations/Heading";
+import { Heatmap } from "./visualizations/Heatmap";
 import { IFrameViz } from "./visualizations/IFrameViz";
 import { LineChart } from "./visualizations/LineChart";
 import { LinkViz } from "./visualizations/LinkViz";
@@ -24,13 +26,15 @@ import { SankeyChart } from "./visualizations/SankeyChart";
 import { Scalar } from "./visualizations/Scalar";
 import { ScatterPlot } from "./visualizations/ScatterPlot";
 import { SmartScalar } from "./visualizations/SmartScalar";
-import Table from "./visualizations/Table";
+import Table from "./visualizations/Table/Table";
 import { Text } from "./visualizations/Text";
+import { TextScalar } from "./visualizations/TextScalar";
 import { WaterfallChart } from "./visualizations/WaterfallChart";
 
 export default function () {
   registerVisualization(Scalar);
   registerVisualization(SmartScalar);
+  registerVisualization(TextScalar);
   registerVisualization(Progress);
   registerVisualization(Gauge);
   registerVisualization(Table);
@@ -44,6 +48,7 @@ export default function () {
   registerVisualization(PieChart);
   registerVisualization(Map);
   registerVisualization(Funnel);
+  registerVisualization(Heatmap);
   registerVisualization(ObjectDetail);
   registerVisualization(PivotTable);
   registerVisualization(SankeyChart);
@@ -54,6 +59,8 @@ export default function () {
   registerVisualization(LinkViz);
   registerVisualization(Text);
   registerVisualization(IFrameViz);
+
+  registerVisualization(ListViz);
 
   setDefaultVisualization(Table);
 }

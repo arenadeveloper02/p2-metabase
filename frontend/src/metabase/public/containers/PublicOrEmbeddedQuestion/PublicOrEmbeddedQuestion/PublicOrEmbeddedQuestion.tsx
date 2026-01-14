@@ -1,22 +1,18 @@
 import type { Location } from "history";
 import { useCallback, useEffect, useState } from "react";
-import { useMount } from "react-use";
+import { useLatest, useMount } from "react-use";
 
+import { EmbeddingEntityContextProvider } from "metabase/embedding/context";
 import { useDispatch, useSelector } from "metabase/lib/redux";
 import { LocaleProvider } from "metabase/public/LocaleProvider";
 import { useEmbedFrameOptions } from "metabase/public/hooks";
+import { usePublicEndpoints } from "metabase/public/hooks/use-public-endpoints";
 import { useSetEmbedFont } from "metabase/public/hooks/use-set-embed-font";
 import { setErrorPage } from "metabase/redux/app";
-import { addFields, addParamValues } from "metabase/redux/metadata";
+import { addFields } from "metabase/redux/metadata";
 import { getMetadata } from "metabase/selectors/metadata";
 import { getCanWhitelabel } from "metabase/selectors/whitelabel";
-import {
-  EmbedApi,
-  PublicApi,
-  maybeUsePivotEndpoint,
-  setEmbedQuestionEndpoints,
-  setPublicQuestionEndpoints,
-} from "metabase/services";
+import { EmbedApi, PublicApi, maybeUsePivotEndpoint } from "metabase/services";
 import { getCardUiParameters } from "metabase-lib/v1/parameters/utils/cards";
 import { getParameterValuesByIdFromQueryParams } from "metabase-lib/v1/parameters/utils/parameter-parsing";
 import { getParameterValuesBySlug } from "metabase-lib/v1/parameters/utils/parameter-values";
@@ -28,6 +24,7 @@ import type {
   ParameterId,
   ParameterValuesMap,
 } from "metabase-types/api";
+import type { EntityToken } from "metabase-types/api/entity";
 
 import { PublicOrEmbeddedQuestionView } from "../PublicOrEmbeddedQuestionView";
 
@@ -36,11 +33,12 @@ export const PublicOrEmbeddedQuestion = ({
   location,
 }: {
   location: Location;
-  params: { uuid: string; token: string };
+  params: { uuid: string; token: EntityToken };
 }) => {
   const dispatch = useDispatch();
-
   const metadata = useSelector(getMetadata);
+  // we cannot use `metadata` directly otherwise hooks will re-run on every metadata change
+  const metadataRef = useLatest(metadata);
 
   const [initialized, setInitialized] = useState(false);
 
@@ -57,13 +55,9 @@ export const PublicOrEmbeddedQuestion = ({
 
   const canWhitelabel = useSelector(getCanWhitelabel);
 
-  useMount(async () => {
-    if (uuid) {
-      setPublicQuestionEndpoints(uuid);
-    } else if (token) {
-      setEmbedQuestionEndpoints(token);
-    }
+  usePublicEndpoints({ uuid, token });
 
+  useMount(async () => {
     try {
       let card;
       if (token) {
@@ -74,16 +68,13 @@ export const PublicOrEmbeddedQuestion = ({
         throw { status: 404 };
       }
 
-      if (card.param_values) {
-        await dispatch(addParamValues(card.param_values));
-      }
       if (card.param_fields) {
-        await dispatch(addFields(card.param_fields));
+        await dispatch(addFields(Object.values(card.param_fields).flat()));
       }
 
       const parameters = getCardUiParameters(
         card,
-        metadata,
+        metadataRef.current,
         {},
         card.parameters || undefined,
       );
@@ -102,7 +93,7 @@ export const PublicOrEmbeddedQuestion = ({
   });
 
   const setParameterValue = async (parameterId: ParameterId, value: any) => {
-    setParameterValues(prevParameterValues => ({
+    setParameterValues((prevParameterValues) => ({
       ...prevParameterValues,
       [parameterId]: value,
     }));
@@ -121,7 +112,8 @@ export const PublicOrEmbeddedQuestion = ({
       return;
     }
 
-    const parameters = card.parameters || getParametersFromCard(card);
+    const parameters =
+      card.parameters || getParametersFromCard(card, metadataRef.current);
 
     try {
       setResult(null);
@@ -132,6 +124,7 @@ export const PublicOrEmbeddedQuestion = ({
         newResult = await maybeUsePivotEndpoint(
           EmbedApi.cardQuery,
           card,
+          metadataRef.current,
         )({
           token,
           parameters: JSON.stringify(
@@ -140,10 +133,17 @@ export const PublicOrEmbeddedQuestion = ({
         });
       } else if (uuid) {
         // public links currently apply parameters client-side
-        const datasetQuery = applyParameters(card, parameters, parameterValues);
+        const datasetQuery = applyParameters(
+          card,
+          parameters,
+          parameterValues,
+          [],
+          { sparse: true },
+        );
         newResult = await maybeUsePivotEndpoint(
           PublicApi.cardQuery,
           card,
+          metadataRef.current,
         )({
           uuid,
           parameters: JSON.stringify(datasetQuery.parameters),
@@ -157,7 +157,7 @@ export const PublicOrEmbeddedQuestion = ({
       console.error("error", error);
       dispatch(setErrorPage(error));
     }
-  }, [card, dispatch, parameterValues, token, uuid]);
+  }, [card, metadataRef, dispatch, parameterValues, token, uuid]);
 
   useEffect(() => {
     run();
@@ -170,7 +170,7 @@ export const PublicOrEmbeddedQuestion = ({
 
     return getCardUiParameters(
       card,
-      metadata,
+      metadataRef.current,
       {},
       card.parameters || undefined,
     );
@@ -181,24 +181,24 @@ export const PublicOrEmbeddedQuestion = ({
       locale={canWhitelabel ? locale : undefined}
       shouldWaitForLocale
     >
-      <PublicOrEmbeddedQuestionView
-        initialized={initialized}
-        card={card}
-        metadata={metadata}
-        result={result}
-        uuid={uuid}
-        token={token}
-        getParameters={getParameters}
-        parameterValues={parameterValues}
-        setParameterValue={setParameterValue}
-        setParameterValueToDefault={setParameterValueToDefault}
-        bordered={bordered}
-        hide_parameters={hide_parameters}
-        theme={theme}
-        titled={titled}
-        setCard={setCard}
-        downloadsEnabled={downloadsEnabled}
-      />
+      <EmbeddingEntityContextProvider uuid={uuid} token={token}>
+        <PublicOrEmbeddedQuestionView
+          initialized={initialized}
+          card={card}
+          metadata={metadata}
+          result={result}
+          getParameters={getParameters}
+          parameterValues={parameterValues}
+          setParameterValue={setParameterValue}
+          setParameterValueToDefault={setParameterValueToDefault}
+          bordered={bordered}
+          hide_parameters={hide_parameters}
+          theme={theme}
+          titled={titled}
+          setCard={setCard}
+          downloadsEnabled={downloadsEnabled}
+        />
+      </EmbeddingEntityContextProvider>
     </LocaleProvider>
   );
 };

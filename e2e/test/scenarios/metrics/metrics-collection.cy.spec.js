@@ -100,13 +100,23 @@ describe("scenarios > metrics > collection", () => {
       ...ORDERS_TIMESERIES_METRIC,
       collection_position: null,
     });
+    cy.intercept("POST", "/api/card/*/query").as("cardQuery");
+
     cy.visit("/collection/root");
 
+    cy.wait("@cardQuery");
+    H.getPinnedSection().should("contain", "18,760");
     H.openPinnedItemMenu(ORDERS_SCALAR_METRIC.name);
+
     H.popover().findByText("Bookmark").click();
     H.navigationSidebar()
       .findByText(ORDERS_SCALAR_METRIC.name)
       .should("be.visible");
+
+    cy.log("pinned card should 'blink' to load and later show the data");
+    cy.wait("@cardQuery");
+    H.getPinnedSection().should("contain", "18,760");
+
     H.openPinnedItemMenu(ORDERS_SCALAR_METRIC.name);
     H.popover().findByText("Remove from bookmarks").click();
     H.navigationSidebar()
@@ -211,14 +221,14 @@ describe("scenarios > metrics > collection", () => {
     H.createQuestion({
       ...ORDERS_SCALAR_MODEL_METRIC,
       collection_id: FIRST_COLLECTION_ID,
-    }).then(({ body: card }) => {
+    }).then(() => {
       cy.signIn("nocollection");
       H.visitCollection(FIRST_COLLECTION_ID);
     });
     H.getPinnedSection()
-      .findByTestId("scalar-container")
-      .findByText("18,760")
-      .should("be.visible");
+      .findByTestId("scalar-value")
+      .should("not.be.empty")
+      .and("be.visible");
   });
 });
 

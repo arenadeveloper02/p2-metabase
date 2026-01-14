@@ -5,7 +5,7 @@ import {
   formatDateToRangeForParameter,
 } from "metabase/lib/formatting/date";
 import type { ValueAndColumnForColumnNameDate } from "metabase/lib/formatting/link";
-import { parseTimestamp } from "metabase/lib/time";
+import { parseTimestamp } from "metabase/lib/time-dayjs";
 import { checkNotNull } from "metabase/lib/types";
 import type { ClickObjectDimension as DimensionType } from "metabase-lib";
 import * as Lib from "metabase-lib";
@@ -33,7 +33,7 @@ import type {
   Parameter,
   ParameterValueOrArray,
   QuestionDashboardCard,
-  UserAttribute,
+  UserAttributeMap,
 } from "metabase-types/api";
 import { isImplicitActionClickBehavior } from "metabase-types/guards";
 
@@ -66,7 +66,7 @@ export function getDataFromClicked({
   extraData?: {
     dashboard?: Dashboard;
     parameterValuesBySlug?: Record<string, ParameterValueOrArray>;
-    userAttributes?: Record<UserAttribute, UserAttribute> | null;
+    userAttributes?: UserAttributeMap | null;
   };
   dimensions?: DimensionType[];
   data?: (ClickObjectDataRow & {
@@ -75,13 +75,13 @@ export function getDataFromClicked({
 }): ValueAndColumnForColumnNameDate {
   const column = [
     ...dimensions,
-    ...data.map(d => ({
+    ...data.map((d) => ({
       column: d.col,
       // When the data is changed to a display value for use in tooltips, we can set clickBehaviorValue to the raw value for filtering.
       value: d.clickBehaviorValue || d.value,
     })),
   ]
-    .filter(d => d.column != null)
+    .filter((d) => d.column != null)
     .reduce<ValueAndColumnForColumnNameDate["column"]>(
       (acc, { column, value }) => {
         if (!column) {
@@ -110,7 +110,7 @@ export function getDataFromClicked({
     ]),
   );
 
-  const parameterBySlug = _.mapObject(parameterValuesBySlug, value => ({
+  const parameterBySlug = _.mapObject(parameterValuesBySlug, (value) => ({
     value,
   }));
 
@@ -162,52 +162,51 @@ function getTargetsForStructuredQuestion(question: Question): Target[] {
       target,
       name: Lib.displayInfo(query, stageIndex, targetColumn).longDisplayName,
       sourceFilters: {
-        column: (sourceColumn, sourceQuestion) => {
-          const sourceQuery = sourceQuestion.query();
-          const stageIndex = -1;
-
-          return Lib.isAssignableType(
-            Lib.fromLegacyColumn(sourceQuery, stageIndex, sourceColumn),
+        column: (sourceColumn) =>
+          Lib.isAssignableType(
+            Lib.legacyColumnTypeInfo(sourceColumn),
             targetColumn,
-          );
-        },
-        parameter: parameter =>
+          ),
+        parameter: (parameter) =>
           columnFilterForParameter(query, stageIndex, parameter)(targetColumn),
         userAttribute: () =>
-          Lib.isString(targetColumn) ||
-          Lib.isCategory(targetColumn) ||
-          Lib.isBoolean(targetColumn),
+          Lib.isStringOrStringLike(targetColumn) ||
+          Lib.isNumeric(targetColumn) ||
+          Lib.isBoolean(targetColumn) ||
+          Lib.isDateOrDateTime(targetColumn),
       },
     };
   });
 }
 
 function getTargetsForNativeQuestion(question: Question): Target[] {
-  const legacyQuery = question.legacyQuery() as NativeQuery;
+  const legacyNativeQuery = question.legacyNativeQuery() as NativeQuery;
 
   return [
-    ...getTargetsForDimensionOptions(legacyQuery),
-    ...getTargetsForVariables(legacyQuery),
+    ...getTargetsForDimensionOptions(legacyNativeQuery),
+    ...getTargetsForVariables(legacyNativeQuery),
   ];
 }
 
-function getTargetsForDimensionOptions(legacyQuery: NativeQuery): Target[] {
-  return legacyQuery
+function getTargetsForDimensionOptions(
+  legacyNativeQuery: NativeQuery,
+): Target[] {
+  return legacyNativeQuery
     .dimensionOptions()
     .all()
-    .map(templateTagDimension => {
+    .map((templateTagDimension) => {
       const { name, id } = (
         templateTagDimension as unknown as TemplateTagDimension
       ).tag();
       const target: ClickBehaviorTarget = { type: "variable", id: name };
 
       const field = templateTagDimension.field();
-      const { base_type } = field;
+      const effectiveType = field?.effective_type;
 
       const parentType =
-        [TYPE.Temporal, TYPE.Number, TYPE.Text].find(
-          t => typeof base_type === "string" && isa(base_type, t),
-        ) || base_type;
+        [TYPE.Temporal, TYPE.Number, TYPE.Text, TYPE.Boolean].find(
+          (t) => typeof effectiveType === "string" && isa(effectiveType, t),
+        ) || effectiveType;
 
       return {
         id,
@@ -216,11 +215,11 @@ function getTargetsForDimensionOptions(legacyQuery: NativeQuery): Target[] {
         sourceFilters: {
           column: (column: DatasetColumn) =>
             Boolean(
-              column.base_type &&
+              column.effective_type &&
                 parentType &&
-                isa(column.base_type, parentType),
+                isa(column.effective_type, parentType),
             ),
-          parameter: parameter =>
+          parameter: (parameter) =>
             dimensionFilterForParameter(parameter)(templateTagDimension),
           userAttribute: () => parentType === TYPE.Text,
         },
@@ -228,8 +227,8 @@ function getTargetsForDimensionOptions(legacyQuery: NativeQuery): Target[] {
     });
 }
 
-function getTargetsForVariables(legacyQuery: NativeQuery): Target[] {
-  return legacyQuery.variables().map(templateTagVariable => {
+function getTargetsForVariables(legacyNativeQuery: NativeQuery): Target[] {
+  return legacyNativeQuery.variables().map((templateTagVariable) => {
     const { name, id, type } = checkNotNull(templateTagVariable.tag());
     const target: ClickBehaviorTarget = { type: "variable", id: name };
     const parentType = type
@@ -237,9 +236,11 @@ function getTargetsForVariables(legacyQuery: NativeQuery): Target[] {
           card: undefined,
           dimension: undefined,
           snippet: undefined,
+          "temporal-unit": undefined,
           text: TYPE.Text,
           number: TYPE.Number,
           date: TYPE.Temporal,
+          boolean: TYPE.Boolean,
         }[type]
       : undefined;
 
@@ -250,9 +251,11 @@ function getTargetsForVariables(legacyQuery: NativeQuery): Target[] {
       sourceFilters: {
         column: (column: DatasetColumn) =>
           Boolean(
-            column.base_type && parentType && isa(column.base_type, parentType),
+            column.effective_type &&
+              parentType &&
+              isa(column.effective_type, parentType),
           ),
-        parameter: parameter =>
+        parameter: (parameter) =>
           variableFilterForParameter(parameter)(templateTagVariable),
         userAttribute: () => parentType === TYPE.Text,
       },
@@ -268,7 +271,7 @@ export function getTargetsForDashboard(
     return [];
   }
 
-  return dashboard.parameters.map(parameter => {
+  return dashboard.parameters.map((parameter) => {
     const { type, id, name } = parameter;
     const filter = baseTypeFilterForParameterType(type);
     return {
@@ -277,8 +280,8 @@ export function getTargetsForDashboard(
       target: { type: "parameter", id },
       sourceFilters: {
         column: (c: DatasetColumn) =>
-          notRelativeDateOrRange(parameter) && filter(c.base_type),
-        parameter: sourceParam => {
+          notRelativeDateOrRange(parameter) && filter(c.effective_type),
+        parameter: (sourceParam) => {
           // parameter IDs are generated client-side, so they might not be unique
           // if dashboard is a clone, it will have identical parameter IDs to the original
           const isSameParameter =
@@ -300,6 +303,7 @@ function baseTypeFilterForParameterType(parameterType: string) {
     category: [TYPE.Text, TYPE.Integer],
     location: [TYPE.Text],
     "temporal-unit": [TYPE.Text, TYPE.TextLike],
+    boolean: [TYPE.Boolean],
   }[typePrefix];
   if (allowedTypes === undefined) {
     // default to showing everything
@@ -309,7 +313,7 @@ function baseTypeFilterForParameterType(parameterType: string) {
     if (typeof baseType === "undefined") {
       return false;
     }
-    return allowedTypes.some(allowedType => isa(baseType, allowedType));
+    return allowedTypes.some((allowedType) => isa(baseType, allowedType));
   };
 }
 
@@ -354,7 +358,9 @@ export function canSaveClickBehavior(
     clickBehavior.linkType === "dashboard"
   ) {
     const tabs = targetDashboard?.tabs || [];
-    const dashboardTabExists = tabs.some(tab => tab.id === clickBehavior.tabId);
+    const dashboardTabExists = tabs.some(
+      (tab) => tab.id === clickBehavior.tabId,
+    );
 
     if (tabs.length > 1 && !dashboardTabExists) {
       // If the target dashboard tab has been deleted, and there are other tabs
@@ -409,7 +415,9 @@ export function formatSourceForTarget(
 
       if (
         typeof sourceDateUnit === "string" &&
-        ["week", "month", "quarter", "year"].includes(sourceDateUnit)
+        ["week", "month", "quarter", "year", "hour", "minute"].includes(
+          sourceDateUnit,
+        )
       ) {
         return formatDateToRangeForParameter(datum.value, sourceDateUnit);
       }
@@ -419,6 +427,15 @@ export function formatSourceForTarget(
         "date/single",
         sourceDateUnit,
       );
+    }
+  }
+
+  if (parameter?.type === "number/between" && "column" in datum) {
+    const value = datum.value;
+    const binWidth = datum.column?.binning_info?.bin_width;
+
+    if (binWidth != null && typeof value === "number") {
+      return [value, value + binWidth];
     }
   }
 
@@ -440,6 +457,9 @@ function formatDateForParameterType(
   } else if (parameterType === "date/quarter-year") {
     return m.format("[Q]Q-YYYY");
   } else if (parameterType === "date/single") {
+    if (unit === "hour" || unit === "minute") {
+      return m.format("YYYY-MM-DDTHH:mm");
+    }
     return m.format("YYYY-MM-DD");
   } else if (parameterType === "date/all-options") {
     return formatDateTimeForParameter(value, unit);
@@ -477,7 +497,7 @@ function getParameter(
 ): Parameter | undefined {
   if (clickBehavior.type === "crossfilter") {
     const parameters = extraData.parameters ?? [];
-    return parameters.find(parameter => parameter.id === target.id);
+    return parameters.find((parameter) => parameter.id === target.id);
   }
 
   if (
@@ -491,7 +511,7 @@ function getParameter(
       extraData.dashboard?.id === dashboardId
         ? (extraData.parameters ?? [])
         : (extraData.dashboards?.[dashboardId]?.parameters ?? []);
-    return parameters.find(parameter => parameter.id === target.id);
+    return parameters.find((parameter) => parameter.id === target.id);
   }
 
   return undefined;

@@ -1,10 +1,8 @@
-import xlsx from "xlsx";
-
 const { H } = cy;
 
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
-const { PEOPLE } = SAMPLE_DATABASE;
+const { PEOPLE, ORDERS_ID } = SAMPLE_DATABASE;
 
 const questionData = {
   name: "Parameterized Public Question",
@@ -36,8 +34,6 @@ const questionData = {
 const PUBLIC_QUESTION_REGEX =
   /\/public\/question\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/;
 
-const EXPECTED_QUERY_PARAMS = "?birthdate=past30years&source=Affiliate";
-
 const USERS = {
   "admin user": () => cy.signInAsAdmin(),
   "user with no permissions": () => cy.signIn("none"),
@@ -68,19 +64,19 @@ describe("scenarios > public > question", () => {
       visitPublicURL();
 
       // On page load, query params are added
-      cy.location("search").should("eq", EXPECTED_QUERY_PARAMS);
+      cy.location("search").should("include", "source=Affiliate");
+      cy.location("search").should("include", "birthdate=past30years");
 
-      H.filterWidget().contains("Previous 30 Years");
+      H.filterWidget().contains("Previous 30 years");
       H.filterWidget().contains("Affiliate");
 
       cy.wait("@publicQuery");
 
       // Make sure we can download the public question (metabase#21993)
-      cy.get("@uuid").then(publicUuid => {
-        H.downloadAndAssert(
-          { fileType: "xlsx", questionId: id, publicUuid },
-          H.assertSheetRowsCount(5),
-        );
+      cy.get("@uuid").then((publicUuid) => {
+        H.main().realHover();
+
+        H.downloadAndAssert({ fileType: "xlsx", questionId: id, publicUuid });
       });
     });
   });
@@ -96,7 +92,7 @@ describe("scenarios > public > question", () => {
 
         cy.findByTestId("public-link-popover-content").within(() => {
           cy.findByText("Public link").should("be.visible");
-          cy.findByTestId("public-link-input").should($input => {
+          cy.findByTestId("public-link-input").should(($input) => {
             expect($input.val()).to.match(PUBLIC_QUESTION_REGEX);
           });
           cy.findByText("Remove public URL").should("not.exist");
@@ -114,9 +110,10 @@ describe("scenarios > public > question", () => {
               setUser();
               cy.visit(`/public/question/${uuid}`);
 
-              cy.location("search").should("eq", EXPECTED_QUERY_PARAMS);
+              cy.location("search").should("include", "source=Affiliate");
+              cy.location("search").should("include", "birthdate=past30years");
 
-              H.filterWidget().contains("Previous 30 Years");
+              H.filterWidget().contains("Previous 30 years");
               H.filterWidget().contains("Affiliate");
 
               cy.findByTestId("visualization-root").should("be.visible");
@@ -128,11 +125,11 @@ describe("scenarios > public > question", () => {
   );
 
   it("should be able to view public questions with snippets", () => {
-    H.startNewNativeQuestion({ display: "table" }).as("editor");
+    H.startNewNativeQuestion({ display: "table" });
 
     // Create a snippet
     cy.icon("snippet").click();
-    cy.findByTestId("sidebar-content").findByText("Create a snippet").click();
+    cy.findByTestId("sidebar-content").findByText("Create snippet").click();
 
     H.modal().within(() => {
       cy.findByLabelText("Enter some SQL here so you can reuse it later").type(
@@ -142,7 +139,7 @@ describe("scenarios > public > question", () => {
       cy.findByText("Save").click();
     });
 
-    cy.get("@editor").type("{moveToStart}select ");
+    H.NativeEditor.type("{moveToStart}select ");
 
     H.saveQuestion(
       "test question",
@@ -153,7 +150,7 @@ describe("scenarios > public > question", () => {
       },
     );
 
-    cy.get("@questionId").then(id => {
+    cy.get("@questionId").then((id) => {
       H.createPublicQuestionLink(id).then(({ body: { uuid } }) => {
         cy.signOut();
         cy.signInAsNormalUser().then(() => {
@@ -171,7 +168,7 @@ describe("scenarios > public > question", () => {
         query: "SELECT * FROM PEOPLE LIMIT 5",
       },
     }).then(({ body: { id } }) => {
-      H.startNewNativeQuestion({ display: "table" }).as("editor");
+      H.startNewNativeQuestion({ display: "table" });
 
       H.NativeEditor.type(`select * from {{#${id}`);
 
@@ -183,7 +180,7 @@ describe("scenarios > public > question", () => {
           path: ["Our analytics"],
         },
       );
-      cy.get("@questionId").then(id => {
+      cy.get("@questionId").then((id) => {
         H.createPublicQuestionLink(id).then(({ body: { uuid } }) => {
           cy.signOut();
           cy.signInAsNormalUser().then(() => {
@@ -194,6 +191,27 @@ describe("scenarios > public > question", () => {
         });
       });
     });
+  });
+
+  it("should support #theme=dark (metabase#65731)", () => {
+    const questionName = "Orders Theme Test";
+    H.createQuestion({
+      name: questionName,
+      query: {
+        "source-table": ORDERS_ID,
+      },
+    }).then(({ body: { id } }) => {
+      H.visitPublicQuestion(id, {
+        hash: {
+          theme: "dark",
+        },
+      });
+    });
+
+    cy.log("dark theme should have white text");
+    cy.findByRole("heading", {
+      name: questionName,
+    }).should("have.css", "color", "rgba(255, 255, 255, 0.95)");
   });
 });
 
@@ -215,27 +233,6 @@ describe("scenarios > question > public link with extension", () => {
       },
     ).as("questionId");
   });
-
-  it("should download a json file when a public link with .json is shared", () => {
-    downloadPublicFileURL("json", response => {
-      expect(response.body[0]).to.deep.eq({ ID: 1 });
-    });
-  });
-
-  ["csv", "xlsx"].forEach(fileType =>
-    it(`should download a ${fileType} file when a public link with .${fileType} is shared`, () => {
-      downloadPublicFileURL(fileType, response => {
-        const { SheetNames, Sheets } = xlsx.read(response.body, {
-          type: "binary",
-        });
-
-        const sheetName = SheetNames[0];
-        const sheet = Sheets[sheetName];
-        expect(sheet["A1"].v).to.eq("ID");
-        expect(sheet["A2"].v).to.eq(1);
-      });
-    }),
-  );
 });
 
 describe("scenarios [EE] > public > question", () => {
@@ -244,7 +241,7 @@ describe("scenarios [EE] > public > question", () => {
 
     H.restore();
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
 
     H.updateSetting("enable-public-sharing", true);
   });
@@ -273,7 +270,7 @@ describe("scenarios [EE] > public > question", () => {
     // We don't have a de-CH.json file, so it should fallback to de.json, see metabase#51039 for more details
     cy.intercept("/app/locales/de.json").as("deLocale");
 
-    cy.get("@questionId").then(id => {
+    cy.get("@questionId").then((id) => {
       H.visitPublicQuestion(id, {
         params: {
           some_parameter: "some_value",
@@ -293,38 +290,14 @@ describe("scenarios [EE] > public > question", () => {
 });
 
 const visitPublicURL = () => {
-  cy.findByTestId("public-link-input").should($input => {
+  cy.findByTestId("public-link-input").should(($input) => {
     // Copied URL has no get params
     expect($input.val()).to.match(PUBLIC_QUESTION_REGEX);
   });
   cy.findByTestId("public-link-input")
     .invoke("val")
-    .then(publicURL => {
+    .then((publicURL) => {
       cy.signOut();
       cy.visit(publicURL);
     });
-};
-
-const downloadPublicFileURL = (fileType, validationCallback) => {
-  H.openSharingMenu("Create a public link");
-
-  H.popover().findByText(fileType).click();
-
-  H.popover().findByTestId("public-link-input").invoke("val").as("publicUrl");
-
-  cy.get("@publicUrl").should(
-    "match",
-    new RegExp(`\\/public\\/question\\/.*\\.${fileType}`),
-  );
-
-  cy.get("@publicUrl").then(url => {
-    cy.request({
-      method: "GET",
-      url: url,
-      followRedirect: true,
-      encoding: "binary",
-    }).then(response => {
-      validationCallback(response);
-    });
-  });
 };

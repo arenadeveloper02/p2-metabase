@@ -1,17 +1,22 @@
 import type { LocationDescriptorObject } from "history";
 import { useKBar } from "kbar";
-import type { ChangeEvent, MouseEvent } from "react";
+import type {
+  ChangeEvent,
+  MouseEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withRouter } from "react-router";
 import { push } from "react-router-redux";
 import { usePrevious } from "react-use";
 import { t } from "ttag";
 
-import { useKeyboardShortcut } from "metabase/hooks/use-keyboard-shortcut";
-import { useOnClickOutside } from "metabase/hooks/use-on-click-outside";
-import { useToggle } from "metabase/hooks/use-toggle";
+import { useKeyboardShortcut } from "metabase/common/hooks/use-keyboard-shortcut";
+import { useOnClickOutside } from "metabase/common/hooks/use-on-click-outside";
+import { useToggle } from "metabase/common/hooks/use-toggle";
 import { isSmallScreen, isWithinIframe } from "metabase/lib/dom";
 import { useDispatch, useSelector } from "metabase/lib/redux";
+import { modelToUrl } from "metabase/lib/urls";
 import { RecentsList } from "metabase/nav/components/search/RecentsList";
 import { SearchResultsDropdown } from "metabase/nav/components/search/SearchResultsDropdown";
 import { zoomInRow } from "metabase/query_builder/actions";
@@ -48,7 +53,7 @@ type OwnProps = {
 type Props = RouterProps & OwnProps;
 
 function SearchBarView({ location, onSearchActive, onSearchInactive }: Props) {
-  const isTypeaheadEnabled = useSelector(state =>
+  const isTypeaheadEnabled = useSelector((state) =>
     getSetting(state, "search-typeahead-enabled"),
   );
 
@@ -94,7 +99,7 @@ function SearchBarView({ location, onSearchActive, onSearchInactive }: Props) {
       if (isSameModel && result.model === "indexed-entity") {
         dispatch(zoomInRow({ objectId: result.id }));
       } else {
-        onChangeLocation(result.getUrl());
+        onChangeLocation(modelToUrl(result));
       }
     },
     [dispatch, onChangeLocation, location?.state?.cardId],
@@ -159,7 +164,10 @@ function SearchBarView({ location, onSearchActive, onSearchInactive }: Props) {
   }, [onChangeLocation, previousLocation, searchFilters, searchText]);
 
   const handleInputKeyPress = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: ReactKeyboardEvent) => {
+      if (e.nativeEvent.isComposing) {
+        return;
+      }
       if (e.key === "Enter" && hasSearchText) {
         goToSearchApp();
       }

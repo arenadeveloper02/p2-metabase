@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "__support__/ui";
 
 import {
   DashboardEmptyState,
@@ -8,20 +8,22 @@ import {
 type SetupOptions = {
   isDashboardEmpty: boolean;
   isEditing: boolean;
+  canCreateQuestions?: boolean;
 };
 
 const setup = ({
   isDashboardEmpty = true,
   isEditing = false,
+  canCreateQuestions = true,
 }: SetupOptions) => {
   const addQuestion = jest.fn();
 
   render(
     <DashboardEmptyState
-      isNightMode={false}
       isDashboardEmpty={isDashboardEmpty}
       isEditing={isEditing}
       addQuestion={addQuestion}
+      canCreateQuestions={canCreateQuestions}
     />,
   );
 
@@ -77,7 +79,7 @@ describe("DashboardEmptyState", () => {
   // Editing mode is always the same for both an empty dashboard and an empty dashboard tab
   it.each(["dashboard", "dashboard tab"])(
     "renders %s empty state in editing mode",
-    context => {
+    (context) => {
       const { addQuestion } = setup({
         isDashboardEmpty: context === "dashboard",
         isEditing: true,
@@ -95,16 +97,32 @@ describe("DashboardEmptyState", () => {
       expect(addQuestion).toHaveBeenCalledTimes(1);
     },
   );
+
+  it.each(["dashboard", "dashboard tab"])(
+    "renders %s empty state in editing mode without create questions permission",
+    (context) => {
+      const { addQuestion } = setup({
+        isDashboardEmpty: context === "dashboard",
+        isEditing: true,
+        canCreateQuestions: false,
+      });
+
+      expect(illustration()).toBeInTheDocument();
+      assertBodyText({
+        title: "Browse your collections to find and add existing questions.",
+        description:
+          "Add link or text cards. You can arrange cards manually, or start with some default layouts by adding a section.",
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Add a chart" }));
+      expect(addQuestion).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("DashboardEmptyStateWithoutAddPrompt", () => {
   it("renders read-only empty state for the dashboard", () => {
-    render(
-      <DashboardEmptyStateWithoutAddPrompt
-        isNightMode={false}
-        isDashboardEmpty={true}
-      />,
-    );
+    render(<DashboardEmptyStateWithoutAddPrompt isDashboardEmpty={true} />);
 
     expect(illustration()).toBeInTheDocument();
     expect(
@@ -119,12 +137,7 @@ describe("DashboardEmptyStateWithoutAddPrompt", () => {
   });
 
   it("renders read-only empty state for the dashboard tab", () => {
-    render(
-      <DashboardEmptyStateWithoutAddPrompt
-        isNightMode={false}
-        isDashboardEmpty={false}
-      />,
-    );
+    render(<DashboardEmptyStateWithoutAddPrompt isDashboardEmpty={false} />);
 
     expect(illustration()).toBeInTheDocument();
     expect(

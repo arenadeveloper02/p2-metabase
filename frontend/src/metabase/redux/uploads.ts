@@ -2,7 +2,7 @@ import { assocIn, dissocIn, updateIn } from "icepick";
 import { t } from "ttag";
 
 import { cardApi } from "metabase/api";
-import Collections from "metabase/entities/collections";
+import { Collections } from "metabase/entities/collections";
 import { entityCompatibleQuery } from "metabase/lib/entities";
 import {
   createAction,
@@ -26,7 +26,7 @@ export const UPLOAD_FILE_CLEAR = "metabase/collection/UPLOAD_FILE_CLEAR";
 export const UPLOAD_FILE_CLEAR_ALL =
   "metabase/collection/UPLOAD_FILE_CLEAR_ALL";
 
-const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+export const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
 export const MAX_UPLOAD_STRING = "50";
 
 const CLEAR_AFTER_MS = 8000;
@@ -41,7 +41,7 @@ export const getAllUploads = (state: State) => state.upload;
 
 export const hasActiveUploads = (state: State) =>
   Object.values(getAllUploads(state)).some(
-    upload => upload.status === "in-progress",
+    (upload) => upload.status === "in-progress",
   );
 
 export interface UploadFileProps {
@@ -163,7 +163,7 @@ const upload = handleActions<
     },
     [UPLOAD_FILE_END]: {
       next: (state, { payload }) =>
-        updateIn(state, [payload.id], val => ({
+        updateIn(state, [payload.id], (val) => ({
           ...val,
           ...payload,
           status: "complete",
@@ -171,7 +171,7 @@ const upload = handleActions<
     },
     [UPLOAD_FILE_ERROR]: {
       next: (state, { payload }) =>
-        updateIn(state, [payload.id], val => ({
+        updateIn(state, [payload.id], (val) => ({
           ...val,
           ...payload,
           status: "error",

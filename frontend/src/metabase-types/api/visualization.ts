@@ -15,12 +15,13 @@ export const isVirtualCardDisplayType = (
   typeof value === "string" &&
   virtualCardDisplayTypes.includes(value as VirtualCardDisplay);
 
-const cardDisplayTypes = [
+export const cardDisplayTypes = [
   "table",
   "bar",
   "line",
   "pie",
   "scalar",
+  "textscalar",
   "row",
   "area",
   "combo",
@@ -29,11 +30,13 @@ const cardDisplayTypes = [
   "gauge",
   "progress",
   "funnel",
+  "heatmap",
   "object",
   "map",
   "scatter",
   "waterfall",
   "sankey",
+  "list",
 ] as const;
 
 export const isCardDisplayType = (value: unknown): value is CardDisplayType =>

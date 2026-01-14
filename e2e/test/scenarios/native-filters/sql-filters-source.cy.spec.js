@@ -436,7 +436,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("101");
+      H.fieldValuesCombobox().type("101");
       H.popover().findByText("1018947080336").click();
 
       H.fieldValuesValue(0)
@@ -459,7 +459,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("101");
+      H.fieldValuesCombobox().type("101");
       H.popover().findByText("1018947080336").click();
       H.fieldValuesValue(0)
         .should("be.visible")
@@ -481,7 +481,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("101");
+      H.fieldValuesCombobox().type("101");
       H.popover().findByText("1018947080336").click();
       H.fieldValuesValue(0)
         .should("be.visible")
@@ -512,7 +512,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("Custom Label");
+      H.fieldValuesCombobox().type("Custom Label");
       // eslint-disable-next-line no-unsafe-element-filtering
       H.popover().last().findByText("1018947080336").should("not.exist");
       // eslint-disable-next-line no-unsafe-element-filtering
@@ -537,7 +537,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("Custom Label");
+      H.fieldValuesCombobox().type("Custom Label");
       // eslint-disable-next-line no-unsafe-element-filtering
       H.popover().last().findByText("1018947080336").should("not.exist");
       // eslint-disable-next-line no-unsafe-element-filtering
@@ -562,7 +562,7 @@ describe("scenarios > filters > sql filters > values source", () => {
 
       FieldFilter.openEntryForm();
 
-      H.fieldValuesInput().type("Custom Label");
+      H.fieldValuesCombobox().type("Custom Label");
       // eslint-disable-next-line no-unsafe-element-filtering
       H.popover().last().findByText("1018947080336").should("not.exist");
       // eslint-disable-next-line no-unsafe-element-filtering
@@ -581,7 +581,7 @@ describe("scenarios > filters > sql filters > values source", () => {
   beforeEach(() => {
     H.restore();
     cy.signInAsAdmin();
-    H.setTokenFeatures("all");
+    H.activateToken("pro-self-hosted");
     H.blockUserGroupPermissions(USER_GROUPS.ALL_USERS_GROUP);
     cy.intercept("POST", "/api/dataset/parameter/values").as("parameterValues");
     cy.intercept("GET", "/api/card/*/params/*/values").as(
@@ -724,7 +724,10 @@ describe("scenarios > filters > sql filters > values source > number parameter",
       });
 
       FieldFilter.openEntryForm();
-      H.fieldValuesInput().type("Tw");
+      H.dashboardParametersPopover().within(() => {
+        H.multiAutocompleteInput().type("Tw");
+      });
+
       checkFilterValueNotInList("10");
       checkFilterValueNotInList("20");
       // eslint-disable-next-line no-unsafe-element-filtering
@@ -808,7 +811,9 @@ describe("scenarios > filters > sql filters > values source > number parameter",
 
       FieldFilter.openEntryForm();
 
-      H.multiAutocompleteInput().type("Tw");
+      H.dashboardParametersPopover().within(() => {
+        H.multiAutocompleteInput().type("Tw");
+      });
       // eslint-disable-next-line no-unsafe-element-filtering
       H.popover().last().findByText("Twenty").click();
 
@@ -895,7 +900,7 @@ describe("scenarios > filters > sql filters > values source > number parameter",
     SQLFilter.openTypePickerFromSelectedFilterType("Text");
     SQLFilter.chooseType("Number");
 
-    cy.get("[data-checked='true']").should("have.text", "Input box");
+    cy.findByLabelText("Input box").should("be.checked");
 
     H.setSearchBoxFilterType();
     H.checkFilterListSourceHasValue({ values: [] });
@@ -906,12 +911,12 @@ describe("scenarios > filters > sql filters > values source > number parameter",
 
     SQLFilter.openTypePickerFromSelectedFilterType("Number");
     SQLFilter.chooseType("Text");
-    cy.get("[data-checked='true']").should("have.text", "Search box");
+    cy.findByLabelText("Search box").should("be.checked");
     H.checkFilterListSourceHasValue({ values: ["Foo", "Bar"] });
   });
 });
 
-const getQuestionResource = questionId => ({
+const getQuestionResource = (questionId) => ({
   resource: { question: questionId },
   params: {},
 });
@@ -959,7 +964,7 @@ const getTextTargetQuestion = ({ query, tag, parameter }) => {
   });
 };
 
-const getStructuredTextTargetQuestion = questionId => {
+const getStructuredTextTargetQuestion = (questionId) => {
   return getTextTargetQuestion({
     query: "SELECT * FROM PRODUCTS WHERE CATEGORY = {{tag}}",
     parameter: {
@@ -972,7 +977,7 @@ const getStructuredTextTargetQuestion = questionId => {
   });
 };
 
-const getNativeTextTargetQuestion = questionId => {
+const getNativeTextTargetQuestion = (questionId) => {
   return getTextTargetQuestion({
     query: "SELECT * FROM PRODUCTS WHERE EAN = {{tag}}",
     parameter: {
@@ -1016,7 +1021,7 @@ const getDimensionTargetQuestion = ({ tag, parameter }) => {
   });
 };
 
-const getStructuredDimensionTargetQuestion = questionId => {
+const getStructuredDimensionTargetQuestion = (questionId) => {
   return getDimensionTargetQuestion({
     tag: {
       dimension: ["field", PRODUCTS.CATEGORY, null],
@@ -1032,7 +1037,7 @@ const getStructuredDimensionTargetQuestion = questionId => {
   });
 };
 
-const getNativeDimensionTargetQuestion = questionId => {
+const getNativeDimensionTargetQuestion = (questionId) => {
   return getDimensionTargetQuestion({
     tag: {
       dimension: ["field", PRODUCTS.EAN, null],
@@ -1067,13 +1072,13 @@ const getListDimensionTargetQuestion = ({
 
 const updateQuestion = () => {
   cy.findByText("Save").click();
-  cy.findByTestId("save-question-modal").within(modal => {
+  cy.findByTestId("save-question-modal").within((modal) => {
     cy.findByText("Save").click();
   });
   cy.wait("@updateQuestion");
 };
 
-const checkFilterValueInList = value => {
+const checkFilterValueInList = (value) => {
   // eslint-disable-next-line no-unsafe-element-filtering
   H.popover()
     .last()
@@ -1082,7 +1087,7 @@ const checkFilterValueInList = value => {
     });
 };
 
-const checkFilterValueNotInList = value => {
+const checkFilterValueNotInList = (value) => {
   // eslint-disable-next-line no-unsafe-element-filtering
   H.popover()
     .last()

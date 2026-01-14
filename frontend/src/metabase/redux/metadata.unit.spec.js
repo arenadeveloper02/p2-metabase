@@ -1,4 +1,4 @@
-import Fields from "metabase/entities/fields";
+import { Fields } from "metabase/entities/fields";
 
 import { fetchField } from "./metadata";
 
@@ -8,7 +8,7 @@ describe("deprecated metadata actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    dispatch = jest.fn(a => a);
+    dispatch = jest.fn((a) => a);
   });
 
   describe("fetchField", () => {

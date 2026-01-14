@@ -2,24 +2,30 @@ import { t } from "ttag";
 
 import { getEngineNativeType } from "metabase/lib/engine";
 import { useDispatch, useSelector } from "metabase/lib/redux";
-import {
-  setNotebookNativePreviewState,
-  setUIControls,
-} from "metabase/query_builder/actions";
+import { setUIControls } from "metabase/query_builder/actions";
 import { trackNotebookNativePreviewShown } from "metabase/query_builder/analytics";
 import { getUiControls } from "metabase/query_builder/selectors";
-import { Button, Icon } from "metabase/ui";
-import * as Lib from "metabase-lib";
+import { ActionIcon, Icon, Tooltip } from "metabase/ui";
 import type Question from "metabase-lib/v1/Question";
 
+import { canShowNativePreview } from "../../utils";
+
 const BUTTON_TEXT = {
-  sql: t`View SQL`,
-  json: t`View native query`,
+  get sql() {
+    return t`View SQL`;
+  },
+  get json() {
+    return t`View native query`;
+  },
 };
 
 const BUTTON_CLOSE_TEXT = {
-  sql: t`Hide SQL`,
-  json: t`Hide native query`,
+  get sql() {
+    return t`Hide SQL`;
+  },
+  get json() {
+    return t`Hide native query`;
+  },
 };
 
 interface ToggleNativeQueryPreviewProps {
@@ -46,39 +52,22 @@ export const ToggleNativeQueryPreview = ({
       }),
     );
 
-    dispatch(setNotebookNativePreviewState(!isShowingNotebookNativePreview));
-
     trackNotebookNativePreviewShown(question, !isShowingNotebookNativePreview);
   };
 
   return (
-    <Button
-      leftIcon={<Icon name="sql" />}
-      onClick={handleClick}
-      aria-label={buttonText}
-    >
-      {buttonText}
-    </Button>
+    <Tooltip label={buttonText} position="top">
+      <ActionIcon
+        aria-label={buttonText}
+        size={32}
+        role="switch"
+        variant="viewHeader"
+        onClick={handleClick}
+      >
+        <Icon name="sql" />
+      </ActionIcon>
+    </Tooltip>
   );
 };
 
-interface ToggleNativeQueryPreviewOpts {
-  question: Question;
-  queryBuilderMode: string;
-}
-
-ToggleNativeQueryPreview.shouldRender = ({
-  question,
-  queryBuilderMode,
-}: ToggleNativeQueryPreviewOpts) => {
-  const { isNative } = Lib.queryDisplayInfo(question.query());
-  const isMetric = question.type() === "metric";
-
-  return (
-    !isNative &&
-    !isMetric &&
-    question.database()?.native_permissions === "write" &&
-    queryBuilderMode === "notebook" &&
-    !question.isArchived()
-  );
-};
+ToggleNativeQueryPreview.shouldRender = canShowNativePreview;

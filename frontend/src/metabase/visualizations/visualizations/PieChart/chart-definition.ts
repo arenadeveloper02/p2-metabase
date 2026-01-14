@@ -1,3 +1,4 @@
+/* eslint-disable ttag/no-module-declaration */
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -48,11 +49,12 @@ const pieRowsReadDeps = [
 ];
 
 export const PIE_CHART_DEFINITION: VisualizationDefinition = {
-  uiName: t`Pie`,
+  getUiName: () => t`Pie`,
   identifier: "pie",
   iconName: "pie",
   minSize: getMinSize("pie"),
   defaultSize: getDefaultSize("pie"),
+  supportsVisualizer: true,
   isSensible: ({ cols, rows }) => {
     const numDimensions = cols.filter(isDimension).length;
     const numMetrics = cols.filter(isMetric).length;
@@ -80,45 +82,31 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
     const isDimensionMissing =
       !settings["pie.dimension"] ||
       (Array.isArray(settings["pie.dimension"]) &&
-        settings["pie.dimension"].every(col => col == null));
+        settings["pie.dimension"].every((col) => col == null));
     if (isDimensionMissing || !settings["pie.metric"]) {
       throw new ChartSettingsError(t`Which columns do you want to use?`, {
         section: `Data`,
       });
     }
   },
-  placeholderSeries: [
-    {
-      card: {
-        display: "pie",
-        visualization_settings: { "pie.show_legend": false },
-        dataset_query: { type: "query" },
-      },
-      data: {
-        rows: [
-          ["Doohickey", 3976],
-          ["Gadget", 4939],
-          ["Gizmo", 4784],
-          ["Widget", 5061],
-        ],
-        cols: [
-          { name: "Category", base_type: "type/Category" },
-          { name: "Count", base_type: "type/Integer" },
-        ],
-      },
-    },
-  ] as RawSeries,
+  hasEmptyState: true,
   settings: {
     ...metricSetting("pie.metric", {
-      section: t`Data`,
-      title: t`Measure`,
+      get section() {
+        return t`Data`;
+      },
+      get title() {
+        return t`Measure`;
+      },
       showColumnSetting: true,
       getDefault: (rawSeries: Series) => getDefaultPieColumns(rawSeries).metric,
     }),
-    ...columnSettings({ hidden: true }),
+    ...columnSettings(),
     ...dimensionSetting("pie.dimension", {
       hidden: true,
-      title: t`Dimension`,
+      get title() {
+        return t`Dimension`;
+      },
       showColumnSetting: true,
       getDefault: (rawSeries: Series) =>
         getDefaultPieColumns(rawSeries).dimension,
@@ -185,7 +173,7 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
           pieRows,
           updateRowName: (newName: string, key: string | number) => {
             onChangeSettings({
-              "pie.rows": pieRows.map(row => {
+              "pie.rows": pieRows.map((row) => {
                 if (row.key !== key) {
                   return row;
                 }
@@ -199,7 +187,9 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
     } as any), // any type cast needed to avoid type error from confusion with destructured object params in `nestedSettings`
 
     "pie._dimensions_widget": {
-      section: t`Data`,
+      get section() {
+        return t`Data`;
+      },
       widget: DimensionsWidget,
       getProps: (
         rawSeries: RawSeries,
@@ -214,49 +204,123 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       }),
       readDependencies: ["pie.dimension", "pie.rows"],
     },
-    "pie.show_legend": {
+    "pie.type": {
+      title: t`Chart type`,
       section: t`Display`,
-      title: t`Show legend`,
+      widget: "select",
+      props: {
+        options: [
+          { name: t`Pie/Donut`, value: "pie" },
+          { name: t`Donut (Classic)`, value: "donut-classic" },
+        ],
+      },
+      getDefault: () => {
+        return "pie";
+      },
+    },
+    "pie.show_legend": {
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Show legend`;
+      },
       widget: "toggle",
       getDefault: getDefaultShowLegend,
       inline: true,
       marginBottom: "1rem",
     },
+    "pie.legend_position": {
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Legend position`;
+      },
+      widget: "select",
+      props: {
+        options: [
+          { get name() { return t`Top`; }, value: "top" },
+          { get name() { return t`Bottom`; }, value: "bottom" },
+          { get name() { return t`Left`; }, value: "left" },
+          { get name() { return t`Right`; }, value: "right" },
+        ],
+      },
+      getDefault: () => "right",
+    },
     "pie.show_total": {
-      section: t`Display`,
-      title: t`Show total`,
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Show total`;
+      },
       widget: "toggle",
       getDefault: getDefaultShowTotal,
       inline: true,
       marginBottom: "1rem",
     },
     "pie.show_labels": {
-      section: t`Display`,
-      title: t`Show labels`,
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Show labels`;
+      },
       widget: "toggle",
       getDefault: (_rawSeries, settings) => getDefaultShowLabels(settings),
       inline: true,
     },
     "pie.percent_visibility": {
-      section: t`Display`,
-      title: t`Show percentages`,
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Show percentages`;
+      },
       widget: "radio",
       getDefault: getDefaultPercentVisibility,
       props: {
         options: [
-          { name: t`Off`, value: "off" },
-          { name: t`In legend`, value: "legend" },
-          { name: t`On the chart`, value: "inside" },
-          { name: t`Both`, value: "both" },
+          {
+            get name() {
+              return t`Off`;
+            },
+            value: "off",
+          },
+          {
+            get name() {
+              return t`In legend`;
+            },
+            value: "legend",
+          },
+          {
+            get name() {
+              return t`On the chart`;
+            },
+            value: "inside",
+          },
+          {
+            get name() {
+              return t`Both`;
+            },
+            value: "both",
+          },
         ],
       },
     },
     "pie.decimal_places": {
-      section: t`Display`,
-      title: t`Number of decimal places`,
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Number of decimal places`;
+      },
       widget: "number",
       props: {
-        placeholder: t`Auto`,
+        get placeholder() {
+          return t`Auto`;
+        },
         options: { isInteger: true, isNonNegative: true },
       },
       getHidden: (_, settings) =>
@@ -265,8 +329,12 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
       readDependencies: ["pie.percent_visibility"],
     },
     "pie.slice_threshold": {
-      section: t`Display`,
-      title: t`Minimum slice percentage`,
+      get section() {
+        return t`Display`;
+      },
+      get title() {
+        return t`Minimum slice percentage`;
+      },
       widget: "number",
       getDefault: getDefaultSliceThreshold,
     },

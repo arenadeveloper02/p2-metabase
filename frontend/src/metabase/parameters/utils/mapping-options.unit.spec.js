@@ -1,4 +1,9 @@
 import { createMockMetadata } from "__support__/metadata";
+import * as Lib from "metabase-lib";
+import {
+  SAMPLE_METADATA,
+  createQueryWithClauses,
+} from "metabase-lib/test-helpers";
 import Question from "metabase-lib/v1/Question";
 import {
   createMockCard,
@@ -83,7 +88,7 @@ describe("parameters/utils/mapping-options", () => {
         // add instances to the `metadata` instance
         metadata.questions[dataset.id()] = dataset;
         metadata.tables[virtualCardTable.id] = virtualCardTable;
-        virtualCardTable.fields.forEach(f => {
+        virtualCardTable.fields.forEach((f) => {
           metadata.fields[f.uniqueId] = f;
         });
       });
@@ -127,7 +132,7 @@ describe("parameters/utils/mapping-options", () => {
           tables: [
             createMockTable({
               id: `card__${card.id}`,
-              fields: (table.fields ?? []).map(field => ({
+              fields: (table.fields ?? []).map((field) => ({
                 ...field,
                 table_id: `card__${card.id}`,
               })),
@@ -192,7 +197,6 @@ describe("parameters/utils/mapping-options", () => {
           joins: [
             {
               alias: "Product",
-              ident: "Y_wEKVMtSNd3v5I4vYs05",
               fields: "all",
               "source-table": PRODUCTS_ID,
               condition: [
@@ -375,7 +379,7 @@ describe("parameters/utils/mapping-options", () => {
   });
 
   describe("iframe dashcard", () => {
-    const createIframeDashcard = iframeContent =>
+    const createIframeDashcard = (iframeContent) =>
       createMockDashboardCard({
         visualization_settings: {
           virtual_card: {
@@ -385,7 +389,7 @@ describe("parameters/utils/mapping-options", () => {
         },
       });
 
-    const getIframeOptions = iframeContent =>
+    const getIframeOptions = (iframeContent) =>
       getParameterMappingOptions(
         undefined,
         null,
@@ -393,8 +397,8 @@ describe("parameters/utils/mapping-options", () => {
         createIframeDashcard(iframeContent),
       );
 
-    const expectedTagOptions = tags =>
-      tags.map(tag => ({
+    const expectedTagOptions = (tags) =>
+      tags.map((tag) => ({
         name: tag,
         icon: "string",
         isForeign: false,
@@ -434,7 +438,7 @@ describe("parameters/utils/mapping-options", () => {
   });
 
   describe("link dashcard", () => {
-    const createLinkDashcard = linkUrl =>
+    const createLinkDashcard = (linkUrl) =>
       createMockDashboardCard({
         visualization_settings: {
           virtual_card: {
@@ -446,7 +450,7 @@ describe("parameters/utils/mapping-options", () => {
         },
       });
 
-    const getLinkOptions = linkUrl =>
+    const getLinkOptions = (linkUrl) =>
       getParameterMappingOptions(
         undefined,
         null,
@@ -454,8 +458,8 @@ describe("parameters/utils/mapping-options", () => {
         createLinkDashcard(linkUrl),
       );
 
-    const expectedTagOptions = tags =>
-      tags.map(tag => ({
+    const expectedTagOptions = (tags) =>
+      tags.map((tag) => ({
         name: tag,
         icon: "string",
         isForeign: false,
@@ -475,6 +479,131 @@ describe("parameters/utils/mapping-options", () => {
     it("should return empty array if link URL is undefined", () => {
       const options = getLinkOptions(undefined);
       expect(options).toEqual([]);
+    });
+  });
+
+  describe("parameterDashcard filtering", () => {
+    it("should return empty array when parameterDashcard is from a different tab", () => {
+      const card = structured({ "source-table": ORDERS_ID });
+      const question = new Question(card, metadata);
+      const dashcard = createMockDashboardCard({ dashboard_tab_id: 1 });
+      const parameterDashcard = createMockDashboardCard({
+        dashboard_tab_id: 2,
+      });
+
+      const options = getParameterMappingOptions(
+        question,
+        { type: "date/single" },
+        card,
+        dashcard,
+        parameterDashcard,
+      );
+
+      expect(options).toEqual([]);
+    });
+
+    it("should return normal options when parameterDashcard is on same tab", () => {
+      const card = structured({ "source-table": ORDERS_ID });
+      const question = new Question(card, metadata);
+      const dashcard = createMockDashboardCard({ dashboard_tab_id: 1 });
+      const parameterDashcard = createMockDashboardCard({
+        dashboard_tab_id: 1,
+      });
+
+      const options = getParameterMappingOptions(
+        question,
+        { type: "date/single" },
+        card,
+        dashcard,
+        parameterDashcard,
+      );
+
+      expect(options.length).toBeGreaterThan(0);
+    });
+
+    it("should return empty array when inline parameter on question card tries to map to different card", () => {
+      const card = structured({ "source-table": ORDERS_ID });
+      const question = new Question(card, metadata);
+      const dashcard = createMockDashboardCard({
+        id: 1,
+        dashboard_tab_id: 1,
+        card_id: 123,
+      });
+      const parameterDashcard = createMockDashboardCard({
+        id: 2,
+        dashboard_tab_id: 1,
+        card_id: 456,
+      });
+
+      const options = getParameterMappingOptions(
+        question,
+        { type: "date/single" },
+        card,
+        dashcard,
+        parameterDashcard,
+      );
+
+      expect(options).toEqual([]);
+    });
+
+    it("should return normal options when inline parameter on question card maps to its own card", () => {
+      const card = structured({ "source-table": ORDERS_ID });
+      const question = new Question(card, metadata);
+      const dashcard = createMockDashboardCard({
+        id: 1,
+        dashboard_tab_id: 1,
+        card_id: 123,
+      });
+      const parameterDashcard = createMockDashboardCard({
+        id: 1,
+        dashboard_tab_id: 1,
+        card_id: 123,
+      });
+
+      const options = getParameterMappingOptions(
+        question,
+        { type: "date/single" },
+        card,
+        dashcard,
+        parameterDashcard,
+      );
+
+      expect(options.length).toBeGreaterThan(0);
+    });
+
+    it("should return options when inline parameter on question card has existing connection to different card", () => {
+      const card = { ...structured({ "source-table": ORDERS_ID }), id: 123 };
+      const question = new Question(card, metadata);
+      const parameterId = "param123";
+      const parameter = { id: parameterId, type: "date/single" };
+      const dashcard = createMockDashboardCard({
+        id: 1,
+        dashboard_tab_id: 1,
+        card_id: 123,
+        parameter_mappings: [
+          {
+            parameter_id: parameterId,
+            card_id: 123,
+            target: ["dimension", ["field", ORDERS.CREATED_AT, null]],
+          },
+        ],
+      });
+      const parameterDashcard = createMockDashboardCard({
+        id: 2,
+        dashboard_tab_id: 1,
+        card_id: 456,
+      });
+
+      const options = getParameterMappingOptions(
+        question,
+        parameter,
+        card,
+        dashcard,
+        parameterDashcard,
+      );
+
+      // Should return options to allow users to see and potentially disconnect existing connections
+      expect(options.length).toBeGreaterThan(0);
     });
   });
 });
@@ -588,6 +717,81 @@ describe("getMappingOptionByTarget", () => {
       expect(getMappingOptionByTarget([mappingOption], target, question)).toBe(
         mappingOption,
       );
+    });
+
+    it("should not confuse columns from different stages", () => {
+      const query = Lib.appendStage(
+        createQueryWithClauses({
+          breakouts: [
+            {
+              columnName: "CREATED_AT",
+              tableName: "ORDERS",
+              temporalBucketName: "Month",
+            },
+          ],
+        }),
+      );
+      const question = Question.create({ metadata: SAMPLE_METADATA }).setQuery(
+        query,
+      );
+
+      const mappingOptions = [
+        {
+          sectionName: "Order",
+          name: "Created At",
+          icon: "calendar",
+          target: [
+            "dimension",
+            ["field", "CREATED_AT", { "base-type": "type/DateTime" }],
+            { "stage-number": 0 },
+          ],
+        },
+        {
+          sectionName: "Order",
+          name: "Created At",
+          icon: "calendar",
+          target: [
+            "dimension",
+            ["field", "CREATED_AT", { "base-type": "type/DateTime" }],
+            { "stage-number": 1 },
+          ],
+        },
+      ];
+
+      const target = [
+        "dimension",
+        ["field", "CREATED_AT", { "base-type": "type/Text" }],
+        { "stage-number": 1 },
+      ];
+
+      expect(getMappingOptionByTarget(mappingOptions, target, question)).toBe(
+        mappingOptions[1],
+      );
+    });
+
+    it("should ignore targets with invalid stage index", () => {
+      const mappingOptions = [
+        {
+          sectionName: "Order",
+          name: "Created At",
+          icon: "calendar",
+          target: [
+            "dimension",
+            ["field", "CREATED_AT", { "base-type": "type/DateTime" }],
+            { "stage-number": 0 },
+          ],
+        },
+      ];
+
+      const target = [
+        "dimension",
+        ["field", "CREATED_AT", { "base-type": "type/Text" }],
+        { "stage-number": 1 },
+      ];
+
+      expect(
+        getMappingOptionByTarget(mappingOptions, target, question),
+      ).toBeUndefined();
     });
 
     it("should return undefined if option is not found", () => {

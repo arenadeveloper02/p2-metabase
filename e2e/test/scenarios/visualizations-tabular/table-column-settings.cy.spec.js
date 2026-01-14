@@ -33,7 +33,7 @@ const tableQuestionWithJoin = {
   },
 };
 
-const tableQuestionWithJoinOnQuestion = card => ({
+const tableQuestionWithJoinOnQuestion = (card) => ({
   display: "table",
   query: {
     "source-table": ORDERS_ID,
@@ -165,7 +165,7 @@ const nativeQuestion = {
   limit: 5,
 };
 
-const nestedQuestion = card => ({
+const nestedQuestion = (card) => ({
   display: "table",
   query: {
     "source-table": `card__${card.id}`,
@@ -173,7 +173,7 @@ const nestedQuestion = card => ({
   limit: 5,
 });
 
-const nestedQuestionWithJoinOnTable = card => ({
+const nestedQuestionWithJoinOnTable = (card) => ({
   display: "table",
   query: {
     "source-table": `card__${card.id}`,
@@ -193,7 +193,7 @@ const nestedQuestionWithJoinOnTable = card => ({
   },
 });
 
-const nestedQuestionWithJoinOnQuestion = card => ({
+const nestedQuestionWithJoinOnQuestion = (card) => ({
   display: "table",
   query: {
     "source-table": `card__${card.id}`,
@@ -360,7 +360,7 @@ describe("scenarios > visualizations > table column settings", () => {
       // clicking outside of the popover to close it
       cy.findByTestId("app-bar").click();
 
-      cy.findByTestId("TableInteractive-root").within(() => {
+      H.tableInteractive().within(() => {
         cy.findByText("prod_id");
       });
     });
@@ -538,6 +538,26 @@ describe("scenarios > visualizations > table column settings", () => {
       _hideColumn(testData2);
       _showColumn(testData2);
     });
+
+    it("should allow enabling text wrapping", () => {
+      H.openReviewsTable();
+      H.openColumnOptions("Body");
+
+      H.assertRowHeight(0, 36);
+
+      H.popover().within(() => {
+        cy.icon("gear").click();
+        cy.findByText("Wrap text").click();
+      });
+
+      H.assertRowHeight(0, 53);
+
+      H.popover().within(() => {
+        cy.findByText("Wrap text").click();
+      });
+
+      H.assertRowHeight(0, 36);
+    });
   });
 
   describe("multi-stage questions", () => {
@@ -565,6 +585,70 @@ describe("scenarios > visualizations > table column settings", () => {
       _showColumn(testData);
       _hideColumn(testData2);
       _showColumn(testData2);
+    });
+
+    it("should be able to show and hide columns in a multi-stage query with custom columns (metabase#35067)", () => {
+      H.createQuestion(
+        {
+          query: {
+            "source-query": {
+              "source-table": ORDERS_ID,
+              aggregation: [["count"]],
+              breakout: [
+                [
+                  "field",
+                  PRODUCTS.ID,
+                  {
+                    "base-type": "type/Integer",
+                    "source-field": ORDERS.PRODUCT_ID,
+                  },
+                ],
+              ],
+            },
+            expressions: {
+              CC: ["*", 2, ["field", "count", { "base-type": "type/Integer" }]],
+            },
+            limit: 5,
+          },
+        },
+        { visitQuestion: true },
+      );
+      openSettings();
+
+      const countColumn = {
+        column: "Count",
+        columnName: "Count",
+        table: "summaries",
+        sanityCheck: "CC",
+        needsScroll: false,
+      };
+
+      const productIdColumn = {
+        column: "Product → ID",
+        columnName: "Product → ID",
+        table: "summaries",
+        sanityCheck: "Count",
+        needsScroll: false,
+      };
+
+      const customColumn = {
+        column: "CC",
+        columnName: "CC",
+        table: "summaries",
+        sanityCheck: "Count",
+        needsScroll: false,
+      };
+
+      _hideColumn(countColumn);
+      _showColumn(countColumn);
+      _removeColumn(countColumn);
+      _addColumn(countColumn);
+      _hideColumn(productIdColumn);
+      _showColumn(productIdColumn);
+      _removeColumn(productIdColumn);
+      _addColumn(productIdColumn);
+      _hideColumn(customColumn);
+      _showColumn(customColumn);
     });
   });
 
@@ -725,7 +809,7 @@ describe("scenarios > visualizations > table column settings", () => {
         openSettings();
 
         const taxColumn = {
-          column: "Tax",
+          column: `Question ${card.id} → Tax`,
           columnName: `Question ${card.id} → Tax`,
           table: "test question 2",
           scrollTimes: 3,
@@ -747,7 +831,7 @@ describe("scenarios > visualizations > table column settings", () => {
         openSettings();
 
         const mathColumn = {
-          column: "Math",
+          column: `Question ${card.id} → Math`,
           columnName: `Question ${card.id} → Math`,
           table: "test question",
           needsScroll: false,
@@ -801,13 +885,64 @@ describe("scenarios > visualizations > table column settings", () => {
       _addColumn(taxColumn);
     });
   });
+
+  it("should handle duplicated values in table.columns viz settings (metabase#62053)", () => {
+    const nativeQuestionWithDuplicatedColumns = {
+      display: "table",
+      native: {
+        query: "SELECT ID, TAX FROM ORDERS LIMIT 5",
+      },
+      visualization_settings: {
+        "table.columns": [
+          {
+            name: "ID",
+            enabled: true,
+          },
+          // Duplicate ID column entry
+          {
+            name: "ID",
+            enabled: true,
+          },
+          {
+            name: "TAX",
+            enabled: true,
+          },
+        ],
+      },
+    };
+
+    H.createNativeQuestion(nativeQuestionWithDuplicatedColumns, {
+      visitQuestion: true,
+    });
+
+    // Verify the table renders correctly despite duplicated viz settings
+    visualization().should("be.visible");
+
+    // Verify expected columns are visible
+    visualization().findAllByText("ID").should("have.length", 1);
+    visualization().findByText("TAX").should("exist");
+
+    // Open settings to verify column settings work
+    openSettings();
+
+    // Verify that column controls are displayed correctly
+    visibleColumns()
+      .should("exist")
+      .within(() => {
+        cy.findByText("ID").should("exist");
+        cy.findByTestId("ID-hide-button").should("exist");
+
+        cy.findByText("TAX").should("exist");
+        cy.findByTestId("TAX-hide-button").should("exist");
+      });
+  });
 });
 
-const showColumn = column => {
+const showColumn = (column) => {
   cy.findByTestId(`${column}-show-button`).click();
 };
 
-const hideColumn = column => {
+const hideColumn = (column) => {
   cy.findByTestId(`${column}-hide-button`).click();
 };
 
@@ -816,11 +951,11 @@ const openSettings = () => {
 };
 
 const visualization = () => {
-  return cy.findByTestId("TableInteractive-root");
+  return H.tableInteractive();
 };
 
 const scrollVisualization = (position = "right") => {
-  cy.get("#main-data-grid").scrollTo(position, {
+  H.tableInteractiveScrollContainer().scrollTo(position, {
     force: true,
   });
 };
@@ -829,14 +964,14 @@ const visibleColumns = () => {
   return cy.findByTestId("visible-columns");
 };
 
-const getColumn = columnName => {
+const getColumn = (columnName) => {
   return visibleColumns().contains("[role=listitem]", columnName);
 };
 
-const assertColumnEnabled = column => {
+const assertColumnEnabled = (column) => {
   column.should("have.attr", "data-enabled", "true");
 };
 
-const assertColumnHidden = column => {
+const assertColumnHidden = (column) => {
   column.should("have.attr", "data-enabled", "false");
 };

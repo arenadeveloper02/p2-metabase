@@ -1,12 +1,13 @@
 (ns ^:mb/driver-tests metabase.driver-test
   (:require
    [clojure.set :as set]
+   [clojure.string :as str]
    [clojure.test :refer :all]
+   [metabase.classloader.core :as classloader]
    [metabase.driver :as driver]
    [metabase.driver.ddl.interface :as ddl.i]
-   [metabase.driver.h2 :as h2]
    [metabase.driver.impl :as driver.impl]
-   [metabase.plugins.classloader :as classloader]
+   [metabase.driver.settings :as driver.settings]
    [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.sync.task.sync-databases :as task.sync-databases]
@@ -38,7 +39,7 @@
     (.setContextClassLoader (Thread/currentThread) (ClassLoader/getSystemClassLoader))
     (with-redefs [driver.impl/hierarchy (make-hierarchy)] ;; To simulate :h2 not being registed yet.
       (driver/the-driver :h2))
-    (is (= @@#'classloader/shared-context-classloader
+    (is (= @classloader/shared-context-classloader
            (.getContextClassLoader (Thread/currentThread))))))
 
 (deftest available?-test
@@ -46,6 +47,19 @@
     (is (driver/available? ::test-driver))
     (is (driver/available? "metabase.driver-test/test-driver")
         "`driver/available?` should work for if `driver` is a string -- see #10135")))
+
+(defn- flatten-connection-properties
+  "Recursively flatten connection properties, extracting all properties from groups.
+  Groups have :type :group and contain a :fields array with nested properties."
+  [props]
+  (mapcat (fn [prop]
+            (if (and (= (:type prop) :group)
+                     (seq (:fields prop)))
+              ;; If it's a group, recursively flatten its fields
+              (flatten-connection-properties (:fields prop))
+              ;; Otherwise, return the property as-is
+              [prop]))
+          props))
 
 (deftest ^:parallel unique-connection-property-test
   ;; abnormal usage here; we are not using the regular mt/test-driver or mt/test-drivers, because those involve
@@ -57,8 +71,9 @@
   (doseq [d (tx.env/test-drivers)]
     (testing (str d " has entirely unique connection property names")
       (let [props         (driver/connection-properties d)
-            props-by-name (group-by :name props)]
-        (is (= (count props) (count props-by-name))
+            flattened-props (flatten-connection-properties props)
+            props-by-name (group-by :name flattened-props)]
+        (is (= (count flattened-props) (count props-by-name))
             (format "Property(s) with duplicate name: %s" (-> (filter (fn [[_ props]]
                                                                         (> (count props) 1))
                                                                       props-by-name)
@@ -99,7 +114,7 @@
           (let [db (mt/db)
                 details (tx/dbdef->connection-details driver/*driver* :db dbdef)]
             (testing "can-connect? should return true before deleting the database"
-              (is (true? (binding [h2/*allow-testing-h2-connections* true]
+              (is (true? (binding [driver.settings/*allow-testing-h2-connections* true]
                            (driver/can-connect? driver/*driver* details)))))
             ;; release db resources like connection pools so we don't have to wait to finish syncing before destroying the db
             (driver/notify-database-updated driver/*driver* db)
@@ -113,7 +128,7 @@
                                 (tx/destroy-db! driver/*driver* dbdef)
                                 details))]
                 (is (false? (try
-                              (binding [h2/*allow-testing-h2-connections* true]
+                              (binding [driver.settings/*allow-testing-h2-connections* true]
                                 (driver/can-connect? driver/*driver* details))
                               (catch Exception _
                                 false))))))
@@ -167,36 +182,82 @@
   (mt/test-drivers (mt/normal-drivers-with-feature :table-privileges)
     (is (some? (driver/current-user-table-privileges driver/*driver* (mt/db))))))
 
-(deftest nonsql-dialects-return-original-query-test
+(deftest ^:parallel mongo-prettify-native-form-test
   (mt/test-driver :mongo
-    (testing "Passing a mongodb query through [[driver/prettify-native-form]] returns the original query (#31122)"
-      (let [query [{"$group"   {"_id" {"created_at" {"$let" {"vars" {"parts" {"$dateToParts" {"timezone" "UTC"
-                                                                                              "date"     "$created_at"}}}
-                                                             "in"   {"$dateFromParts" {"timezone" "UTC"
-                                                                                       "year"     "$$parts.year"
-                                                                                       "month"    "$$parts.month"
-                                                                                       "day"      "$$parts.day"}}}}}
-                                "sum" {"$sum" "$tax"}}}
-                   {"$sort"    {"_id" 1}}
-                   {"$project" {"_id"        false
-                                "created_at" "$_id.created_at"
-                                "sum"        true}}]
-            formatted-query (driver/prettify-native-form :mongo query)]
+    (let [query [{"$group"   {"_id" {"created_at" {"$let" {"vars" {"parts" {"$dateToParts" {"timezone" "UTC"
+                                                                                            "date"     "$created_at"}}}
+                                                           "in"   {"$dateFromParts" {"timezone" "UTC"
+                                                                                     "year"     "$$parts.year"
+                                                                                     "month"    "$$parts.month"
+                                                                                     "day"      "$$parts.day"}}}}}
+                              "sum" {"$sum" "$tax"}}}
+                 {"$sort"    {"_id" 1}}
+                 {"$project" {"_id"        false
+                              "created_at" "$_id.created_at"
+                              "sum"        true}}]
+          formatted-query (driver/prettify-native-form :mongo query)]
 
-        (testing "Formatting a non-sql query returns the same query"
-          (is (= query formatted-query)))
+      (testing "Formatting a mongo query returns a JSON-like string"
+        (is (= (str/join "\n"
+                         ["["
+                          "  {"
+                          "    \"$group\": {"
+                          "      \"_id\": {"
+                          "        \"created_at\": {"
+                          "          \"$let\": {"
+                          "            \"vars\": {"
+                          "              \"parts\": {"
+                          "                \"$dateToParts\": {"
+                          "                  \"timezone\": \"UTC\","
+                          "                  \"date\": \"$created_at\""
+                          "                }"
+                          "              }"
+                          "            },"
+                          "            \"in\": {"
+                          "              \"$dateFromParts\": {"
+                          "                \"timezone\": \"UTC\","
+                          "                \"year\": \"$$parts.year\","
+                          "                \"month\": \"$$parts.month\","
+                          "                \"day\": \"$$parts.day\""
+                          "              }"
+                          "            }"
+                          "          }"
+                          "        }"
+                          "      },"
+                          "      \"sum\": {"
+                          "        \"$sum\": \"$tax\""
+                          "      }"
+                          "    }"
+                          "  },"
+                          "  {"
+                          "    \"$sort\": {"
+                          "      \"_id\": 1"
+                          "    }"
+                          "  },"
+                          "  {"
+                          "    \"$project\": {"
+                          "      \"_id\": false,"
+                          "      \"created_at\": \"$_id.created_at\","
+                          "      \"sum\": true"
+                          "    }"
+                          "  }"
+                          "]"])
+               formatted-query)))
+
+      (testing "The formatted JSON-like string is equivalent to the query"
+        (is (= query (json/decode formatted-query))))
 
         ;; TODO(qnkhuat): do we really need to handle case where wrong driver is passed?
-        (let [;; This is a mongodb query, but if you pass in the wrong driver it will attempt the format
+      (let [;; This is a mongodb query, but if you pass in the wrong driver it will attempt the format
               ;; This is a corner case since the system should always be using the right driver
-              weird-formatted-query (driver/prettify-native-form :postgres (json/encode query))]
-          (testing "The wrong formatter will change the format..."
-            (is (not= query weird-formatted-query)))
-          (testing "...but the resulting data is still the same"
+            weird-formatted-query (driver/prettify-native-form :postgres (json/encode query))]
+        (testing "The wrong formatter will change the format..."
+          (is (not= query weird-formatted-query)))
+        (testing "...but the resulting data is still the same"
             ;; Bottom line - Use the right driver, but if you use the wrong
             ;; one it should be harmless but annoying
-            (is (= query
-                   (json/decode weird-formatted-query)))))))))
+          (is (= query
+                 (json/decode weird-formatted-query))))))))
 
 (deftest ^:parallel prettify-native-form-executable-test
   (mt/test-drivers
@@ -206,6 +267,16 @@
                                :type     :native
                                :native   (-> (qp.compile/compile (mt/mbql-query orders {:limit 1}))
                                              (update :query (partial driver/prettify-native-form driver/*driver*)))})))))
+
+(deftest ^:parallel table-exists-test
+  (testing "Make sure checking for table existence works"
+    (mt/test-drivers (mt/normal-drivers-with-feature :metadata/table-existence-check)
+      (let [venues-table (t2/select-one :model/Table :id (mt/id :venues))
+            fake-table {:name "fake_table_xyz123" :schema (:schema venues-table)}]
+        (is (driver/table-exists? driver/*driver* (mt/db) venues-table)
+            (str "Driver " driver/*driver* " should detect that venues table exists"))
+        (is (not (driver/table-exists? driver/*driver* (mt/db) fake-table))
+            (str "Driver " driver/*driver* " should detect that fake table doesn't exist"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Begin tests for `describe-*` methods used in sync
@@ -239,6 +310,52 @@
                     :database-position 2
                     :base-type         #(isa? % :type/Number)}]
                   (describe-fields-for-table (mt/db) table))))))))
+
+(deftest ^:parallel describe-fields-returns-nullability-test
+  (mt/test-drivers (mt/normal-drivers-with-feature :test/dynamic-dataset-loading :test/create-table-without-data)
+    (mt/dataset nullable-db
+      (let [table   (t2/select-one :model/Table :id (mt/id :nullable))
+            fields  (describe-fields-for-table (mt/db) table)
+            [a b c] (->> ["a" "b" "c"]
+                         (map #(ddl.i/format-name driver/*driver* %))
+                         (map (u/index-by :name fields)))]
+        ;; this test only properties of the field-meta returned by the driver, not whether it syncs, for that see sync_metadata/fields_test.clj
+        (if (driver/database-supports? driver/*driver* :describe-is-nullable (mt/db))
+          (testing ":database-is-nullable should be provided"
+            (is (= [false true false] (mapv :database-is-nullable [a b c]))))
+          (testing ":database-is-nullable should remain unspecified"
+            (is (= [nil nil nil] (mapv :database-is-nullable [a b c])))))))))
+
+(deftest ^:parallel describe-fields-returns-default-expr-test
+  (mt/test-drivers (mt/normal-drivers-with-feature :test/dynamic-dataset-loading :test/create-table-without-data)
+    (mt/dataset default-expr-db
+      (let [table (t2/select-one :model/Table :id (mt/id :default_expr))
+            fields (describe-fields-for-table (mt/db) table)
+            [a b c] (->> ["a" "b" "c"]
+                         (map #(ddl.i/format-name driver/*driver* %))
+                         (map (u/index-by :name fields)))]
+        ;; this test only properties of the field-meta returned by the driver, not whether it syncs, for that see sync_metadata/fields_test.clj
+        (if (driver/database-supports? driver/*driver* :describe-default-expr (mt/db))
+          (testing ":database-default should be provided"
+            ;; SQL Server likes to add some parens
+            (is (=? [nil #"\(*42\)*" nil] (mapv :database-default [a b c]))))
+          (testing ":database-default should remain unspecified"
+            (is (= [nil nil nil] (mapv :database-default [a b c])))))))))
+
+(deftest ^:parallel describe-fields-returns-is-generated-test
+  (mt/test-drivers (mt/normal-drivers-with-feature :test/dynamic-dataset-loading :test/create-table-without-data)
+    (mt/dataset generated-column-db
+      (let [table (t2/select-one :model/Table :id (mt/id :generated_column))
+            fields (describe-fields-for-table (mt/db) table)
+            [a b c] (->> ["a" "b" "c"]
+                         (map #(ddl.i/format-name driver/*driver* %))
+                         (map (u/index-by :name fields)))]
+        ;; this test only properties of the field-meta returned by the driver, not whether it syncs, for that see sync_metadata/fields_test.clj
+        (if (driver/database-supports? driver/*driver* :describe-is-generated (mt/db))
+          (testing ":database-is-generated should be provided"
+            (is (= [false true false] (mapv :database-is-generated [a b c]))))
+          (testing ":database-is-generated should remain unspecified"
+            (is (= [nil nil nil] (mapv :database-is-generated [a b c])))))))))
 
 (deftest ^:parallel describe-table-fks-test
   (testing "`describe-table-fks` should work for drivers that do not support `describe-fks`"
@@ -303,3 +420,63 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; End tests for `describe-*` methods used in sync
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TODO: Uncomment when https://github.com/metabase/metabase/pull/60263 is merged
+#_(deftest data-editing-requires-describe-features-test
+    (testing "Drivers supporting :actions/data-editing must support relevant describe-X features"
+      (mt/test-drivers (mt/normal-drivers-with-feature :actions/data-editing)
+        (testing "describe-default-expr feature"
+          (is (driver/database-supports? driver/*driver* :describe-default-expr (mt/db))
+              (str driver/*driver* " must support :describe-default-expr to support :actions/data-editing")))
+        (testing "describe-is-generated feature"
+          (is (driver/database-supports? driver/*driver* :describe-is-generated (mt/db))
+              (str driver/*driver* " must support :describe-is-generated to support :actions/data-editing")))
+        (testing "describe-is-nullable feature"
+          (is (driver/database-supports? driver/*driver* :describe-is-nullable (mt/db))
+              (str driver/*driver* " must support :describe-is-nullable to support :actions/data-editing"))))))
+
+(deftest query-driver-success-metrics-test
+  (mt/test-drivers (mt/normal-drivers)
+    (testing "the number of successful and failed queries should be tracked correctly"
+      (let [success-query (assoc-in (mt/mbql-query venues) [:middleware :userland-query?] true)
+            failure-query (assoc-in (mt/native-query {:query "bad query"})
+                                    [:middleware :userland-query?] true)]
+        (mt/with-prometheus-system! [_ system]
+          (qp/process-query success-query)
+          (try
+            (qp/process-query failure-query)
+            (catch Exception _))
+          (qp/process-query success-query)
+          (try
+            (qp/process-query failure-query)
+            (catch Exception _))
+          (qp/process-query success-query)
+          (is (= 3.0 (mt/metric-value system :metabase-query-processor/query {:driver driver/*driver* :status "success"})))
+          (is (= 2.0 (mt/metric-value system :metabase-query-processor/query {:driver driver/*driver* :status "failure"}))))))))
+
+(deftest python-transform-drivers-multimethods-support
+  (mt/test-drivers (mt/normal-drivers-with-feature :transforms/python)
+    (let [driver driver/*driver*]
+      (is (get-method driver/create-table! driver))
+      (is (get-method driver/table-name-length-limit driver))
+      (is (get-method driver/drop-table! driver))
+      (is (let [should-be-supported-by-all #{:type/Number :type/Text :type/Date :type/DateTime :type/DateTimeWithTZ :type/Boolean}]
+            (and (get-method driver/type->database-type driver)
+                 (every? #(driver/type->database-type driver %) should-be-supported-by-all))))
+      (is (get-method driver/insert-from-source! [driver :jsonl-file])))))
+
+(driver/register! ::mock-no-deps-driver, :abstract? true)
+
+(deftest deps-ignores-invalid-drivers-test
+  (is (= #{}
+         (driver/native-query-deps ::mock-no-deps-driver nil nil))))
+
+(driver/register! ::mock-deps-driver, :abstract? true)
+
+(defmethod driver/database-supports? [::mock-deps-driver :dependencies/native]
+  [_driver _feature _database]
+  true)
+
+(deftest deps-flags-when-supported-driver-is-not-covered-test
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Database that supports :dependencies/native does not provide an implementation of driver/native-query-deps"
+                        (driver/native-query-deps ::mock-deps-driver nil nil))))

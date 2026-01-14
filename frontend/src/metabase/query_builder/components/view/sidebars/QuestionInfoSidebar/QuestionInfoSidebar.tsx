@@ -1,25 +1,27 @@
+import { useHotkeys } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 import { useMount } from "react-use";
 import { t } from "ttag";
 
 import { isInstanceAnalyticsCollection } from "metabase/collections/utils";
+import { EntityIdCard } from "metabase/common/components/EntityIdCard";
+import Link from "metabase/common/components/Link";
 import {
   Sidesheet,
   SidesheetCard,
+  SidesheetCardTitle,
   SidesheetTabPanelContainer,
 } from "metabase/common/components/Sidesheet";
 import { InsightsTabOrLink } from "metabase/common/components/Sidesheet/components/InsightsTabOrLink";
 import { SidesheetEditableDescription } from "metabase/common/components/Sidesheet/components/SidesheetEditableDescription";
 import SidesheetStyles from "metabase/common/components/Sidesheet/sidesheet.module.css";
-import { EntityIdCard } from "metabase/components/EntityIdCard";
-import Link from "metabase/core/components/Link";
 import { InsightsUpsellTab } from "metabase/dashboard/components/DashboardInfoSidebar/components/InsightsUpsellTab";
 import { useDispatch } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
 import { PLUGIN_MODERATION } from "metabase/plugins";
 import { onCloseQuestionInfo } from "metabase/query_builder/actions";
 import { QuestionActivityTimeline } from "metabase/query_builder/components/QuestionActivityTimeline";
-import { Flex, Icon, Stack, Tabs, Title } from "metabase/ui";
+import { Flex, Icon, Stack, Tabs } from "metabase/ui";
 import type Question from "metabase-lib/v1/Question";
 
 import { QuestionDetails } from "./QuestionDetails";
@@ -51,6 +53,8 @@ export const QuestionInfoSidebar = ({
 
   const dispatch = useDispatch();
   const handleClose = () => dispatch(onCloseQuestionInfo());
+
+  useHotkeys([["]", handleClose]]);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -91,20 +95,21 @@ export const QuestionInfoSidebar = ({
 
         <SidesheetTabPanelContainer>
           <Tabs.Panel value="overview">
-            <Stack spacing="lg">
+            <Stack gap="lg">
               <SidesheetCard pb="md">
-                <Stack spacing="sm">
-                  <Title lh={1} size="sm" color="text-light" pb={0}>
-                    {t`Description`}
-                  </Title>
-                  <SidesheetEditableDescription
-                    description={description}
-                    onChange={handleSave}
-                    canWrite={canWrite}
-                  />
-                  <PLUGIN_MODERATION.ModerationReviewTextForQuestion
-                    question={question}
-                  />
+                <Stack gap={0}>
+                  <SidesheetCardTitle>{t`Description`}</SidesheetCardTitle>
+
+                  <Stack gap="sm">
+                    <SidesheetEditableDescription
+                      description={description}
+                      onChange={handleSave}
+                      canWrite={canWrite}
+                    />
+                    <PLUGIN_MODERATION.ModerationReviewTextForQuestion
+                      question={question}
+                    />
+                  </Stack>
                 </Stack>
               </SidesheetCard>
               <SidesheetCard>

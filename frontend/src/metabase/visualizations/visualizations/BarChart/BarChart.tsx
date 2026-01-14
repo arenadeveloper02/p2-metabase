@@ -18,14 +18,31 @@ import type {
 Object.assign(
   BarChart,
   getCartesianChartDefinition({
-    uiName: t`Bar`,
+    getUiName: () => t`Bar`,
     identifier: "bar",
     iconName: "bar",
+    // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
     noun: t`bar chart`,
     minSize: getMinSize("bar"),
     defaultSize: getDefaultSize("bar"),
     settings: {
       ...COMBO_CHARTS_SETTINGS_DEFINITIONS,
+      "bar.data_zoom_enabled": {
+        section: t`Display`,
+        title: t`Enable zoom controls`,
+        widget: "toggle",
+        default: false,
+        inline: true,
+        marginBottom: "1rem",
+      },
+      "bar.modern_design": {
+        section: t`Display`,
+        title: t`Gradient`,
+        widget: "toggle",
+        default: false,
+        inline: true,
+        marginBottom: "1rem",
+      },
     } as any as VisualizationSettingsDefinitions,
   }),
 );

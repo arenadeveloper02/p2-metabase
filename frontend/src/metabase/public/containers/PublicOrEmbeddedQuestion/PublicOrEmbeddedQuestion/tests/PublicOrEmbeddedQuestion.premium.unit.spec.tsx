@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
 
+import { setupLastDownloadFormatEndpoints } from "__support__/server-mocks";
 import { getIcon, queryIcon, screen, within } from "__support__/ui";
 import { createMockTokenFeatures } from "metabase-types/api/mocks";
 
@@ -12,15 +13,19 @@ const QUESTION_NAME = "Public question";
 
 function setupPremium(opts?: Partial<SetupOpts>) {
   return setup({
-    ...opts,
-    hasEnterprisePlugins: true,
     tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
+    enterprisePlugins: ["whitelabel"],
     questionName: QUESTION_NAME,
     uuid: FAKE_UUID,
+    ...opts,
   });
 }
 
 describe("PublicOrEmbeddedQuestion", () => {
+  beforeEach(() => {
+    setupLastDownloadFormatEndpoints();
+  });
+
   describe("downloads flag", () => {
     it("should allow downloading the results when downloads are enabled", async () => {
       await setupPremium({ hash: { downloads: "true" } });
@@ -35,7 +40,10 @@ describe("PublicOrEmbeddedQuestion", () => {
     });
 
     it("should not allow downloading results when downloads are disabled", async () => {
-      await setupPremium({ hash: { downloads: "false" } });
+      await setupPremium({
+        hash: { downloads: "false" },
+        enterprisePlugins: ["resource_downloads"],
+      });
 
       expect(queryIcon("download")).not.toBeInTheDocument();
     });
@@ -45,9 +53,9 @@ describe("PublicOrEmbeddedQuestion", () => {
     it('should set the locale to "en" by default', async () => {
       await setupPremium();
 
-      await userEvent.hover(getIcon("download"));
-
-      expect(screen.getByText("Download full results")).toBeInTheDocument();
+      expect(
+        await screen.findByRole("button", { name: "Download results" }),
+      ).toBeInTheDocument();
     });
 
     it('should set the locale to "ko"', async () => {
@@ -57,7 +65,7 @@ describe("PublicOrEmbeddedQuestion", () => {
       await userEvent.hover(getIcon("download"));
 
       expect(
-        fetchMock.calls(`path:/app/locales/${expectedLocale}.json`),
+        fetchMock.callHistory.calls(`path:/app/locales/${expectedLocale}.json`),
       ).toHaveLength(1);
     });
   });

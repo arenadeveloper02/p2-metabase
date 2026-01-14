@@ -70,15 +70,10 @@ describe("ActionCreator > Sharing", () => {
           screen.getByRole("button", { name: "Action settings" }),
         );
 
-        await waitFor(() => {
-          expect(
-            screen.getByTestId("sidebar-header-title"),
-          ).toBeInTheDocument();
-        });
         const headerTitle = await screen.findByTestId("sidebar-header-title");
         expect(headerTitle).toBeInTheDocument();
         expect(headerTitle).toHaveTextContent("Action settings");
-        const makePublicToggle = screen.getByRole("checkbox", {
+        const makePublicToggle = screen.getByRole("switch", {
           name: "Make public",
         });
         expect(makePublicToggle).not.toBeChecked();
@@ -86,13 +81,12 @@ describe("ActionCreator > Sharing", () => {
           screen.queryByRole("textbox", { name: "Public action form URL" }),
         ).not.toBeInTheDocument();
 
-        fetchMock.getOnce(
-          `path:/api/action/${privateAction.id}`,
-          { ...privateAction, public_uuid: mockUuid },
-          { overwriteRoutes: true },
-        );
+        fetchMock.modifyRoute(`action-${privateAction.id}-get`, {
+          response: () => ({ ...privateAction, public_uuid: mockUuid }),
+        });
+
         await userEvent.click(
-          screen.getByRole("checkbox", { name: "Make public" }),
+          screen.getByRole("switch", { name: "Make public" }),
         );
 
         await waitFor(() => {
@@ -115,15 +109,10 @@ describe("ActionCreator > Sharing", () => {
           screen.getByRole("button", { name: "Action settings" }),
         );
 
-        await waitFor(() => {
-          expect(
-            screen.getByTestId("sidebar-header-title"),
-          ).toBeInTheDocument();
-        });
         const headerTitle = await screen.findByTestId("sidebar-header-title");
         expect(headerTitle).toBeInTheDocument();
         expect(headerTitle).toHaveTextContent("Action settings");
-        const makePublicToggle = screen.getByRole("checkbox", {
+        const makePublicToggle = screen.getByRole("switch", {
           name: "Make public",
         });
         expect(makePublicToggle).toBeChecked();
@@ -137,11 +126,9 @@ describe("ActionCreator > Sharing", () => {
           screen.getByRole("heading", { name: "Disable this public link?" }),
         ).toBeInTheDocument();
 
-        fetchMock.getOnce(
-          `path:/api/action/${publicAction.id}`,
-          { ...publicAction, public_uuid: null },
-          { overwriteRoutes: true },
-        );
+        fetchMock.modifyRoute(`action-${publicAction.id}-get`, {
+          response: () => ({ ...publicAction, public_uuid: null }),
+        });
         await userEvent.click(screen.getByRole("button", { name: "Yes" }));
 
         await waitFor(() => {
@@ -166,7 +153,7 @@ describe("ActionCreator > Sharing", () => {
           screen.getByRole("button", { name: "Action settings" }),
         );
         expect(
-          screen.queryByRole("checkbox", {
+          screen.queryByRole("switch", {
             name: "Make public",
           }),
         ).not.toBeInTheDocument();
@@ -182,7 +169,7 @@ describe("ActionCreator > Sharing", () => {
           screen.getByRole("button", { name: "Action settings" }),
         );
         expect(
-          screen.queryByRole("checkbox", {
+          screen.queryByRole("switch", {
             name: "Make public",
           }),
         ).not.toBeInTheDocument();

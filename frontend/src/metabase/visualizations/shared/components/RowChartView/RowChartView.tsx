@@ -9,8 +9,11 @@ import { Text } from "@visx/text";
 import type { ScaleBand, ScaleContinuousNumeric } from "d3-scale";
 import * as React from "react";
 
+import { alpha } from "metabase/lib/colors";
+import { truncateText } from "metabase/visualizations/lib/text";
 import type { HoveredData } from "metabase/visualizations/shared/types/events";
 import type { Margin } from "metabase/visualizations/shared/types/layout";
+import type { TextWidthMeasurer } from "metabase/visualizations/shared/types/measure-text";
 
 import type { SeriesInfo } from "../../types/data";
 import type { BarData, RowChartTheme, SeriesData } from "../RowChart/types";
@@ -46,6 +49,7 @@ export interface RowChartViewProps<TDatum> {
   isStacked?: boolean;
   style?: React.CSSProperties;
   hoveredData?: HoveredData | null;
+  measureTextWidth?: TextWidthMeasurer;
   onHover?: (
     event: React.MouseEvent<Element>,
     bar: BarData<TDatum, SeriesInfo> | null,
@@ -54,6 +58,7 @@ export interface RowChartViewProps<TDatum> {
     event: React.MouseEvent<Element>,
     bar: BarData<TDatum, SeriesInfo>,
   ) => void;
+  isModernDesign?: boolean;
 }
 
 const RowChartView = <TDatum,>({
@@ -78,8 +83,10 @@ const RowChartView = <TDatum,>({
   isStacked,
   style,
   hoveredData,
+  measureTextWidth,
   onHover,
   onClick,
+  isModernDesign = false,
 }: RowChartViewProps<TDatum>) => {
   const innerBarScale = isStacked
     ? null
@@ -90,8 +97,89 @@ const RowChartView = <TDatum,>({
 
   const goalLineX = xScale(goal?.value ?? 0);
 
+  const ellipsifiedYTickFormatter = React.useMemo(() => {
+    if (!measureTextWidth || !width) {
+      return yTickFormatter;
+    }
+
+    // Calculate the maximum allowed width for y-axis labels (50% of chart width)
+    const maxLabelWidth =
+      margin.left - (yLabel ? theme.axis.label.size * 2 : 0);
+
+    return (value: StringLike) => {
+      const originalText = yTickFormatter(value);
+      return truncateText(
+        originalText,
+        maxLabelWidth,
+        measureTextWidth,
+        theme.axis.ticks,
+      );
+    };
+  }, [
+    measureTextWidth,
+    width,
+    margin.left,
+    yLabel,
+    theme.axis.label.size,
+    theme.axis.ticks,
+    yTickFormatter,
+  ]);
+
+  // Create unique gradient IDs for each series color when modern design is enabled
+  const gradientIds = React.useMemo(() => {
+    if (!isModernDesign) {
+      return {};
+    }
+    const uniqueColors = Array.from(
+      new Set(seriesData.map((series) => series.color)),
+    );
+    return uniqueColors.reduce((acc, color, index) => {
+      acc[color] = `gradient-${index}-${color.replace("#", "")}`;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [seriesData, isModernDesign]);
+
+  // Get unique colors for gradient definitions
+  const uniqueColors = React.useMemo(() => {
+    if (!isModernDesign) {
+      return [];
+    }
+    return Array.from(new Set(seriesData.map((series) => series.color)));
+  }, [seriesData, isModernDesign]);
+
   return (
     <svg width={width ?? undefined} height={height ?? undefined} style={style}>
+      <defs>
+        {isModernDesign &&
+          uniqueColors.map((color) => {
+            const gradientId = gradientIds[color];
+            if (!gradientId) {
+              return null;
+            }
+            return (
+              <linearGradient
+                key={gradientId}
+                id={gradientId}
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor={alpha(color, 0.5)}
+                  stopOpacity={1}
+                />
+                <stop
+                  offset="70%"
+                  stopColor={alpha(color, 0.85)}
+                  stopOpacity={1}
+                />
+                <stop offset="100%" stopColor={color} stopOpacity={1} />
+              </linearGradient>
+            );
+          })}
+      </defs>
       <Group top={margin.top} left={margin.left}>
         <GridColumns
           scale={xScale as AxisScale<number>}
@@ -101,7 +189,7 @@ const RowChartView = <TDatum,>({
         />
 
         {seriesData.map((series, seriesIndex) => {
-          return series.bars.map(bar => {
+          return series.bars.map((bar) => {
             const { xStartValue, xEndValue, isNegative, yValue, datumIndex } =
               bar;
             let y = yScale(yValue);
@@ -142,6 +230,10 @@ const RowChartView = <TDatum,>({
             const barKey = `${seriesIndex}:${datumIndex}`;
             const ariaLabelledBy = `bar-${barKey}-value`;
 
+            const fillColor = isModernDesign
+              ? `url(#${gradientIds[series.color]})`
+              : series.color;
+
             return (
               <React.Fragment key={barKey}>
                 <Bar
@@ -155,11 +247,11 @@ const RowChartView = <TDatum,>({
                   y={y}
                   width={width}
                   height={height}
-                  fill={series.color}
+                  fill={fillColor}
                   opacity={opacity}
-                  onClick={event => onClick?.(event, bar)}
-                  onMouseEnter={event => onHover?.(event, bar)}
-                  onMouseLeave={event => onHover?.(event, null)}
+                  onClick={(event) => onClick?.(event, bar)}
+                  onMouseEnter={(event) => onHover?.(event, bar)}
+                  onMouseLeave={(event) => onHover?.(event, null)}
                 />
                 {label != null && (
                   <Text
@@ -203,7 +295,7 @@ const RowChartView = <TDatum,>({
             verticalAnchor: "start",
           }}
           labelOffset={margin.left - theme.axis.label.size}
-          tickFormat={yTickFormatter}
+          tickFormat={ellipsifiedYTickFormatter}
           hideAxisLine={!hasYAxis}
           hideTicks
           tickValues={hasYAxis ? undefined : []}

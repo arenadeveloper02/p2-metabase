@@ -61,6 +61,8 @@ export interface RowChartProps<TDatum> {
     event: React.MouseEvent,
     bar: BarData<TDatum, SeriesInfo> | null,
   ) => void;
+
+  isModernDesign?: boolean;
 }
 
 export const RowChart = <TDatum,>({
@@ -100,6 +102,8 @@ export const RowChart = <TDatum,>({
   hoveredData,
   onClick,
   onHover,
+
+  isModernDesign = false,
 }: RowChartProps<TDatum>) => {
   const isMeasured = typeof width === "number" && typeof height === "number";
 
@@ -155,6 +159,7 @@ export const RowChart = <TDatum,>({
         yLabel,
         hasXAxis,
         hasYAxis,
+        width,
       ),
     [
       seriesData,
@@ -167,6 +172,7 @@ export const RowChart = <TDatum,>({
       yLabel,
       hasXAxis,
       hasYAxis,
+      width,
     ],
   );
 
@@ -271,8 +277,10 @@ export const RowChart = <TDatum,>({
       xLabel={xLabel}
       hasXAxis={hasXAxis}
       hasYAxis={hasYAxis}
+      measureTextWidth={measureTextWidth}
       onClick={onClick}
       onHover={onHover}
+      isModernDesign={isModernDesign}
     />
   );
 };

@@ -9,7 +9,7 @@ interface DashboardEmptyStateProps {
   addQuestion?: () => void;
   isDashboardEmpty: boolean;
   isEditing?: boolean;
-  isNightMode: boolean;
+  canCreateQuestions?: boolean;
 }
 
 const getDefaultTitle = (isDashboardEmpty: boolean) =>
@@ -19,21 +19,15 @@ function InlineIcon({ name }: { name: IconName }) {
   return <Icon name={name} style={{ verticalAlign: "middle" }} />;
 }
 
-function EmptyStateWrapper({
-  isNightMode,
-  children,
-}: {
-  isNightMode: boolean;
-  children: ReactNode;
-}) {
+function EmptyStateWrapper({ children }: { children: ReactNode }) {
   return (
     <Stack
       align="center"
-      color={isNightMode ? "text-white" : "inherit"}
+      color="inherit"
       data-testid="dashboard-empty-state"
       h="100%"
       justify="center"
-      spacing="lg"
+      gap="lg"
       mih="20rem"
     >
       <img src={EmptyDashboardBot} alt={t`Empty dashboard illustration`} />
@@ -46,20 +40,24 @@ export function DashboardEmptyState({
   addQuestion,
   isDashboardEmpty,
   isEditing,
-  isNightMode,
+  canCreateQuestions,
 }: DashboardEmptyStateProps) {
-  const defaultTitle = getDefaultTitle(isDashboardEmpty);
+  let title = getDefaultTitle(isDashboardEmpty);
+  if (isEditing) {
+    title = canCreateQuestions
+      ? t`Create a new question or browse your collections for an existing one.`
+      : t`Browse your collections to find and add existing questions.`;
+  }
+
   return (
-    <EmptyStateWrapper isNightMode={isNightMode}>
+    <EmptyStateWrapper>
       <>
-        <Stack align="center" maw="25rem" spacing="xs">
-          <Title align="center" order={2}>
-            {isEditing
-              ? t`Create a new question or browse your collections for an existing one.`
-              : defaultTitle}
+        <Stack align="center" maw="25rem" gap="xs">
+          <Title ta="center" order={3}>
+            {title}
           </Title>
 
-          <Text align="center" data-testid="dashboard-empty-state-copy">
+          <Text ta="center" data-testid="dashboard-empty-state-copy">
             {isEditing
               ? jt`Add link or text cards. You can arrange cards manually, or start with some default layouts by adding ${(<InlineIcon key="section-icon" name="section" />)} ${(
                   <b key="section">{c(
@@ -82,12 +80,11 @@ export function DashboardEmptyState({
 
 export function DashboardEmptyStateWithoutAddPrompt({
   isDashboardEmpty,
-  isNightMode,
 }: DashboardEmptyStateProps) {
   const title = getDefaultTitle(isDashboardEmpty);
   return (
-    <EmptyStateWrapper isNightMode={isNightMode}>
-      <Title align="center" order={2}>
+    <EmptyStateWrapper>
+      <Title ta="center" order={3}>
         {title}
       </Title>
     </EmptyStateWrapper>

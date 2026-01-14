@@ -4,13 +4,17 @@ import { useCallback } from "react";
 import { t } from "ttag";
 
 import CS from "metabase/css/core/index.css";
+import { QuestionSharingMenu } from "metabase/embedding/components/SharingMenu";
 import { SERVER_ERROR_TYPES } from "metabase/lib/errors";
+import { useSelector } from "metabase/lib/redux";
 import MetabaseSettings from "metabase/lib/settings";
+import { useRegisterShortcut } from "metabase/palette/hooks/useRegisterShortcut";
+import { PLUGIN_AI_ENTITY_ANALYSIS } from "metabase/plugins";
 import RunButtonWithTooltip from "metabase/query_builder/components/RunButtonWithTooltip";
 import { canExploreResults } from "metabase/query_builder/components/view/ViewHeader/utils";
 import type { QueryModalType } from "metabase/query_builder/constants";
 import { MODAL_TYPES } from "metabase/query_builder/constants";
-import { QuestionSharingMenu } from "metabase/sharing/components/SharingMenu";
+import { getUserCanWriteToCollections } from "metabase/selectors/user";
 import { Box, Button, Flex, Tooltip } from "metabase/ui";
 import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
@@ -96,6 +100,7 @@ export function ViewTitleHeaderRightSide({
 }: ViewTitleHeaderRightSideProps): React.JSX.Element {
   const isShowingNotebook = queryBuilderMode === "notebook";
   const { isEditable } = Lib.queryDisplayInfo(question.query());
+  const canWriteToCollections = useSelector(getUserCanWriteToCollections);
 
   const hasExploreResultsLink =
     canExploreResults(question) &&
@@ -108,7 +113,9 @@ export function ViewTitleHeaderRightSide({
     !isModelOrMetric &&
     isDirty &&
     !question.isArchived() &&
-    isActionListVisible;
+    isActionListVisible &&
+    canWriteToCollections;
+
   const isMissingPermissions =
     result?.error_type === SERVER_ERROR_TYPES.missingPermissions;
   const hasRunButton =
@@ -140,6 +147,19 @@ export function ViewTitleHeaderRightSide({
     ? getDisabledSaveTooltip(isEditable)
     : undefined;
 
+  useRegisterShortcut(
+    hasRunButton && !isShowingNotebook
+      ? [
+          {
+            id: "query-builder-data-refresh",
+            perform: () =>
+              isRunning ? cancelQuery : runQuestionQuery({ ignoreCache: true }),
+          },
+        ]
+      : [],
+    [isRunning, isShowingNotebook, hasRunButton],
+  );
+
   return (
     <Flex
       className={ViewTitleHeaderS.ViewHeaderActionPanel}
@@ -153,8 +173,7 @@ export function ViewTitleHeaderRightSide({
       }) && (
         <FilterHeaderButton
           className={cx(CS.hide, CS.smShow)}
-          onOpenModal={onOpenModal}
-          query={question.query()}
+          question={question}
           isExpanded={areFiltersExpanded}
           onExpand={onExpandFilters}
           onCollapse={onCollapseFilters}
@@ -201,8 +220,6 @@ export function ViewTitleHeaderRightSide({
             iconSize={16}
             onlyIcon
             medium
-            compact
-            result={result}
             isRunning={isRunning}
             isDirty={isResultDirty}
             onRun={() => runQuestionQuery({ ignoreCache: true })}
@@ -211,7 +228,13 @@ export function ViewTitleHeaderRightSide({
           />
         </Box>
       )}
-      {!isShowingNotebook && <QuestionSharingMenu question={question} />}
+      {!isShowingNotebook && (hasSaveButton || isSaved) && (
+        <QuestionSharingMenu question={question} />
+      )}
+      {!isShowingNotebook &&
+      PLUGIN_AI_ENTITY_ANALYSIS.canAnalyzeQuestion(question) ? (
+        <PLUGIN_AI_ENTITY_ANALYSIS.AIQuestionAnalysisButton />
+      ) : null}
       {isSaved && (
         <QuestionActions
           question={question}
@@ -237,7 +260,7 @@ export function ViewTitleHeaderRightSide({
             variant="subtle"
             aria-disabled={isSaveDisabled || undefined}
             data-disabled={isSaveDisabled || undefined}
-            onClick={event => {
+            onClick={(event) => {
               event.preventDefault();
               if (!isSaveDisabled) {
                 onOpenModal(MODAL_TYPES.SAVE);

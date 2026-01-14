@@ -3,18 +3,22 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import NoResults from "assets/img/metrics_bot.svg";
-import { getCurrentUser } from "metabase/admin/datamodel/selectors";
 import { skipToken } from "metabase/api";
-import { useDatabaseListQuery, useDocsUrl } from "metabase/common/hooks";
+import EmptyState from "metabase/common/components/EmptyState";
+import Link, { ForwardRefLink } from "metabase/common/components/Link";
+import { DelayedLoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
+import { useDocsUrl } from "metabase/common/hooks";
 import { useFetchMetrics } from "metabase/common/hooks/use-fetch-metrics";
-import EmptyState from "metabase/components/EmptyState";
-import { DelayedLoadingAndErrorWrapper } from "metabase/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
-import Link from "metabase/core/components/Link";
 import { useSelector } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
-import { PLUGIN_CONTENT_VERIFICATION } from "metabase/plugins";
-import { getHasDataAccess } from "metabase/selectors/data";
 import {
+  PLUGIN_CONTENT_VERIFICATION,
+  PLUGIN_DATA_STUDIO,
+} from "metabase/plugins";
+import { getIsEmbeddingIframe } from "metabase/selectors/embed";
+import { canUserCreateQueries } from "metabase/selectors/user";
+import {
+  ActionIcon,
   Box,
   Button,
   Flex,
@@ -23,6 +27,7 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "metabase/ui";
 
 import {
@@ -33,6 +38,7 @@ import {
 } from "../components/BrowseContainer.styled";
 
 import { MetricsTable } from "./MetricsTable";
+import { trackNewMetricInitiated } from "./analytics";
 import type { MetricFilterSettings, MetricResult } from "./types";
 
 const {
@@ -49,6 +55,22 @@ export function BrowseMetrics() {
   const isEmpty = !isLoading && !error && !metrics?.length;
   const titleId = useMemo(() => _.uniqueId("browse-metrics"), []);
 
+  const libraryMetricCollection =
+    PLUGIN_DATA_STUDIO.useGetLibraryChildCollectionByType({
+      type: "library-metrics",
+    });
+
+  const newMetricLink = Urls.newQuestion({
+    mode: "query",
+    cardType: "metric",
+    collectionId: libraryMetricCollection?.id,
+  });
+
+  const hasDataAccess = useSelector(canUserCreateQueries);
+  const isEmbeddingIframe = useSelector(getIsEmbeddingIframe);
+
+  const canCreateMetric = !isEmbeddingIframe && hasDataAccess;
+
   return (
     <BrowseContainer aria-labelledby={titleId}>
       <BrowseHeader role="heading" data-testid="browse-metrics-header">
@@ -60,8 +82,8 @@ export function BrowseMetrics() {
             justify="space-between"
             align="center"
           >
-            <Title order={1} color="text-dark" id={titleId}>
-              <Group spacing="sm">
+            <Title order={2} c="text-dark" id={titleId}>
+              <Group gap="sm">
                 <Icon
                   size={24}
                   color="var(--mb-color-icon-primary)"
@@ -70,20 +92,39 @@ export function BrowseMetrics() {
                 {t`Metrics`}
               </Group>
             </Title>
-            {hasVerifiedMetrics && (
-              <MetricFilterControls
-                metricFilters={metricFilters}
-                setMetricFilters={setMetricFilters}
-              />
-            )}
+            <Group gap="xs">
+              {canCreateMetric && (
+                <Tooltip label={t`Create a new metric`} position="bottom">
+                  <ActionIcon
+                    aria-label={t`Create a new metric`}
+                    size={32}
+                    variant="viewHeader"
+                    component={ForwardRefLink}
+                    to={newMetricLink}
+                    onClick={() => trackNewMetricInitiated()}
+                  >
+                    <Icon name="add" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+              {hasVerifiedMetrics && (
+                <MetricFilterControls
+                  metricFilters={metricFilters}
+                  setMetricFilters={setMetricFilters}
+                />
+              )}
+            </Group>
           </Flex>
         </BrowseSection>
       </BrowseHeader>
       <BrowseMain>
         <BrowseSection>
-          <Stack mb="lg" spacing="md" w="100%">
+          <Stack mb="lg" gap="md" w="100%">
             {isEmpty ? (
-              <MetricsEmptyState />
+              <MetricsEmptyState
+                canCreateMetric={canCreateMetric}
+                newMetricLink={newMetricLink}
+              />
             ) : (
               <DelayedLoadingAndErrorWrapper
                 error={error}
@@ -101,18 +142,13 @@ export function BrowseMetrics() {
   );
 }
 
-function MetricsEmptyState() {
-  const isLoggedIn = Boolean(useSelector(getCurrentUser));
-  const { data: databases = [] } = useDatabaseListQuery({
-    enabled: isLoggedIn,
-  });
-  const hasDataAccess = getHasDataAccess(databases);
-
-  const newMetricLink = Urls.newQuestion({
-    mode: "query",
-    cardType: "metric",
-  });
-
+function MetricsEmptyState({
+  canCreateMetric,
+  newMetricLink,
+}: {
+  canCreateMetric: boolean;
+  newMetricLink: string;
+}) {
   const { url: metricsDocsLink, showMetabaseLinks } = useDocsUrl(
     "data-modeling/metrics",
   );
@@ -135,7 +171,7 @@ function MetricsEmptyState() {
                     variant="brandBold"
                   >{t`Read the docs`}</Link>
                 )}
-                {hasDataAccess && (
+                {canCreateMetric && (
                   <Button
                     component={Link}
                     to={newMetricLink}

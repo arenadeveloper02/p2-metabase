@@ -7,7 +7,7 @@ import type {
 import { Api } from "./api";
 
 export const userKeyValueApi = Api.injectEndpoints({
-  endpoints: builder => ({
+  endpoints: (builder) => ({
     getUserKeyValue: builder.query<any, GetUserKeyValueRequest>({
       query: ({ namespace, key }) =>
         `/api/user-key-value/namespace/${namespace}/key/${key}`,
@@ -18,10 +18,7 @@ export const userKeyValueApi = Api.injectEndpoints({
         url: `/api/user-key-value/namespace/${namespace}/key/${key}`,
         body,
       }),
-      async onQueryStarted(
-        { key, namespace, value },
-        { dispatch, queryFulfilled },
-      ) {
+      onQueryStarted({ key, namespace, value }, { dispatch, queryFulfilled }) {
         const kvResult = dispatch(
           userKeyValueApi.util.updateQueryData(
             "getUserKeyValue",
@@ -29,7 +26,7 @@ export const userKeyValueApi = Api.injectEndpoints({
             () => value,
           ),
         );
-        queryFulfilled.catch(err => {
+        queryFulfilled.catch((err) => {
           console.error("Unable to update user key value", err);
           kvResult.undo();
         });
@@ -49,7 +46,7 @@ export const userKeyValueApi = Api.injectEndpoints({
             () => undefined,
           ),
         );
-        queryFulfilled.catch(err => {
+        queryFulfilled.catch((err) => {
           console.error("Unable to update user key value", err);
           kvResult.undo();
         });

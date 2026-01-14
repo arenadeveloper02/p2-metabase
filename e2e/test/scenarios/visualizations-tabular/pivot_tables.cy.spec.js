@@ -130,7 +130,10 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
     assertOnPivotSettings();
 
     // Drag the second aggregate (Product category) from table columns to table rows
-    H.dragField(1, 0);
+    H.moveDnDKitListElement("drag-handle", {
+      startIndex: 1,
+      dropIndex: 0,
+    });
 
     // One field should now be empty
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
@@ -647,10 +650,13 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
         });
 
         H.visitQuestion(card_id);
+
+        cy.wrap(card_id).as("questionId");
+        cy.wrap(dashboard_id).as("dashboardId");
       });
     });
 
-    TEST_CASES.forEach(test => {
+    TEST_CASES.forEach((test) => {
       describe(test.case, () => {
         beforeEach(() => {
           cy.visit("collection/root");
@@ -670,21 +676,11 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
           cy.findByTestId("public-link-popover-content")
             .findByTestId("public-link-input")
             .invoke("val")
-            .then($value => {
+            .then(($value) => {
               cy.visit($value);
             });
           cy.findByTestId("embed-frame-header").contains(test.subject);
           assertOnPivotFields();
-        });
-
-        // Skipped to avoid flake
-        it.skip("should display pivot table in an embed preview", () => {
-          // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-          cy.findByText(/Embed in your application/).click();
-          // we use preview endpoints when MB is iframed in itself
-          // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-          cy.findByText(test.subject);
-          H.getIframeBody().within(assertOnPivotFields);
         });
 
         it("should display pivot table in an embed URL", () => {
@@ -696,9 +692,25 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
             });
           }
 
-          H.openStaticEmbeddingModal({
-            activeTab: "parameters",
-            confirmSave: test.confirmSave,
+          const { alias, resource } = {
+            question: {
+              alias: "@questionId",
+              resource: "question",
+            },
+            dashboard: {
+              alias: "@dashboardId",
+              resource: "dashboard",
+            },
+          }[test.case];
+
+          cy.get(alias).then((id) => {
+            H.openLegacyStaticEmbeddingModal({
+              resource: resource,
+              resourceId: id,
+              activeTab: "parameters",
+              confirmSave: test.confirmSave,
+              unpublishBeforeOpen: false,
+            });
           });
 
           // visit the iframe src directly to ensure it's not sing preview endpoints
@@ -711,15 +723,35 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
     });
   });
 
-  it("should open the download popover (metabase#14750)", () => {
+  it("should show a download widget with a hint about pivoted xlsx exports (metabase#14750)", () => {
+    const HINT_TEXT =
+      "Trying to pivot this data in Excel? You should download the raw data instead.";
     createTestQuestion();
     cy.icon("download").click();
-    H.popover().within(() =>
-      cy.findAllByText("Download").should("have.length", 2),
-    );
+
+    H.popover().within(() => {
+      cy.findByText(".xlsx").click();
+      cy.findByText(HINT_TEXT);
+      cy.findByText("Read the docs").should(
+        "have.attr",
+        "href",
+        "https://www.metabase.com/docs/latest/questions/exporting-results.html#exporting-pivot-tables",
+      );
+
+      cy.findByLabelText("Close hint").click();
+      cy.findByText(HINT_TEXT).should("not.exist");
+
+      cy.findByText("Download");
+    });
+
+    // Ensure the hint is not visible after a page reload
+    cy.reload();
+
+    cy.icon("download").click();
+    H.popover().findByText(HINT_TEXT).should("not.exist");
   });
 
-  it.skip("should work for user without data permissions (metabase#14989)", () => {
+  it("should work for user without data permissions (metabase#14989)", () => {
     cy.request("POST", "/api/card", {
       name: "14989",
       dataset_query: {
@@ -740,13 +772,9 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
       cy.signIn("nodata");
       H.visitQuestion(QUESTION_ID);
     });
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Grand totals");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Row totals");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("200");
+    cy.findAllByTestId("pivot-table-cell").contains("Grand totals");
+    cy.findAllByTestId("pivot-table-cell").contains("Row totals");
+    cy.findAllByTestId("pivot-table-cell").contains("200");
   });
 
   it("should work with custom mapping of display values (metabase#14985)", () => {
@@ -929,11 +957,11 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
 
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Add a rule").click();
-    cy.findByTestId("conditional-formatting-value-input").type("70");
+    cy.findByTestId("conditional-formatting-value-input").type("70").blur();
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("is equal to").click();
+    cy.findByText("is equal to").click({ force: true });
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("is less than or equal to").click();
+    cy.findByText("is less than or equal to").click({ force: true });
 
     cy.contains("[data-testid=pivot-table-cell]", "65.09").should(
       "have.css",
@@ -990,7 +1018,7 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
     function assertTopMostRowTotalValue(value) {
       // Warning: Fragile selector!
       // TODO: refactor once we have a better HTML structure for tables.
-      cy.get("[role=rowgroup] > div").eq(5).invoke("text").should("eq", value);
+      cy.get("[role=row] > div").eq(5).invoke("text").should("eq", value);
     }
   });
 
@@ -1049,7 +1077,7 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
       cy.findByText("Row totals").should("be.visible");
     });
 
-    cy.get("@questionId").then(id => H.visitQuestion(id));
+    cy.get("@questionId").then((id) => H.visitQuestion(id));
 
     H.queryBuilderMain().within(() => {
       cy.findByLabelText(PIVOT_TABLE_BODY_LABEL).scrollTo(10000, 0);
@@ -1058,28 +1086,31 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
   });
 
   describe("column resizing", () => {
-    const getCellWidth = textEl =>
+    const getCellWidth = (textEl) =>
       textEl.closest("[data-testid=pivot-table-cell]").width();
 
     it("should persist column sizes in visualization settings", () => {
       H.visitQuestionAdhoc({ dataset_query: testQuery, display: "pivot" });
-      const leftHeaderColHandle = cy
-        .findAllByTestId("pivot-table-resize-handle")
-        .first();
-      // eslint-disable-next-line no-unsafe-element-filtering
-      const totalHeaderColHandle = cy
-        .findAllByTestId("pivot-table-resize-handle")
-        .last();
+      const leftHeaderColHandle = () =>
+        cy.findAllByTestId("pivot-table-resize-handle").first();
+      const totalHeaderColHandle = () =>
+        // eslint-disable-next-line no-unsafe-element-filtering
+        cy.findAllByTestId("pivot-table-resize-handle").last();
 
-      dragColumnHeader(leftHeaderColHandle, -100);
-      dragColumnHeader(totalHeaderColHandle, 100);
-
+      H.moveDnDKitElement(leftHeaderColHandle(), {
+        horizontal: -100,
+        vertical: 0,
+      });
+      H.moveDnDKitElement(totalHeaderColHandle(), {
+        horizontal: 100,
+        vertical: 0,
+      });
       cy.findByTestId("pivot-table").within(() => {
-        cy.findByText("User → Source").should($headerTextEl => {
+        cy.findByText("User → Source").should(($headerTextEl) => {
           expect(getCellWidth($headerTextEl)).equal(80); // min width is 80
         });
-        cy.findByText("Row totals").should($headerTextEl => {
-          expect(getCellWidth($headerTextEl)).equal(200);
+        cy.findByText("Row totals").should(($headerTextEl) => {
+          expect(getCellWidth($headerTextEl)).equal(220);
         });
       });
 
@@ -1089,21 +1120,20 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
       });
 
       cy.reload(); // reload to make sure the settings are persisted
-
       cy.findByTestId("pivot-table").within(() => {
-        cy.findByText("User → Source").then($headerTextEl => {
+        cy.findByText("User → Source").then(($headerTextEl) => {
           expect(getCellWidth($headerTextEl)).equal(80);
         });
-        cy.findByText("Row totals").then($headerTextEl => {
-          expect(getCellWidth($headerTextEl)).equal(200);
+        cy.findByText("Row totals").then(($headerTextEl) => {
+          expect(getCellWidth($headerTextEl)).equal(220);
         });
       });
     });
   });
 
   it("should not have to wait for data to show fields in summarisation (metabase#26467)", () => {
-    cy.intercept("POST", "api/card/pivot/*/query", req => {
-      req.on("response", res => {
+    cy.intercept("POST", "api/card/pivot/*/query", (req) => {
+      req.on("response", (res) => {
         res.setDelay(20_000);
       });
     });
@@ -1282,7 +1312,7 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
 
     it("correctly filters the query when zooming in on a **row** header (metabase#38265)", () => {
       cy.findByTestId("pivot-table").findByText("KS").click();
-      H.popover().findByText("Zoom in").click();
+      H.popover().findByText("Zoom in: State").click();
 
       cy.log("Filter pills");
       cy.findByTestId("filter-pill").should("have.text", "User → State is KS");
@@ -1419,6 +1449,39 @@ describe("scenarios > visualizations > pivot tables", { tags: "@slow" }, () => {
     getPivotTableBodyCell(3).should("have.text", "54");
     getPivotTableBodyCell(4).should("have.text", "200");
   });
+
+  it("renders a pivot table with only pivot columns (metabase#44500)", () => {
+    const questionDetails = {
+      name: "25250",
+      dataset_query: {
+        type: "query",
+        query: {
+          "source-table": ORDERS_ID,
+          aggregation: [["count"]],
+          breakout: [
+            ["field", ORDERS.SUBTOTAL, { binning: { strategy: "default" } }],
+            ["field", ORDERS.TAX, { binning: { strategy: "default" } }],
+          ],
+        },
+        database: SAMPLE_DB_ID,
+      },
+      display: "pivot",
+      visualization_settings: {
+        "pivot_table.column_split": {
+          rows: [],
+          columns: ["SUBTOTAL", "TAX"],
+          values: ["count"],
+        },
+      },
+    };
+    H.visitQuestionAdhoc(questionDetails);
+
+    getPivotTableBodyCell(0).should("have.text", "34");
+    getPivotTableBodyCell(1).should("have.text", "1,594");
+    getPivotTableBodyCell(2).should("have.text", "823");
+    getPivotTableBodyCell(3).should("have.text", "974");
+    getPivotTableBodyCell(4).should("have.text", "3,104");
+  });
 });
 
 const testQuery = {
@@ -1477,18 +1540,6 @@ function assertOnPivotFields() {
   cy.findByText("18,760");
 }
 
-function dragColumnHeader(el, xDistance = 50) {
-  const HANDLE_WIDTH = xDistance > 0 ? 2 : -2;
-  el.then($el => {
-    const currentXPos = $el[0].getBoundingClientRect().x;
-    el.trigger("mousedown", { which: 1 })
-      .trigger("mousemove", {
-        clientX: currentXPos + (xDistance + HANDLE_WIDTH),
-      })
-      .trigger("mouseup");
-  });
-}
-
 function openColumnSettings(columnName) {
   H.sidebar()
     .findByTestId(`draggable-item-${columnName}`)
@@ -1511,7 +1562,7 @@ function sortColumnResults(column, direction) {
   // Click anywhere to dismiss the popover from UI
   cy.get("body").click("topLeft");
 
-  cy.location("hash").then(hash => {
+  cy.location("hash").then((hash) => {
     // Get rid of the leading `#`
     const base64EncodedQuery = hash.slice(1);
     const decodedQuery = atob(base64EncodedQuery);

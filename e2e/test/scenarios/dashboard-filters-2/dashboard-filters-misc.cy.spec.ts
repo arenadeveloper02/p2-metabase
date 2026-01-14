@@ -33,9 +33,9 @@ describe("scenarios > dashboard > filters > query stages + temporal unit paramet
 
       H.startNewQuestion();
 
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Tables").click();
-        H.entityPickerModalItem(2, "Orders").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Sample Database").click();
+        cy.findByText("Orders").click();
       });
 
       H.getNotebookStep("filter")
@@ -66,6 +66,7 @@ describe("scenarios > dashboard > filters > query stages + temporal unit paramet
       H.popover()
         .findByLabelText("Created At")
         .findByLabelText("Temporal bucket")
+        .realHover()
         .click();
       // eslint-disable-next-line no-unsafe-element-filtering
       H.popover().last().findByText("Week").click();
@@ -150,7 +151,7 @@ describe("pivot tables", () => {
         query: createPivotableQuery(this.baseQuestion),
         name: "Question - pivot viz",
         display: "pivot",
-      }).then(response => {
+      }).then((response) => {
         const card = response.body;
         QSHelpers.createAndVisitDashboard([card]);
       });
@@ -201,7 +202,7 @@ describe("pivot tables", () => {
 
     cy.button("Save").click();
 
-    cy.log("filter modal");
+    cy.log("filter picker");
 
     H.getDashboardCard(QUESTION_PIVOT_INDEX)
       .findByTestId("legend-caption-title")
@@ -210,7 +211,7 @@ describe("pivot tables", () => {
     cy.findByTestId("qb-header")
       .button(/Filter/)
       .click();
-    H.modal().findByText("Summaries").should("not.exist");
+    H.popover().findByText("Summaries").should("not.exist");
 
     function verifyDateMappingOptions() {
       QSHelpers.verifyDashcardMappingOptions(QUESTION_PIVOT_INDEX, [

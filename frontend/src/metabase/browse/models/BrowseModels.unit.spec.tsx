@@ -1,4 +1,5 @@
 import userEvent from "@testing-library/user-event";
+import { Route } from "react-router";
 
 import {
   setupRecentViewsEndpoints,
@@ -9,6 +10,8 @@ import { renderWithProviders, screen, within } from "__support__/ui";
 import {
   createMockCollection,
   createMockSearchResult,
+  createMockUser,
+  createMockUserPermissions,
 } from "metabase-types/api/mocks";
 import { createMockSetupState } from "metabase-types/store/mocks";
 
@@ -20,24 +23,50 @@ const defaultRootCollection = createMockCollection({
   name: "Our analytics",
 });
 
-const setup = (modelCount: number, recentModelCount = 5) => {
-  const mockModelResults = mockModels.map(model =>
+interface SetupOptions {
+  modelCount: number;
+  recentModelCount?: number;
+  hasDataPermissions?: boolean;
+}
+
+const setup = ({
+  modelCount,
+  recentModelCount = 5,
+  hasDataPermissions = true,
+}: SetupOptions) => {
+  const mockModelResults = mockModels.map((model) =>
     createMockModelResult(model),
   );
   const mockRecentModels = mockModels
     .slice(0, recentModelCount)
-    .map(model => createMockRecentModel(model));
+    .map((model) => createMockRecentModel(model));
   const models = mockModelResults.slice(0, modelCount);
-  setupSearchEndpoints(models.map(model => createMockSearchResult(model)));
+  setupSearchEndpoints(models.map((model) => createMockSearchResult(model)));
   setupSettingsEndpoints([]);
   setupRecentViewsEndpoints(mockRecentModels);
-  return renderWithProviders(<BrowseModels />, {
-    storeInitialState: {
-      setup: createMockSetupState({
-        locale: { name: "English", code: "en" },
-      }),
+  return renderWithProviders(
+    <>
+      <Route path="/" component={() => <BrowseModels />} />
+      <Route
+        path="/model/:slug"
+        component={() => <div data-testid="model-detail-page" />}
+      />
+    </>,
+    {
+      storeInitialState: {
+        currentUser: createMockUser({
+          permissions: createMockUserPermissions({
+            can_create_queries: hasDataPermissions,
+            can_create_native_queries: hasDataPermissions,
+          }),
+        }),
+        setup: createMockSetupState({
+          locale: { name: "English", code: "en" },
+        }),
+      },
+      withRouter: true,
     },
-  });
+  );
 };
 
 const collectionAlpha = createMockCollection({ id: 99, name: "Alpha" });
@@ -279,7 +308,7 @@ const mockModels = [
 describe("BrowseModels", () => {
   describe("Empty state", () => {
     it("displays an explanation about how to use models when no models exist", async () => {
-      setup(0);
+      setup({ modelCount: 0 });
 
       const emptyState = await screen.findByTestId("empty-state");
       const title =
@@ -301,7 +330,7 @@ describe("BrowseModels", () => {
     });
 
     it("should display embedded YouTube video (that doesn't auto play) when no models exist", async () => {
-      setup(0);
+      setup({ modelCount: 0 });
 
       const emptyState = await screen.findByTestId("empty-state");
       const youtubeVideo = await within(emptyState).findByTitle(
@@ -314,11 +343,25 @@ describe("BrowseModels", () => {
       expect(src).toContain("youtube.com");
       expect(src).toContain("autoplay=0");
     });
+
+    it("should display a new model button in the header along when in empty state", async () => {
+      setup({ modelCount: 0, hasDataPermissions: true });
+      const newModelButton = await screen.findByLabelText("Create a new model");
+      expect(newModelButton).toBeInTheDocument();
+    });
+
+    it("should not display a new model button in the header when in empty state if the user lacks data permissions", async () => {
+      setup({ modelCount: 0, hasDataPermissions: false });
+      const header = await screen.findByTestId("browse-models-header");
+      expect(
+        within(header).queryByLabelText("Create a new model"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("Models explanation banner", () => {
     it("displays an explanation banner when there is at least one model", async () => {
-      setup(1);
+      setup({ modelCount: 1 });
 
       const banner = await screen.findByRole("complementary");
       const title =
@@ -343,7 +386,7 @@ describe("BrowseModels", () => {
     });
 
     it("explanation banner can open an autoplaying embedded YouTube video in a modal", async () => {
-      setup(1);
+      setup({ modelCount: 1 });
 
       const banner = await screen.findByRole("complementary");
       const videoThumbnail = await within(banner).findByTestId(
@@ -367,10 +410,24 @@ describe("BrowseModels", () => {
       expect(src).toContain("youtube.com");
       expect(src).toContain("autoplay=1");
     });
+
+    it("should display a new model button in the header along when a model explanation banner", async () => {
+      setup({ modelCount: 1, hasDataPermissions: true });
+      const newModelButton = await screen.findByLabelText("Create a new model");
+      expect(newModelButton).toBeInTheDocument();
+    });
+
+    it("should not display a new model button in the header along the model explanation banner if the user lacks data permission", async () => {
+      setup({ modelCount: 1, hasDataPermissions: false });
+      const header = await screen.findByTestId("browse-models-header");
+      expect(
+        within(header).queryByLabelText("Create a new model"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("displays the Our Analytics collection if it has a model", async () => {
-    setup(25);
+    setup({ modelCount: 25 });
     const modelsTable = await screen.findByRole("table", {
       name: /Table of models/,
     });
@@ -392,7 +449,7 @@ describe("BrowseModels", () => {
   });
 
   it("displays collection breadcrumbs", async () => {
-    setup(25);
+    setup({ modelCount: 25 });
     const modelsTable = await screen.findByRole("table", {
       name: /Table of models/,
     });
@@ -403,7 +460,7 @@ describe("BrowseModels", () => {
   });
 
   it("displays recently viewed models", async () => {
-    setup(25);
+    setup({ modelCount: 25 });
     const recentModelsGrid = await screen.findByRole("grid", {
       name: /Recents/,
     });
@@ -426,10 +483,39 @@ describe("BrowseModels", () => {
   });
 
   it("displays no recently viewed models when there are fewer than 9 models - but instance analytics models do not count", async () => {
-    setup(8);
+    setup({ modelCount: 8 });
     const recentModelsGrid = screen.queryByRole("grid", {
       name: /Recents/,
     });
     expect(recentModelsGrid).not.toBeInTheDocument();
+  });
+
+  it("should render links that point directly to /model/{id}-{slug} (metabase#55166)", async () => {
+    const { history } = setup({ modelCount: 25 });
+    const recentModelsGrid = await screen.findByRole("grid", {
+      name: /Recents/,
+    });
+    expect(
+      within(recentModelsGrid).getByRole("link", { name: /Model 1/ }),
+    ).toHaveAttribute("href", "/model/1-model-1");
+    expect(
+      within(recentModelsGrid).getByRole("link", { name: /Model 2/ }),
+    ).toHaveAttribute("href", "/model/2-model-2");
+
+    const modelsTable = await screen.findByRole("table", {
+      name: /Table of models/,
+    });
+
+    expect(
+      within(modelsTable).getByRole("link", { name: /Model 20/ }),
+    ).toHaveAttribute("href", "/model/20-model-20");
+    expect(
+      within(modelsTable).getByRole("link", { name: /Model 21/ }),
+    ).toHaveAttribute("href", "/model/21-model-21");
+
+    expect(screen.queryByTestId("model-detail-page")).not.toBeInTheDocument();
+    await userEvent.click(within(recentModelsGrid).getByText("Model 1"));
+    expect(screen.getByTestId("model-detail-page")).toBeInTheDocument();
+    expect(history?.getCurrentLocation().pathname).toBe("/model/1-model-1");
   });
 });

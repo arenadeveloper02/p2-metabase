@@ -1,6 +1,6 @@
-import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { screen, within } from "__support__/ui";
 import { createMockTokenFeatures } from "metabase-types/api/mocks";
 
 import { FONTS_MOCK_VALUES, getMockResource, setup } from "./setup";
@@ -21,7 +21,7 @@ describe("Static Embed Setup phase - EE, with token", () => {
             resourceType,
           },
           activeTab: "Overview",
-          hasEnterprisePlugins: true,
+          enterprisePlugins: ["whitelabel"],
           tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
         });
 
@@ -45,18 +45,19 @@ describe("Static Embed Setup phase - EE, with token", () => {
             resourceType,
           },
           activeTab: "Look and Feel",
-          hasEnterprisePlugins: true,
+          enterprisePlugins: ["whitelabel"],
           tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
         });
 
         const fontSelect = screen.getByLabelText("Font");
         expect(fontSelect).toBeVisible();
+        expect(fontSelect).toHaveValue("Use instance font");
 
         await userEvent.click(fontSelect);
 
         const popover = await screen.findByRole("listbox", { name: "Font" });
 
-        FONTS_MOCK_VALUES.forEach(fontName => {
+        FONTS_MOCK_VALUES.forEach((fontName) => {
           expect(within(popover).getByText(fontName)).toBeVisible();
         });
 
@@ -73,7 +74,7 @@ describe("Static Embed Setup phase - EE, with token", () => {
             resourceType,
           },
           activeTab: "Look and Feel",
-          hasEnterprisePlugins: true,
+          enterprisePlugins: ["whitelabel"],
           tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
         });
 
@@ -88,7 +89,7 @@ describe("Static Embed Setup phase - EE, with token", () => {
             resourceType,
           },
           activeTab: "Look and Feel",
-          hasEnterprisePlugins: true,
+          enterprisePlugins: ["whitelabel"],
           tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
         });
 
@@ -104,26 +105,55 @@ describe("Static Embed Setup phase - EE, with token", () => {
         );
       });
 
-      it('should render "Download buttons" control', async () => {
+      it("should render result download toggle", async () => {
         await setup({
           props: {
             resourceType,
             resource: getMockResource(resourceType, true),
           },
           activeTab: "Look and Feel",
-          hasEnterprisePlugins: true,
+          enterprisePlugins: ["whitelabel"],
           tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
         });
 
-        expect(screen.getByText("Download buttons")).toBeVisible();
-        expect(screen.getByLabelText("Download buttons")).toBeChecked();
+        const downloadLabel =
+          resourceType === "dashboard"
+            ? "Results (csv, xlsx, json, png)"
+            : "Download (csv, xlsx, json, png)";
 
-        await userEvent.click(screen.getByLabelText("Download buttons"));
+        expect(screen.getByText(downloadLabel)).toBeVisible();
+        expect(screen.getByLabelText(downloadLabel)).toBeChecked();
+
+        await userEvent.click(screen.getByLabelText(downloadLabel));
 
         expect(screen.getByTestId("text-editor-mock")).toHaveTextContent(
-          `downloads=false`,
+          resourceType === "dashboard" ? `downloads=pdf` : `downloads=false`,
         );
       });
+
+      if (resourceType === "dashboard") {
+        it(`should render the "Export to PDF" toggle`, async () => {
+          await setup({
+            props: {
+              resourceType,
+              resource: getMockResource(resourceType, true),
+            },
+            activeTab: "Look and Feel",
+            enterprisePlugins: ["whitelabel"],
+            tokenFeatures: createMockTokenFeatures({ whitelabel: true }),
+          });
+
+          const downloadLabel = "Export to PDF";
+          expect(screen.getByText(downloadLabel)).toBeVisible();
+          expect(screen.getByLabelText(downloadLabel)).toBeChecked();
+
+          await userEvent.click(screen.getByLabelText(downloadLabel));
+
+          expect(screen.getByTestId("text-editor-mock")).toHaveTextContent(
+            `downloads=results`,
+          );
+        });
+      }
     });
   });
 });

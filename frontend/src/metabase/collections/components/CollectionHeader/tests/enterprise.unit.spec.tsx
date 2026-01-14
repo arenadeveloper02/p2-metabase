@@ -1,7 +1,8 @@
 import userEvent from "@testing-library/user-event";
 
-import { getIcon, queryIcon, screen } from "__support__/ui";
+import { getIcon, queryIcon, screen, within } from "__support__/ui";
 import type { CollectionType } from "metabase-types/api";
+import { createMockEntityId } from "metabase-types/api/mocks/entity-id";
 
 import { setup } from "./setup";
 
@@ -12,11 +13,19 @@ describe("Instance Analytics Collection Header", () => {
       type: "instance-analytics" as CollectionType,
       can_write: false,
     },
-    hasEnterprisePlugins: true,
+    enterprisePlugins: ["audit_app" as const, "collections" as const],
     // 😬 this test needs the official_collections feature flag so that it
     // doesn't cause the following test block to fail
     tokenFeatures: { audit_app: true, official_collections: true },
   };
+
+  it("should not offer to create new collection for instance analytics collections", () => {
+    setup(defaultOptions);
+    const headerMenu = screen.getByTestId("collection-menu");
+    expect(
+      within(headerMenu).queryByLabelText("Create a new collection"),
+    ).not.toBeInTheDocument();
+  });
 
   it("should show an audit icon for instance analytics collections", () => {
     setup(defaultOptions);
@@ -65,9 +74,9 @@ describe("instance analytics custom reports collection", () => {
     collection: {
       name: "Custom Reports",
       can_write: true,
-      entity_id: "okNLSZKdSxaoG58JSQY54",
+      entity_id: createMockEntityId("okNLSZKdSxaoG58JSQY54"),
     },
-    hasEnterprisePlugins: true,
+    enterprisePlugins: "*" as const, // TODO: specify exact plugins needed
     // 😬 this test needs the official_collections feature flag so that it
     // doesn't cause the following test block to fail
     tokenFeatures: { audit_app: true, official_collections: true },
@@ -102,7 +111,7 @@ describe("Official Collections Header", () => {
       name: "Rock Collection",
       can_write: true,
     },
-    hasEnterprisePlugins: true,
+    enterprisePlugins: ["collections" as const, "audit_app" as const],
     tokenFeatures: { official_collections: true },
     isAdmin: true,
   };
@@ -113,7 +122,7 @@ describe("Official Collections Header", () => {
     expect(
       await screen.findByText("Make collection official"),
     ).toBeInTheDocument();
-    expect(await getIcon("official_collection")).toBeInTheDocument();
+    expect(getIcon("official_collection")).toBeInTheDocument();
   });
 
   it("should not allow non-admin users to designate official collections", async () => {
@@ -125,7 +134,7 @@ describe("Official Collections Header", () => {
     expect(
       screen.queryByText("Make collection official"),
     ).not.toBeInTheDocument();
-    expect(await queryIcon("official_collection")).not.toBeInTheDocument();
+    expect(queryIcon("official_collection")).not.toBeInTheDocument();
   });
 
   it("should not allow admin users to designate read-only collections as official", async () => {
@@ -140,6 +149,6 @@ describe("Official Collections Header", () => {
     expect(
       screen.queryByText("Make collection official"),
     ).not.toBeInTheDocument();
-    expect(await queryIcon("official_collection")).not.toBeInTheDocument();
+    expect(queryIcon("official_collection")).not.toBeInTheDocument();
   });
 });

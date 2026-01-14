@@ -1,8 +1,8 @@
 import type { ComponentType } from "react";
 import { t } from "ttag";
 
-import { color } from "metabase/lib/colors";
 import type { IconName } from "metabase/ui";
+import { color } from "metabase/ui/utils/colors";
 
 import type {
   NotebookStepHeaderProps,
@@ -35,13 +35,17 @@ type StepUIItem = {
 
 const STEPS: Record<NotebookStepType, StepUIItem> = {
   data: {
-    title: t`Data`,
+    get title() {
+      return t`Data`;
+    },
     color: () => color("brand"),
     Step: DataStep,
     StepHeader: NotebookStepHeader,
   },
   join: {
-    title: t`Join data`,
+    get title() {
+      return t`Join data`;
+    },
     icon: "join_left_outer",
     priority: 1,
     compact: true,
@@ -50,16 +54,20 @@ const STEPS: Record<NotebookStepType, StepUIItem> = {
     StepHeader: NotebookStepHeader,
   },
   expression: {
-    title: t`Custom column`,
+    get title() {
+      return t`Custom column`;
+    },
     icon: "add_data",
     compact: true,
     secondary: true,
-    color: () => color("bg-dark"),
+    color: () => color("text-light"),
     Step: ExpressionStep,
     StepHeader: NotebookStepHeader,
   },
   filter: {
-    title: t`Filter`,
+    get title() {
+      return t`Filter`;
+    },
     icon: "filter",
     priority: 10,
     color: () => color("filter"),
@@ -67,7 +75,9 @@ const STEPS: Record<NotebookStepType, StepUIItem> = {
     StepHeader: NotebookStepHeader,
   },
   summarize: {
-    title: t`Summarize`,
+    get title() {
+      return t`Summarize`;
+    },
     icon: "sum",
     priority: 5,
     color: () => color("summarize"),
@@ -75,7 +85,9 @@ const STEPS: Record<NotebookStepType, StepUIItem> = {
     StepHeader: SummarizeStepHeader,
   },
   aggregate: {
-    title: t`Aggregate`,
+    get title() {
+      return t`Aggregate`;
+    },
     icon: "sum",
     priority: 5,
     color: () => color("summarize"),
@@ -83,7 +95,9 @@ const STEPS: Record<NotebookStepType, StepUIItem> = {
     StepHeader: NotebookStepHeader,
   },
   breakout: {
-    title: t`Breakout`,
+    get title() {
+      return t`Breakout`;
+    },
     icon: "segment",
     priority: 1,
     color: () => color("accent4"),
@@ -91,20 +105,24 @@ const STEPS: Record<NotebookStepType, StepUIItem> = {
     StepHeader: NotebookStepHeader,
   },
   sort: {
-    title: t`Sort`,
+    get title() {
+      return t`Sort`;
+    },
     icon: "sort",
     compact: true,
     secondary: true,
-    color: () => color("bg-dark"),
+    color: () => color("text-light"),
     Step: SortStep,
     StepHeader: NotebookStepHeader,
   },
   limit: {
-    title: t`Row limit`,
+    get title() {
+      return t`Row limit`;
+    },
     icon: "list",
     compact: true,
     secondary: true,
-    color: () => color("bg-dark"),
+    color: () => color("text-light"),
     Step: LimitStep,
     StepHeader: NotebookStepHeader,
   },

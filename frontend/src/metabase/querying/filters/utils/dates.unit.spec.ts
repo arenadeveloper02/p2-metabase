@@ -1,8 +1,13 @@
+import { setLocalization } from "metabase/lib/i18n";
 import type { DateFilterValue } from "metabase/querying/filters/types";
 import * as Lib from "metabase-lib";
 import { columnFinder, createQuery } from "metabase-lib/test-helpers";
 
-import { getDateFilterClause, getDateFilterDisplayName } from "./dates";
+import {
+  formatDate,
+  getDateFilterClause,
+  getDateFilterDisplayName,
+} from "./dates";
 
 type DateFilterClauseCase = {
   value: DateFilterValue;
@@ -63,7 +68,7 @@ describe("getDateFilterClause", () => {
       displayName: "Created At is Feb 2 – Dec 20, 2024",
     },
     {
-      value: { type: "relative", value: "current", unit: "day" },
+      value: { type: "relative", value: 0, unit: "day" },
       displayName: "Created At is today",
     },
     {
@@ -212,12 +217,12 @@ describe("getDateFilterDisplayName", () => {
       displayName: "January 1, 2024 10:20 AM - December 31, 2024 11:15 PM",
     },
     {
-      value: { type: "relative", value: "current", unit: "day" },
+      value: { type: "relative", value: 0, unit: "day" },
       displayName: "Today",
     },
     {
-      value: { type: "relative", value: "current", unit: "year" },
-      displayName: "This Year",
+      value: { type: "relative", value: 0, unit: "year" },
+      displayName: "This year",
     },
     {
       value: { type: "relative", value: -1, unit: "day" },
@@ -225,7 +230,7 @@ describe("getDateFilterDisplayName", () => {
     },
     {
       value: { type: "relative", value: -2, unit: "year" },
-      displayName: "Previous 2 Years",
+      displayName: "Previous 2 years",
     },
     {
       value: {
@@ -235,11 +240,11 @@ describe("getDateFilterDisplayName", () => {
         offsetValue: -1,
         offsetUnit: "year",
       },
-      displayName: "Previous 3 Months, starting 1 year ago",
+      displayName: "Previous 3 months, starting 1 year ago",
     },
     {
       value: { type: "relative", value: 2, unit: "month" },
-      displayName: "Next 2 Months",
+      displayName: "Next 2 months",
     },
     {
       value: {
@@ -249,7 +254,7 @@ describe("getDateFilterDisplayName", () => {
         offsetValue: 1,
         offsetUnit: "year",
       },
-      displayName: "Next 3 Months, starting 1 year from now",
+      displayName: "Next 3 months, starting 1 year from now",
     },
     {
       value: {
@@ -318,6 +323,33 @@ describe("getDateFilterDisplayName", () => {
       expect(getDateFilterDisplayName(value, { withPrefix })).toEqual(
         displayName,
       );
+    },
+  );
+});
+
+describe("formatDate", () => {
+  afterAll(() => jest.resetModules());
+
+  describe.each([{ hasTime: false }, { hasTime: true }])(
+    "with hasTime=$hasTime",
+    ({ hasTime }) => {
+      it.each([
+        { locale: "en", expectedDate: "January 2, 2025" },
+        { locale: "de", expectedDate: "2. Januar 2025" },
+      ])("respects locale $locale", ({ locale, expectedDate }) => {
+        setLocalization({
+          headers: {
+            language: locale,
+            "plural-forms": "nplurals=2; plural=(n != 1);",
+          },
+          translations: { "": {} },
+        });
+
+        const date = new Date(2025, 0, 2, 0, 0);
+        const expectedTime = hasTime ? " 12:00 AM" : "";
+        const expected = `${expectedDate}${expectedTime}`;
+        expect(formatDate(date, hasTime)).toBe(expected);
+      });
     },
   );
 });

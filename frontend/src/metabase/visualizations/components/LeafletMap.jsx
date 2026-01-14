@@ -28,6 +28,13 @@ export default class LeafletMap extends Component {
         minZoom: 2,
         drawControlTooltips: false,
         zoomSnap: false,
+        // Set max bounds for latitude only, allowing longitude to wrap
+        maxBounds: [
+          [-90, -Infinity], // Southwest corner (limit south, no limit west)
+          [90, Infinity], // Northeast corner (limit north, no limit east)
+        ],
+        maxBoundsViscosity: 1.0, // Completely prevent panning outside latitude bounds
+        worldCopyJump: true, // Enable smooth horizontal wrapping
       }));
 
       const drawnItems = new L.FeatureGroup();
@@ -77,44 +84,76 @@ export default class LeafletMap extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const { bounds, settings } = this.props;
-    if (
-      !prevProps ||
-      prevProps.points !== this.props.points ||
-      prevProps.width !== this.props.width ||
-      prevProps.height !== this.props.height
-    ) {
-      this.map.invalidateSize();
+    const { bounds, settings, zoomControl, zoom, lat, lng } = this.props;
 
-      if (
-        settings["map.center_latitude"] != null ||
-        settings["map.center_longitude"] != null ||
-        settings["map.zoom"] != null
-      ) {
-        this.map.setView(
-          [settings["map.center_latitude"], settings["map.center_longitude"]],
-          settings["map.zoom"],
-        );
-      } else {
-        // compute ideal lat and lon zoom separately and use the lesser zoom to ensure the bounds are visible
-        const latZoom = this.map.getBoundsZoom(
-          L.latLngBounds([
-            [bounds.getSouth(), 0],
-            [bounds.getNorth(), 0],
-          ]),
-        );
-        const lonZoom = this.map.getBoundsZoom(
-          L.latLngBounds([
-            [0, bounds.getWest()],
-            [0, bounds.getEast()],
-          ]),
-        );
-        const zoom = Math.min(latZoom, lonZoom);
-        // NOTE: unclear why calling `fitBounds` twice is sometimes required to get it to work
-        this.map.fitBounds(bounds);
-        this.map.setZoom(zoom);
-        this.map.fitBounds(bounds);
+    if (prevProps.zoomControl !== zoomControl) {
+      if (zoomControl === false) {
+        this.map.zoomControl?.remove();
+      } else if (this.map.zoomControl) {
+        this.map.zoomControl.addTo(this.map);
       }
+    }
+
+    const isInitialUpdate = !prevProps;
+    const pointsChanged = prevProps && prevProps.points !== this.props.points;
+    const dimensionsChanged =
+      prevProps &&
+      (prevProps.width !== this.props.width ||
+        prevProps.height !== this.props.height);
+
+    if (!isInitialUpdate && !pointsChanged && !dimensionsChanged) {
+      return;
+    }
+
+    this.map.invalidateSize();
+
+    const hasSavedView =
+      settings["map.center_latitude"] != null ||
+      settings["map.center_longitude"] != null ||
+      settings["map.zoom"] != null;
+
+    // Pure resize (no data change): preserve user's current view
+    if (!isInitialUpdate && !pointsChanged && dimensionsChanged) {
+      if (zoom != null) {
+        const currentCenter = this.map.getCenter();
+        this.map.setView(
+          [lat ?? currentCenter.lat, lng ?? currentCenter.lng],
+          zoom,
+        );
+      }
+      // Don't reset to saved settings or recalculate on pure resize
+      return;
+    }
+
+    // Initial update or data changed: apply saved settings if available
+    if (hasSavedView) {
+      this.map.setView(
+        [settings["map.center_latitude"], settings["map.center_longitude"]],
+        settings["map.zoom"],
+      );
+      return;
+    }
+
+    // No saved view: fit to data bounds
+    if (shouldRecalculateZoom(prevProps?.points, this.props.points)) {
+      // compute ideal lat and lon zoom separately and use the lesser zoom to ensure the bounds are visible
+      const latZoom = this.map.getBoundsZoom(
+        L.latLngBounds([
+          [bounds.getSouth(), 0],
+          [bounds.getNorth(), 0],
+        ]),
+      );
+      const lonZoom = this.map.getBoundsZoom(
+        L.latLngBounds([
+          [0, bounds.getWest()],
+          [0, bounds.getEast()],
+        ]),
+      );
+      const zoom = Math.min(latZoom, lonZoom);
+      // NOTE: unclear why calling `fitBounds` twice is sometimes required to get it to work
+      this.map.fitBounds(bounds);
+      this.map.setZoom(zoom);
+      this.map.fitBounds(bounds);
     }
   }
 
@@ -126,7 +165,14 @@ export default class LeafletMap extends Component {
     const {
       series: [{ card }],
       metadata,
+      token,
     } = this.props;
+
+    const isStaticEmbedding = !!token;
+
+    if (isStaticEmbedding) {
+      return false;
+    }
 
     const question = new Question(card, metadata);
     const { isNative } = Lib.queryDisplayInfo(question.query());
@@ -145,7 +191,7 @@ export default class LeafletMap extends Component {
     this._filter && this._filter.disable();
     this.props.onFiltering(false);
   }
-  onFilter = e => {
+  onFilter = (e) => {
     const bounds = e.layer.getBounds();
 
     const {
@@ -171,17 +217,24 @@ export default class LeafletMap extends Component {
     if (this.supportsFilter()) {
       const query = question.query();
       const stageIndex = -1;
+
+      // Longitudes should be wrapped to the canonical range [-180, 180]. If the delta is >= 360,
+      // select the full range; otherwise, you wind up selecting only the overlapping portion.
+      const lngDelta = Math.abs(bounds.getEast() - bounds.getWest());
+      const west = lngDelta >= 360 ? -180 : bounds.getSouthWest().wrap().lng;
+      const east = lngDelta >= 360 ? 180 : bounds.getNorthEast().wrap().lng;
+
       const filterBounds = {
         north: bounds.getNorth(),
         south: bounds.getSouth(),
-        west: bounds.getWest(),
-        east: bounds.getEast(),
+        west,
+        east,
       };
       const updatedQuery = Lib.updateLatLonFilter(
         query,
         stageIndex,
-        latitudeColumn,
-        longitudeColumn,
+        Lib.fromLegacyColumn(query, stageIndex, latitudeColumn),
+        Lib.fromLegacyColumn(query, stageIndex, longitudeColumn),
         question.id(),
         filterBounds,
       );
@@ -211,11 +264,11 @@ export default class LeafletMap extends Component {
     return {
       latitudeIndex: _.findIndex(
         cols,
-        col => col.name === settings["map.latitude_column"],
+        (col) => col.name === settings["map.latitude_column"],
       ),
       longitudeIndex: _.findIndex(
         cols,
-        col => col.name === settings["map.longitude_column"],
+        (col) => col.name === settings["map.longitude_column"],
       ),
     };
   }
@@ -246,4 +299,16 @@ export default class LeafletMap extends Component {
     } = this.props;
     return _.findWhere(cols, { name: settings["map.metric_column"] });
   }
+}
+
+/**
+ * Lightweight function to check if points have changed (e.g. due to filters)
+ * so that we should recalculate the zoom.
+ */
+function shouldRecalculateZoom(prevPoints, nextPoints) {
+  if (!prevPoints && !nextPoints) {
+    return false;
+  }
+
+  return !prevPoints || nextPoints !== prevPoints;
 }

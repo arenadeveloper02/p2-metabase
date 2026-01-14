@@ -1,7 +1,7 @@
 import type React from "react";
 
+import { useUniqueId } from "metabase/common/hooks/use-unique-id";
 import CS from "metabase/css/core/index.css";
-import { useUniqueId } from "metabase/hooks/use-unique-id";
 import {
   Paper,
   type PaperProps,
@@ -33,7 +33,7 @@ export const SidesheetCard = ({
       {...paperProps}
     >
       {title && <SidesheetCardTitle id={titleId}>{title}</SidesheetCardTitle>}
-      <Stack spacing="md" className={CS.textMedium} {...stackProps}>
+      <Stack gap="md" className={CS.textMedium} {...stackProps}>
         {children}
       </Stack>
     </Paper>
@@ -41,11 +41,5 @@ export const SidesheetCard = ({
 };
 
 export const SidesheetCardTitle = (props: TitleProps) => (
-  <Title
-    lh={1}
-    mb=".75rem"
-    c="var(--mb-color-text-light)"
-    order={4}
-    {...props}
-  />
+  <Title mb="sm" c="text-medium" order={4} {...props} />
 );

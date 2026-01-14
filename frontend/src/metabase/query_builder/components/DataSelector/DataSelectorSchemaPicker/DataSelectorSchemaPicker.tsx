@@ -1,4 +1,4 @@
-import AccordionList from "metabase/core/components/AccordionList";
+import { AccordionList } from "metabase/common/components/AccordionList";
 import CS from "metabase/css/core/index.css";
 import { Box, Icon } from "metabase/ui";
 import type Schema from "metabase-lib/v1/metadata/Schema";
@@ -28,7 +28,7 @@ const DataSelectorSchemaPicker = ({
 }: DataSelectorSchemaPickerProps) => {
   const sections = [
     {
-      items: schemas.map(schema => ({
+      items: schemas.map((schema) => ({
         name: schema.displayName(),
         schema: schema,
       })),

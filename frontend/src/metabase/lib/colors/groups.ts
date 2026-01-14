@@ -1,7 +1,9 @@
+/* eslint-disable no-color-literals */
+import Color from "color";
 import _ from "underscore";
 
 import { ACCENT_COUNT, color } from "./palette";
-import type { AccentColorOptions, ColorPalette } from "./types";
+import type { AccentColorOptions, ColorName, ColorPalette } from "./types";
 
 export const getAccentColors = (
   {
@@ -12,8 +14,8 @@ export const getAccentColors = (
     gray = true,
   }: AccentColorOptions = {},
   palette?: ColorPalette,
-) => {
-  const ranges = [];
+): string[] => {
+  const ranges: string[][] = [];
   main && ranges.push(getMainAccentColors(palette, gray));
   light && ranges.push(getLightAccentColors(palette, gray));
   dark && ranges.push(getDarkAccentColors(palette, gray));
@@ -22,7 +24,10 @@ export const getAccentColors = (
 };
 
 const getBaseAccentsNames = (withGray = false) => {
-  const accents = _.times(ACCENT_COUNT, i => `accent${i}`);
+  const accents: ColorName[] = _.times(
+    ACCENT_COUNT,
+    (i) => `accent${i}` as ColorName,
+  );
   if (withGray) {
     accents.push("accent-gray");
   }
@@ -32,22 +37,26 @@ const getBaseAccentsNames = (withGray = false) => {
   accents.push("accent11");
   accents.push("accent12");
   accents.push("accent13");
+  accents.push("accent14");
   return accents;
 };
 
 export const getMainAccentColors = (
   palette?: ColorPalette,
   withGray = false,
-) => {
-  return getBaseAccentsNames(withGray).map(accent => color(accent, palette));
+): string[] => {
+  // Ensure that colors are defined in hex, not HSLA
+  return getBaseAccentsNames(withGray).map((accent) =>
+    Color(color(accent, palette)).hex(),
+  );
 };
 
 export const getLightAccentColors = (
   palette?: ColorPalette,
   withGray = false,
-) => {
-  return getBaseAccentsNames(withGray).map(accent =>
-    color(`${accent}-light`, palette),
+): string[] => {
+  return getBaseAccentsNames(withGray).map((accent) =>
+    Color(color(`${accent}-light` as ColorName, palette)).hex(),
   );
 };
 
@@ -55,15 +64,37 @@ export const getDarkAccentColors = (
   palette?: ColorPalette,
   withGray = false,
 ) => {
-  return getBaseAccentsNames(withGray).map(accent =>
-    color(`${accent}-dark`, palette),
+  return getBaseAccentsNames(withGray).map((accent) =>
+    Color(color(`${accent}-dark` as ColorName, palette)).hex(),
   );
 };
 
-export const getStatusColorRanges = () => {
+export const getStatusColorRanges = (): string[][] => {
   return [
-    [color("error"), color("bg-white"), color("success")],
+    [color("error"), "transparent", color("success")],
     [color("error"), color("warning"), color("success")],
+  ];
+};
+
+/**
+ * Get status colors for errors/failures and other status indicators.
+ * These are separate from accent colors and are not automatically applied to charts.
+ * Users can manually select them from the color palette if needed.
+ */
+export const getStatusColors = (): string[] => {
+  return [
+    // Error/Failure reds
+    "#F54848", // Error/Failure red - medium shade
+    "#C21515", // Error/Failure red - dark shade
+    "#F87676", // Error/Failure red - light shade
+    // Blue status colors
+    "#488FED", // Blue - medium shade
+    "#155CBA", // Blue - dark shade
+    "#76ABF1", // Blue - light shade
+    // Orange status colors
+    "#FC9A6A", // Orange - medium shade
+    "#C96737", // Orange - dark shade
+    "#FDB38F", // Orange - light shade
   ];
 };
 

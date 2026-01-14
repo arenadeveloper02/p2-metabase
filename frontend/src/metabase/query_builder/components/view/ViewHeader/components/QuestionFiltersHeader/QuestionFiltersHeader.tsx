@@ -6,7 +6,7 @@ import type { QueryBuilderMode } from "metabase-types/store";
 interface FilterHeaderProps {
   question: Question;
   expanded: boolean;
-  updateQuestion: (question: Question, opts: { run: boolean }) => void;
+  updateQuestion: (question: Question, opts?: { run?: boolean }) => void;
 }
 
 export function QuestionFiltersHeader({
@@ -30,20 +30,14 @@ export function QuestionFiltersHeader({
 type RenderCheckOpts = {
   question: Question;
   queryBuilderMode: QueryBuilderMode;
-  isObjectDetail: boolean;
 };
 
-const shouldRender = ({
-  question,
-  queryBuilderMode,
-  isObjectDetail,
-}: RenderCheckOpts) => {
+const shouldRender = ({ question, queryBuilderMode }: RenderCheckOpts) => {
   const { isEditable, isNative } = Lib.queryDisplayInfo(question.query());
   return (
     queryBuilderMode === "view" &&
     !isNative &&
     isEditable &&
-    !isObjectDetail &&
     !question.isArchived()
   );
 };

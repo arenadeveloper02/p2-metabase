@@ -1,0 +1,1 @@
+export { TextScalar } from "./TextScalar";

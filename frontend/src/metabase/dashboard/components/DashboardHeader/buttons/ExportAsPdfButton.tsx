@@ -1,29 +1,26 @@
+import type { ButtonHTMLAttributes } from "react";
 import { match } from "ts-pattern";
 import { t } from "ttag";
 
+import { ToolbarButton } from "metabase/common/components/ToolbarButton";
+import { useHasTokenFeature } from "metabase/common/hooks";
 import {
   type DashboardAccessedVia,
   trackExportDashboardToPDF,
 } from "metabase/dashboard/analytics";
 import { DASHBOARD_PDF_EXPORT_ROOT_ID } from "metabase/dashboard/constants";
-import { useDispatch } from "metabase/lib/redux";
+import { useDashboardContext } from "metabase/dashboard/context/context";
 import { isJWT } from "metabase/lib/utils";
 import { isUuid } from "metabase/lib/uuid";
-import { Button, Icon } from "metabase/ui";
-import {
-  getExportTabAsPdfButtonText,
-  saveDashboardPdfAsSinglePage,
-} from "metabase/visualizations/lib/save-dashboard-pdf";
-import type { Dashboard } from "metabase-types/api";
+import type { ActionIconProps } from "metabase/ui";
+import { saveDashboardPdfAsSinglePage } from "metabase/visualizations/lib/save-dashboard-pdf";
 
-export const ExportAsPdfButton = ({
-  dashboard,
-  color,
-}: {
-  dashboard: Dashboard;
-  color?: string;
-}) => {
-  const dispatch = useDispatch();
+export const ExportAsPdfButton = (
+  props: ActionIconProps & ButtonHTMLAttributes<HTMLButtonElement>,
+) => {
+  const { dashboard } = useDashboardContext();
+  const isWhitelabeled = useHasTokenFeature("whitelabel");
+  const includeBranding = !isWhitelabeled;
 
   const saveAsPDF = () => {
     const dashboardAccessedVia = match(dashboard?.id)
@@ -39,19 +36,17 @@ export const ExportAsPdfButton = ({
     const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
     return saveDashboardPdfAsSinglePage(
       cardNodeSelector,
-      dashboard.name ?? t`Exported dashboard`,
+      dashboard?.name ?? t`Exported dashboard`,
     );
   };
 
   return (
-    <Button
-      variant="subtle"
-      px="0.5rem"
-      leftIcon={<Icon name="document" />}
-      color={color || "text-dark"}
-      onClick={() => dispatch(saveAsPDF)}
-    >
-      {getExportTabAsPdfButtonText(dashboard.tabs)}
-    </Button>
+    <ToolbarButton
+      icon="download"
+      onClick={saveAsPDF}
+      tooltipLabel={t`Download as PDF`}
+      data-testid="export-as-pdf-button"
+      {...props}
+    />
   );
 };

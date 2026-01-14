@@ -36,8 +36,8 @@ describe("scenarios > question > custom column > expression shortcuts > combine"
 
       cy.button("Done").click();
 
-      cy.findByTestId("expression-editor-textfield").should(
-        "contain",
+      H.CustomExpressionEditor.value().should(
+        "equal",
         'concat([Total], "__", [Product → Rating])',
       );
       cy.findByTestId("expression-name").should(
@@ -60,7 +60,7 @@ describe("scenarios > question > custom column > expression shortcuts > combine"
       cy.findByText("Select columns to combine").click();
     });
 
-    cy.get(".ace_text-input").should("have.value", "\n\n");
+    H.CustomExpressionEditor.value().should("equal", "");
     cy.findByTestId("expression-name").should("have.value", "");
   });
 
@@ -125,43 +125,38 @@ describe("scenarios > question > custom column > expression shortcuts > combine"
   });
 });
 
-H.describeWithSnowplow(
-  "scenarios > question > custom column > combine shortcuts",
-  () => {
-    beforeEach(() => {
-      H.restore();
-      H.resetSnowplow();
-      cy.signInAsNormalUser();
+describe("scenarios > question > custom column > combine shortcuts", () => {
+  beforeEach(() => {
+    H.restore();
+    H.resetSnowplow();
+    cy.signInAsNormalUser();
+  });
+
+  afterEach(() => {
+    H.expectNoBadSnowplowEvents();
+  });
+
+  it("should send an event for combine columns", () => {
+    H.openOrdersTable({ mode: "notebook" });
+    H.addCustomColumn();
+    selectCombineColumns();
+
+    selectColumn(0, "User", "Email");
+    selectColumn(1, "User", "Email");
+
+    H.expressionEditorWidget().button("Done").click();
+
+    H.expectUnstructuredSnowplowEvent({
+      event: "column_combine_via_shortcut",
+      custom_expressions_used: ["concat"],
+      database_id: SAMPLE_DB_ID,
+      question_id: 0,
     });
-
-    afterEach(() => {
-      H.expectNoBadSnowplowEvents();
-    });
-
-    it("should send an event for combine columns", () => {
-      H.openOrdersTable({ mode: "notebook" });
-      H.addCustomColumn();
-      selectCombineColumns();
-
-      selectColumn(0, "User", "Email");
-      selectColumn(1, "User", "Email");
-
-      H.expressionEditorWidget().button("Done").click();
-
-      H.expectGoodSnowplowEvent({
-        event: "column_combine_via_shortcut",
-        custom_expressions_used: ["concat"],
-        database_id: SAMPLE_DB_ID,
-        question_id: 0,
-      });
-    });
-  },
-);
+  });
+});
 
 function selectCombineColumns() {
-  cy.findByTestId("expression-suggestions-list").within(() => {
-    cy.findByText("Combine columns").click();
-  });
+  H.popover().findByText("Combine columns").click();
 }
 
 function selectColumn(index: number, table: string, name?: string) {

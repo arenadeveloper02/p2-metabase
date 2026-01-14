@@ -1,10 +1,8 @@
-import { fireEvent, screen } from "@testing-library/react";
-
 import { createMockMetadata } from "__support__/metadata";
-import { renderWithProviders } from "__support__/ui";
+import { fireEvent, renderWithProviders, screen } from "__support__/ui";
 import registerVisualizations from "metabase/visualizations/register";
 import {
-  SAMPLE_DB_ID,
+  PRODUCTS_ID,
   createSampleDatabase,
 } from "metabase-types/api/mocks/presets";
 import {
@@ -20,7 +18,7 @@ registerVisualizations();
 const metadata = createMockMetadata({
   databases: [createSampleDatabase()],
 });
-const db = metadata.database(SAMPLE_DB_ID);
+const table = metadata.table(PRODUCTS_ID);
 
 describe("ChartSettingsSidebar", () => {
   const data = {
@@ -31,7 +29,7 @@ describe("ChartSettingsSidebar", () => {
   it("should hide the title when showSidebarTitle is false", () => {
     renderWithProviders(
       <ChartSettingsSidebar
-        question={db.question().setDisplay("gauge")}
+        question={table.question().setDisplay("gauge")}
         result={{ data }}
         showSidebarTitle={false}
       />,
@@ -40,7 +38,7 @@ describe("ChartSettingsSidebar", () => {
     // see options header with sections
     expect(screen.queryByText("Gauge options")).not.toBeInTheDocument();
     expect(screen.getByText("Formatting")).toBeInTheDocument();
-    expect(screen.getByText("Display")).toBeInTheDocument();
+    expect(screen.getByText("Ranges")).toBeInTheDocument();
 
     // click on formatting section
     fireEvent.click(screen.getByText("Formatting"));
@@ -51,13 +49,13 @@ describe("ChartSettingsSidebar", () => {
     // but the sections and back title are unchanged
     expect(screen.queryByText("Gauge options")).not.toBeInTheDocument();
     expect(screen.getByText("Formatting")).toBeInTheDocument();
-    expect(screen.getByText("Display")).toBeInTheDocument();
+    expect(screen.getByText("Ranges")).toBeInTheDocument();
   });
 
   it("should not hide the title when showSidebarTitle is false", () => {
     renderWithProviders(
       <ChartSettingsSidebar
-        question={db.question().setDisplay("scalar")}
+        question={table.question().setDisplay("scalar")}
         result={{ data }}
       />,
       {

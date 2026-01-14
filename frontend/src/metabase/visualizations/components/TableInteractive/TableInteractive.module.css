@@ -1,18 +1,18 @@
-.TableInteractive {
+/* .TableInteractive {
   color: #4f575d;
   overflow: hidden;
 }
 
 .TableInteractiveHeaderCellData .cellData {
   font-weight: 900;
-  /* border: 1px solid transparent; */
+  // border: 1px solid transparent; 
   padding: 0.25em 0.65em;
   border-radius: 6px;
   min-width: 35px;
   color: black;
   border:0px;
-  /* background-color: red; */
-  /* background: red; */
+  //background-color: red; 
+  // background: red; 
   outline: none;
 }
 .TableInteractiveHeaderCellData div{
@@ -20,7 +20,7 @@
 }
 
 .TableInteractiveHeaderCellData .cellData:hover {
-  /* border: 1px solid transparent; */
+  // border: 1px solid transparent; 
 }
 
 .TableInteractiveHeaderCellData :global(.Icon-chevrondown),
@@ -30,7 +30,7 @@
 
 .TableInteractiveHeader {
   box-sizing: border-box;
-  /* border-bottom: 1px solid var(--mb-color-border); */
+  // border-bottom: 1px solid var(--mb-color-border); 
 }
 
 .TableInteractive .TableInteractiveCellWrapper {
@@ -55,7 +55,7 @@
   background-color: var(--mb-color-bg-white);
 }
 
-/* cell overflow ellipsis */
+// cell overflow ellipsis 
 .TableInteractive .cellData {
   margin: 0 0.75em;
   display: block;
@@ -66,7 +66,7 @@
   font-size: 14px !important;
 }
 
-/* pivot */
+// pivot 
 .TableInteractive.TableInteractivePivot
   .TableInteractiveCellWrapperFirstColumn {
   border-right: 1px solid var(--mb-color-border);
@@ -114,8 +114,23 @@
 
 .isOverflowing {
   border-left: 1px solid var(--mb-color-border);
+} */
+
+.root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  .bodyCellWithImage {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
 }
 
-.fill {
-  height: 100%;
+.pivotedFirstColumn {
+  border-right: 1px solid var(--mb-color-border-subtle);
+}
+
+.bodyCellWithImage img {
+  vertical-align: middle;
 }

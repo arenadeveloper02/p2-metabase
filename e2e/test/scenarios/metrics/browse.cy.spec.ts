@@ -1,13 +1,15 @@
 const { H } = cy;
+import { USERS } from "e2e/support/cypress_data";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   FIRST_COLLECTION_ID,
   ORDERS_MODEL_ID,
 } from "e2e/support/cypress_sample_instance_data";
+import type { StructuredQuestionDetails } from "e2e/support/helpers";
 
 const { ORDERS_ID, ORDERS, PRODUCTS_ID, PRODUCTS } = SAMPLE_DATABASE;
 
-type StructuredQuestionDetailsWithName = H.StructuredQuestionDetails & {
+type StructuredQuestionDetailsWithName = StructuredQuestionDetails & {
   name: string;
 };
 
@@ -117,16 +119,48 @@ describe("scenarios > browse > metrics", () => {
         ).should("be.visible");
         cy.findByText("Create metric").should("not.exist");
       });
+
+      cy.log("New metric header button should not show either");
+      cy.findByTestId("browse-metrics-header")
+        .findByLabelText("Create a new metric")
+        .should("not.exist");
+    });
+
+    it("user without a collection access should still be able to create and save a metric in his own personal collection", () => {
+      cy.intercept("POST", "/api/card").as("createMetric");
+
+      cy.signIn("nocollection");
+      cy.visit("/browse/metrics");
+
+      cy.findByTestId("browse-metrics-header")
+        .findByLabelText("Create a new metric")
+        .click();
+      H.miniPicker().within(() => {
+        cy.findByText("Sample Database").click();
+        cy.findByText("People").click();
+      });
+      cy.findByTestId("edit-bar")
+        .should("contain", "New metric")
+        .button("Save")
+        .click();
+      H.modal()
+        .should("contain", "Save metric")
+        .and("contain", H.getPersonalCollectionName(USERS["nocollection"]))
+        .button("Save")
+        .click();
+
+      cy.wait("@createMetric");
+      cy.location("pathname").should("match", /^\/metric\/\d+-.*$/);
     });
   });
 
-  describe("multiple metrics", { tags: "@flaky" }, () => {
+  describe("multiple metrics", () => {
     it("can browse metrics", () => {
       createMetrics(ALL_METRICS);
       cy.visit("/browse/metrics");
       H.navigationSidebar().findByText("Metrics").should("be.visible");
 
-      ALL_METRICS.forEach(metric => {
+      ALL_METRICS.forEach((metric) => {
         findMetric(metric.name).should("be.visible");
       });
     });
@@ -149,7 +183,7 @@ describe("scenarios > browse > metrics", () => {
     });
 
     it("should open the collections in a new tab when alt-clicking a metric", () => {
-      cy.on("window:before:load", win => {
+      cy.on("window:before:load", (win) => {
         // prevent Cypress opening in a new window/tab and spy on this method
         cy.stub(win, "open").as("open");
       });
@@ -166,7 +200,7 @@ describe("scenarios > browse > metrics", () => {
       cy.get("@open").should("have.been.calledOnce");
       cy.get("@open").should(
         "have.been.calledWithMatch",
-        /^\/question\/\d+-.*$/,
+        /^\/metric\/\d+-.*$/,
         "_blank",
       );
 
@@ -190,7 +224,7 @@ describe("scenarios > browse > metrics", () => {
       metricsTable()
         .findByText(/This is a/)
         .should("be.visible")
-        .then(el => H.assertIsEllipsified(el[0]));
+        .then((el) => H.assertIsEllipsified(el[0]));
 
       metricsTable()
         .findByText(/This is a/)
@@ -231,7 +265,7 @@ describe("scenarios > browse > metrics", () => {
     });
   });
 
-  describe("dot menu", { tags: "@flaky" }, () => {
+  describe("dot menu", () => {
     it("should be possible to bookmark a metrics from the dot menu", () => {
       createMetrics([ORDERS_SCALAR_METRIC]);
 
@@ -346,90 +380,92 @@ describe("scenarios > browse > metrics", () => {
     });
   });
 
-  describe("verified metrics", { tags: "@flaky" }, () => {
-    describe("on enterprise", () => {
-      beforeEach(() => {
-        cy.signInAsAdmin();
-        H.setTokenFeatures("all");
+  describe("verified metrics", () => {
+    beforeEach(() => {
+      cy.signInAsAdmin();
+      H.activateToken("pro-self-hosted");
+    });
+
+    it("should not show the verified metrics filter when there are no verified metrics", () => {
+      createMetrics();
+      cy.visit("/browse/metrics");
+
+      cy.findByLabelText("Table of metrics").should("be.visible");
+
+      cy.findByLabelText(/show.*verified.*metrics/i).should("not.exist");
+    });
+
+    it("should show the verified metrics filter when there are verified metrics", () => {
+      cy.intercept(
+        "PUT",
+        "/api/setting/browse-filter-only-verified-metrics",
+      ).as("setSetting");
+
+      createMetrics([ORDERS_SCALAR_METRIC, ORDERS_SCALAR_MODEL_METRIC]);
+      cy.visit("/browse/metrics");
+
+      findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
+      findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
+
+      verifyMetric(ORDERS_SCALAR_METRIC);
+
+      findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
+      findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("not.exist");
+
+      toggleVerifiedMetricsFilter();
+      cy.get<{ request: Request }>("@setSetting").should((xhr) => {
+        expect(xhr.request.body).to.deep.equal({ value: false });
       });
 
-      it("should not the verified metrics filter when there are no verified metrics", () => {
-        createMetrics();
-        cy.visit("/browse/metrics");
+      findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
+      findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
 
-        cy.findByLabelText("Filters").should("not.exist");
+      toggleVerifiedMetricsFilter();
+      cy.get<{ request: Request }>("@setSetting").should((xhr) => {
+        expect(xhr.request.body).to.deep.equal({ value: true });
+      });
+      cy.wait("@setSetting");
+
+      findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
+      findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("not.exist");
+
+      unverifyMetric(ORDERS_SCALAR_METRIC);
+
+      findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
+      findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
+    });
+
+    it("should respect the user setting on whether to only show verified metrics", () => {
+      cy.intercept("GET", "/api/session/properties", (req) => {
+        req.continue((res) => {
+          res.body["browse-filter-only-verified-metrics"] = true;
+          res.send();
+        });
       });
 
-      it("should show the verified metrics filter when there are verified metrics", () => {
-        cy.intercept(
-          "PUT",
-          "/api/setting/browse-filter-only-verified-metrics",
-        ).as("setSetting");
+      createMetrics([ORDERS_SCALAR_METRIC, ORDERS_SCALAR_MODEL_METRIC]);
+      cy.visit("/browse/metrics");
+      verifyMetric(ORDERS_SCALAR_METRIC);
 
-        createMetrics([ORDERS_SCALAR_METRIC, ORDERS_SCALAR_MODEL_METRIC]);
-        cy.visit("/browse/metrics");
+      cy.findByRole("switch", { name: /show.*verified.*metrics/i }).should(
+        "have.attr",
+        "aria-selected",
+        "true",
+      );
 
-        findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
-        findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
-
-        verifyMetric(ORDERS_SCALAR_METRIC);
-
-        findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
-        findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("not.exist");
-
-        toggleVerifiedMetricsFilter();
-        cy.get<{ request: Request }>("@setSetting").should(xhr => {
-          expect(xhr.request.body).to.deep.equal({ value: false });
+      cy.intercept("GET", "/api/session/properties", (req) => {
+        req.continue((res) => {
+          res.body["browse-filter-only-verified-metrics"] = true;
+          res.send();
         });
-
-        findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
-        findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
-
-        toggleVerifiedMetricsFilter();
-        cy.get<{ request: Request }>("@setSetting").should(xhr => {
-          expect(xhr.request.body).to.deep.equal({ value: true });
-        });
-        cy.wait("@setSetting");
-
-        findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
-        findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("not.exist");
-
-        unverifyMetric(ORDERS_SCALAR_METRIC);
-
-        findMetric(ORDERS_SCALAR_METRIC.name).should("be.visible");
-        findMetric(ORDERS_SCALAR_MODEL_METRIC.name).should("be.visible");
       });
 
-      it("should respect the user setting on wether or not to only show verified metrics", () => {
-        cy.intercept("GET", "/api/session/properties", req => {
-          req.continue(res => {
-            res.body["browse-filter-only-verified-metrics"] = true;
-            res.send();
-          });
-        });
-
-        createMetrics([ORDERS_SCALAR_METRIC, ORDERS_SCALAR_MODEL_METRIC]);
-        cy.visit("/browse/metrics");
-        verifyMetric(ORDERS_SCALAR_METRIC);
-
-        cy.findByLabelText("Filters").should("be.visible").click();
-        H.popover()
-          .findByLabelText("Show verified metrics only")
-          .should("be.checked");
-
-        cy.intercept("GET", "/api/session/properties", req => {
-          req.continue(res => {
-            res.body["browse-filter-only-verified-metrics"] = true;
-            res.send();
-          });
-        });
-
-        cy.visit("/browse/metrics");
-        cy.findByLabelText("Filters").should("be.visible").click();
-        H.popover()
-          .findByLabelText("Show verified metrics only")
-          .should("not.be.checked");
-      });
+      cy.visit("/browse/metrics");
+      cy.findByRole("switch", { name: /show.*verified.*metrics/i }).should(
+        "have.attr",
+        "aria-selected",
+        "false",
+      );
     });
   });
 });
@@ -437,7 +473,7 @@ describe("scenarios > browse > metrics", () => {
 function createMetrics(
   metrics: StructuredQuestionDetailsWithName[] = ALL_METRICS,
 ) {
-  metrics.forEach(metric => H.createQuestion(metric));
+  metrics.forEach((metric) => H.createQuestion(metric));
 }
 
 function metricsTable() {
@@ -469,8 +505,6 @@ function verifyMetric(metric: StructuredQuestionDetailsWithName) {
   cy.findByLabelText("Move, trash, and more…").click();
   H.popover().findByText("Verify this metric").click();
 
-  H.openNavigationSidebar();
-
   H.navigationSidebar()
     .findByRole("listitem", { name: "Browse metrics" })
     .click();
@@ -482,15 +516,11 @@ function unverifyMetric(metric: StructuredQuestionDetailsWithName) {
   cy.findByLabelText("Move, trash, and more…").click();
   H.popover().findByText("Remove verification").click();
 
-  H.openNavigationSidebar();
-
   H.navigationSidebar()
     .findByRole("listitem", { name: "Browse metrics" })
     .click();
 }
 
 function toggleVerifiedMetricsFilter() {
-  cy.findByLabelText("Filters").should("be.visible").click();
-  H.popover().findByText("Show verified metrics only").click();
-  cy.findByLabelText("Filters").should("be.visible").click();
+  cy.findByLabelText(/show.*verified.*metrics/i).click();
 }

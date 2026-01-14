@@ -6,9 +6,9 @@ import { replace } from "react-router-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
-import Collections from "metabase/entities/collections";
+import { Collections } from "metabase/entities/collections";
 import EntityCopyModal from "metabase/entities/containers/EntityCopyModal";
-import Dashboards from "metabase/entities/dashboards";
+import { Dashboards } from "metabase/entities/dashboards";
 import { connect } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
 
@@ -50,7 +50,7 @@ const DashboardCopyModal = ({
   ...props
 }) => {
   const [isShallowCopy, setIsShallowCopy] = useState(true);
-  const initialDashboardId = Urls.extractEntityId(params.slug);
+  const dashboardIdFromSlug = Urls.extractEntityId(params.slug);
 
   const title = getTitle(dashboard, isShallowCopy);
 
@@ -67,11 +67,11 @@ const DashboardCopyModal = ({
       }}
       title={title}
       overwriteOnInitialValuesChange
-      copy={async object =>
-        await copyDashboard({ id: initialDashboardId }, dissoc(object, "id"))
+      copy={async (object) =>
+        await copyDashboard({ id: dashboardIdFromSlug }, dissoc(object, "id"))
       }
       onClose={onClose}
-      onSaved={dashboard => onReplaceLocation(Urls.dashboard(dashboard))}
+      onSaved={(dashboard) => onReplaceLocation(Urls.dashboard(dashboard))}
       {...props}
       onValuesChange={handleValuesChange}
     />

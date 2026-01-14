@@ -1,13 +1,12 @@
 import { t } from "ttag";
 
 import { useListCardsQuery } from "metabase/api";
-import { LoadingAndErrorWrapper } from "metabase/components/LoadingAndErrorWrapper";
-import Link from "metabase/core/components/Link";
-import { getIcon } from "metabase/entities/questions";
+import Link from "metabase/common/components/Link";
+import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
+import { getIcon } from "metabase/lib/icon";
 import * as Urls from "metabase/lib/urls";
 import type { IconName } from "metabase/ui";
-import { Group, Icon, Skeleton, Stack, Text } from "metabase/ui";
-import { Repeat } from "metabase/ui/components/feedback/Skeleton/Repeat";
+import { Group, Icon, Repeat, Skeleton, Stack, Text } from "metabase/ui";
 import type Question from "metabase-lib/v1/Question";
 
 import { ToggleFullList } from "./ToggleFullList";
@@ -51,8 +50,8 @@ export function ModelUsageDetails({ model }: ModelUsageDetailsProps) {
   }
 
   return (
-    <Stack spacing="sm">
-      {filtered.map(card => {
+    <Stack gap="sm">
+      {filtered.map((card) => {
         return (
           <Link
             to={Urls.question(card)}
@@ -60,8 +59,11 @@ export function ModelUsageDetails({ model }: ModelUsageDetailsProps) {
             variant="brand"
             key={card.id}
           >
-            <Group spacing="sm">
-              <Icon c="text-dark" name={getIcon(card).name as IconName} />
+            <Group gap="sm">
+              <Icon
+                c="text-dark"
+                name={getIcon({ model: "card", ...card }).name as IconName}
+              />
               <Text lh="1.25rem" color="inherit">
                 {card.name}
               </Text>

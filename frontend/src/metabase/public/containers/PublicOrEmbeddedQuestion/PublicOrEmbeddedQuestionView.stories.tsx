@@ -2,16 +2,19 @@
 import createAsyncCallback from "@loki/create-async-callback";
 import type { StoryFn } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
-import { type ComponentProps, useEffect } from "react";
+import { HttpResponse, http } from "msw";
+import type { ComponentProps } from "react";
 
 import { getStore } from "__support__/entities-store";
 import { createMockMetadata } from "__support__/metadata";
+import { createWaitForResizeToStopDecorator } from "__support__/storybook";
 import { getNextId } from "__support__/utils";
 import {
   DateTimeColumn,
   NumberColumn,
   StringColumn,
 } from "__support__/visualizations";
+import { Api } from "metabase/api";
 import { MetabaseReduxProvider } from "metabase/lib/redux";
 import { publicReducers } from "metabase/reducers-public";
 import { Box } from "metabase/ui";
@@ -20,6 +23,8 @@ import { BarChart } from "metabase/visualizations/visualizations/BarChart";
 import PivotTable from "metabase/visualizations/visualizations/PivotTable";
 import { PIVOT_TABLE_MOCK_DATA } from "metabase/visualizations/visualizations/PivotTable/pivot-table-test-mocks";
 import { SmartScalar } from "metabase/visualizations/visualizations/SmartScalar";
+import Table from "metabase/visualizations/visualizations/Table/Table";
+import * as TABLE_MOCK_DATA from "metabase/visualizations/visualizations/Table/stories-data";
 import {
   createMockCard,
   createMockColumn,
@@ -42,17 +47,35 @@ registerVisualization(PivotTable);
 registerVisualization(SmartScalar);
 // @ts-expect-error: incompatible prop types with registerVisualization
 registerVisualization(BarChart);
+// @ts-expect-error: incompatible prop types with registerVisualization
+registerVisualization(Table);
 
 export default {
-  title: "embed/PublicOrEmbeddedQuestionView",
+  title: "App/Embed/PublicOrEmbeddedQuestionView",
   component: PublicOrEmbeddedQuestionView,
-  decorators: [
-    ReduxDecorator,
-    WaitForResizeToStopDecorator,
-    MockIsEmbeddingDecorator,
-  ],
+  decorators: [ReduxDecorator, createWaitForResizeToStopDecorator()],
   parameters: {
     layout: "fullscreen",
+    msw: {
+      handlers: [
+        http.get(
+          "/api/user-key-value/namespace/last_download_format/key/download_format_preference",
+          () =>
+            HttpResponse.json({
+              last_download_format: "csv",
+              last_table_download_format: "csv",
+            }),
+        ),
+        http.put(
+          "/api/user-key-value/namespace/last_download_format/key/download_format_preference",
+          () =>
+            HttpResponse.json({
+              last_download_format: "csv",
+              last_table_download_format: "csv",
+            }),
+        ),
+      ],
+    },
   },
 };
 
@@ -64,30 +87,6 @@ function ReduxDecorator(Story: StoryFn) {
   );
 }
 
-/**
- * This is an arbitrary number, it should be big enough to pass CI tests.
- * This works because we set delays for ExplicitSize to 0 in storybook.
- */
-const TIME_UNTIL_ALL_ELEMENTS_STOP_RESIZING = 1000;
-function WaitForResizeToStopDecorator(Story: StoryFn) {
-  const asyncCallback = createAsyncCallback();
-  useEffect(() => {
-    setTimeout(asyncCallback, TIME_UNTIL_ALL_ELEMENTS_STOP_RESIZING);
-  }, [asyncCallback]);
-
-  return <Story />;
-}
-
-declare global {
-  interface Window {
-    overrideIsWithinIframe?: boolean;
-  }
-}
-function MockIsEmbeddingDecorator(Story: StoryFn) {
-  window.overrideIsWithinIframe = true;
-  return <Story />;
-}
-
 const CARD_BAR_ID = getNextId();
 const initialState = createMockState({
   settings: createMockSettingsState({
@@ -95,9 +94,9 @@ const initialState = createMockState({
   }),
 });
 
-const store = getStore(publicReducers, initialState);
+const store = getStore(publicReducers, initialState, [Api.middleware]);
 
-const Template: StoryFn<PublicOrEmbeddedQuestionViewProps> = args => {
+const Template: StoryFn<PublicOrEmbeddedQuestionViewProps> = (args) => {
   return <PublicOrEmbeddedQuestionView {...args} />;
 };
 
@@ -110,6 +109,7 @@ const defaultArgs: Partial<
   bordered: true,
   getParameters: () => [],
   setCard: () => {},
+  downloadsEnabled: { pdf: true, results: true },
   result: createMockDataset({
     data: createMockDatasetData({
       cols: [
@@ -143,7 +143,7 @@ export const LightThemeDownload = {
 
   args: {
     ...LightThemeDefault.args,
-    downloadsEnabled: true,
+    downloadsEnabled: { pdf: true, results: true },
   },
 
   play: async ({ canvasElement }: { canvasElement: HTMLCanvasElement }) => {
@@ -176,7 +176,7 @@ export const DarkThemeDownload = {
 
   args: {
     ...DarkThemeDefault.args,
-    downloadsEnabled: true,
+    downloadsEnabled: { pdf: true, results: true },
   },
 
   play: LightThemeDownload.play,
@@ -286,6 +286,10 @@ export const SmartScalarDarkTheme = {
 };
 
 export const SmartScalarLightThemeTooltip = {
+  parameters: {
+    loki: { skip: true },
+  },
+
   render: Template,
 
   args: {
@@ -338,6 +342,10 @@ export const SmartScalarLightThemeTooltip = {
 };
 
 export const SmartScalarDarkThemeTooltip = {
+  parameters: {
+    loki: { skip: true },
+  },
+
   render: Template,
 
   args: {
@@ -347,6 +355,25 @@ export const SmartScalarDarkThemeTooltip = {
 
   decorators: [NarrowContainer],
   play: SmartScalarLightThemeTooltip.play,
+};
+
+export const TableLightTheme = {
+  render: Template,
+
+  args: {
+    ...defaultArgs,
+    titled: false,
+    card: createMockCard({
+      id: getNextId(),
+      display: "table",
+      ...(TABLE_MOCK_DATA.variousColumnSettings[0].card as any),
+    }),
+    result: createMockDataset({
+      data: createMockDatasetData(
+        TABLE_MOCK_DATA.variousColumnSettings[0].data as any,
+      ),
+    }),
+  },
 };
 
 function NarrowContainer(Story: StoryFn) {
@@ -363,13 +390,17 @@ const downloadQuestionAsPng = async (
 ) => {
   const canvas = within(canvasElement);
 
-  const downloadButton = await canvas.findByTestId("download-button");
+  const downloadButton = await canvas.findByTestId(
+    "question-results-download-button",
+  );
   await userEvent.click(downloadButton!);
 
   const documentElement = within(document.documentElement);
   const pngButton = await documentElement.findByText(".png");
   await userEvent.click(pngButton);
-  await userEvent.click(documentElement.getByTestId("download-results-button"));
+  await userEvent.click(
+    await documentElement.findByTestId("download-results-button"),
+  );
   await canvas.findByTestId("image-downloaded");
   asyncCallback();
 };

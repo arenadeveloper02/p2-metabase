@@ -1,15 +1,26 @@
-import type { CacheStrategy, LocalFieldReference } from "metabase-types/api";
+import type {
+  CacheStrategy,
+  LocalFieldReference,
+  Parameter,
+  ParameterValueOrArray,
+  VisualizerColumnValueSource,
+} from "metabase-types/api";
 
 import type { Card } from "./card";
 import type { DatabaseId } from "./database";
-import type { FieldFingerprint, FieldId, FieldVisibilityType } from "./field";
+import type {
+  Field,
+  FieldFingerprint,
+  FieldId,
+  FieldVisibilityType,
+} from "./field";
 import type { Insight } from "./insight";
 import type { ParameterOptions } from "./parameters";
 import type { DownloadPermission } from "./permissions";
 import type { DatasetQuery, DatetimeUnit, DimensionReference } from "./query";
 import type { TableId } from "./table";
 
-export type RowValue = string | number | null | boolean;
+export type RowValue = string | number | null | boolean | object;
 export type RowValues = RowValue[];
 
 export type BinningMetadata = {
@@ -36,7 +47,13 @@ export interface DatasetColumn {
   display_name: string;
   description?: string | null;
   source: string;
-  aggregation_index?: number;
+  database_type?: string;
+  active?: boolean;
+  entity_id?: string;
+  fk_field_id?: number;
+  nfc_path?: string[] | null;
+  parent_id?: number | null;
+  position?: number;
 
   aggregation_type?: AggregationType;
 
@@ -47,6 +64,7 @@ export interface DatasetColumn {
   remapped_to_column?: DatasetColumn;
   unit?: DatetimeUnit;
   field_ref?: DimensionReference;
+  // Deprecated. Columns from old saved questions might have expression_name, but new columns do not.
   expression_name?: any;
   base_type?: string;
   semantic_type?: string | null;
@@ -62,7 +80,7 @@ export interface DatasetColumn {
 }
 
 export interface ResultsMetadata {
-  columns: DatasetColumn[];
+  columns: Field[];
 }
 
 export interface DatasetData {
@@ -77,10 +95,15 @@ export interface DatasetData {
   native_form: {
     query: string;
   };
+  is_sandboxed?: boolean;
+  "pivot-export-options"?: {
+    "show-row-totals"?: boolean;
+    "show-column-totals"?: boolean;
+  };
 }
 
 export type JsonQuery = DatasetQuery & {
-  parameters?: unknown[];
+  parameters?: Parameter[];
   "cache-strategy"?: CacheStrategy & {
     /** An ISO 8601 date */
     "invalidated-at"?: string;
@@ -95,13 +118,8 @@ export interface Dataset {
   row_count: number;
   running_time: number;
   json_query?: JsonQuery;
-  error?:
-    | string
-    | {
-        status: number; // HTTP status code
-        data?: string;
-      };
-  error_type?: string;
+  error?: DatasetError;
+  error_type?: DatasetErrorType;
   error_is_curated?: boolean;
   context?: string;
   status?: string;
@@ -112,6 +130,19 @@ export interface Dataset {
   /** A date in ISO 8601 format */
   started_at?: string;
 }
+
+export type DatasetError =
+  | string
+  | {
+      status: number; // HTTP status code
+      data?: string;
+    };
+
+export type DatasetErrorType =
+  | "invalid-query"
+  | "missing-required-parameter"
+  | "missing-required-permissions"
+  | string;
 
 export interface EmbedDatasetData {
   rows: RowValues[];
@@ -131,7 +162,7 @@ interface SuccessEmbedDataset {
 }
 
 export interface ErrorEmbedDataset {
-  error_type: string;
+  error_type: DatasetErrorType;
   error: string;
   status: string;
 }
@@ -146,10 +177,26 @@ export interface NativeDatasetResponse {
 
 export type SingleSeries = {
   card: Card;
-} & Pick<Dataset, "data" | "error">;
+  /**
+   * A record that maps visualizer series keys (in the form of COLUMN_1,
+   * COLUMN_2, etc.) to their original values (count, avg, etc.).
+   */
+  columnValuesMapping?: Record<string, VisualizerColumnValueSource[]>;
+} & Pick<Dataset, "error" | "started_at" | "data" | "json_query">;
+
+export type SingleSeriesWithTranslation = SingleSeries & {
+  data: Dataset["data"] & {
+    /**
+     * The original, untranslated rows for this series (if any).
+     * Undefined if no translation occured.
+     */
+    untranslatedRows?: RowValues[];
+  };
+};
 
 export type RawSeries = SingleSeries[];
 export type TransformedSeries = RawSeries & { _raw: Series };
+export type MaybeTranslatedSeries = SingleSeriesWithTranslation[];
 export type Series = RawSeries | TransformedSeries;
 
 export type TemplateTagId = string;
@@ -159,6 +206,8 @@ export type TemplateTagType =
   | "text"
   | "number"
   | "date"
+  | "boolean"
+  | "temporal-unit"
   | "dimension"
   | "snippet";
 
@@ -167,11 +216,8 @@ export interface TemplateTag {
   name: TemplateTagName;
   "display-name": string;
   type: TemplateTagType;
-  dimension?: LocalFieldReference;
-  "widget-type"?: string;
   required?: boolean;
   default?: string | null;
-  options?: ParameterOptions;
 
   // Card template specific
   "card-id"?: number;
@@ -179,6 +225,14 @@ export interface TemplateTag {
   // Snippet specific
   "snippet-id"?: number;
   "snippet-name"?: string;
+
+  // Field filter and time grouping specific
+  dimension?: LocalFieldReference;
+  alias?: string;
+
+  // Field filter specific
+  "widget-type"?: string;
+  options?: ParameterOptions;
 }
 
 export type TemplateTags = Record<TemplateTagName, TemplateTag>;
@@ -199,3 +253,9 @@ export type TemporalUnit =
   | "week-of-year"
   | "month-of-year"
   | "quarter-of-year";
+
+export type GetRemappedParameterValueRequest = {
+  parameter: Parameter;
+  field_ids: FieldId[];
+  value: ParameterValueOrArray;
+};

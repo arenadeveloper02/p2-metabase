@@ -1,10 +1,7 @@
 import { merge } from "icepick";
 
 import { OVERLAY_Z_INDEX } from "metabase/css/core/overlays/constants";
-import {
-  EMBEDDING_SDK_FULL_PAGE_PORTAL_ROOT_ELEMENT_ID,
-  EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID,
-} from "metabase/embedding-sdk/config";
+import { EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID } from "metabase/embedding-sdk/config";
 import type { MetabaseComponentTheme } from "metabase/embedding-sdk/theme";
 import type { DeepPartial } from "metabase/embedding-sdk/types/utils";
 import type { MantineThemeOverride } from "metabase/ui";
@@ -21,8 +18,8 @@ const units = (px: number) => ({
 const FONT_SIZES = {
   tableCell: units(12.5),
   pivotTableCell: units(12),
-  label: units(12),
-  goalLabel: units(14),
+  label: units(13),
+  goalLabel: units(13),
 };
 
 /**
@@ -64,10 +61,6 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
   },
   question: {
     backgroundColor: "transparent",
-
-    toolbar: {
-      backgroundColor: "var(--mb-color-background-disabled)",
-    },
   },
 
   table: {
@@ -93,6 +86,11 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
     goalLine: {
       label: { fontSize: FONT_SIZES.goalLabel.px },
     },
+    splitLine: {
+      lineStyle: {
+        color: "var(--mb-color-cartesian-grid-line)",
+      },
+    },
   },
   popover: {
     zIndex: OVERLAY_Z_INDEX,
@@ -110,7 +108,6 @@ export const DEFAULT_EMBEDDED_COMPONENT_THEME: MetabaseComponentTheme = merge<
   table: {
     cell: {
       fontSize: FONT_SIZES.tableCell.em,
-      backgroundColor: "bg-white",
     },
   },
   pivotTable: {
@@ -154,13 +151,17 @@ export function getEmbeddingComponentOverrides(): MantineThemeOverride["componen
     ModalRoot: {
       defaultProps: {
         withinPortal: true,
-        target: `#${EMBEDDING_SDK_FULL_PAGE_PORTAL_ROOT_ELEMENT_ID}`,
+        portalProps: {
+          target: `#${EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID}`,
+        },
       }, // satisfies Partial<ModalRootProps>,
     },
     Modal: {
       defaultProps: {
         withinPortal: true,
-        target: `#${EMBEDDING_SDK_FULL_PAGE_PORTAL_ROOT_ELEMENT_ID}`,
+        portalProps: {
+          target: `#${EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID}`,
+        },
       }, // satisfies Partial<ModalProps>,
     },
     Popover: {
@@ -170,6 +171,14 @@ export function getEmbeddingComponentOverrides(): MantineThemeOverride["componen
           target: `#${EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID}`,
         },
       }, // satisfies Partial<PopoverProps>,
+    },
+    Tooltip: {
+      defaultProps: {
+        withinPortal: true,
+        portalProps: {
+          target: `#${EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID}`,
+        },
+      }, // satisfies Partial<TooltipProps>,
     },
   };
 }

@@ -1,6 +1,5 @@
 import { c, msgid, t } from "ttag";
 
-import { color } from "metabase/lib/colors";
 import type { ObjectWithModel } from "metabase/lib/icon";
 import { getIcon } from "metabase/lib/icon";
 import {
@@ -22,9 +21,15 @@ import type {
 
 export const getEntityPickerIcon = <Id, Model extends string>(
   item: TypeWithModel<Id, Model>,
-  isSelected?: boolean,
+  {
+    isSelected,
+    isTenantUser,
+  }: {
+    isSelected?: boolean;
+    isTenantUser?: boolean;
+  } = {},
 ) => {
-  const icon = getIcon(item as ObjectWithModel);
+  const icon = getIcon(item as ObjectWithModel, { isTenantUser });
 
   if (["person", "group"].includes(icon.name)) {
     // should inherit color
@@ -32,14 +37,14 @@ export const getEntityPickerIcon = <Id, Model extends string>(
   }
 
   if (isSelected && !icon.color) {
-    icon.color = color("text-white");
+    icon.color = "text-white";
   }
 
   if (icon.name === "folder" && isSelected) {
     icon.name = "folder_filled";
   }
 
-  return { ...icon, color: color(icon.color ?? "brand") };
+  return { ...icon, color: undefined, c: icon.color ?? "brand" };
 };
 
 export const isSelectedItem = <Id, Model extends string>(
@@ -66,7 +71,7 @@ export const computeInitialTabId = <
   tabs: EntityPickerTab<Id, Model, Item>[];
   defaultToRecentTab: boolean;
 }): string => {
-  const hasRecents = tabs.some(tab => tab.id === RECENTS_TAB_ID);
+  const hasRecents = tabs.some((tab) => tab.id === RECENTS_TAB_ID);
 
   if (hasRecents && defaultToRecentTab) {
     return RECENTS_TAB_ID;
@@ -74,7 +79,7 @@ export const computeInitialTabId = <
 
   const initialValueTab =
     initialValue?.model &&
-    tabs.find(tab => tab.models.includes(initialValue.model as Model));
+    tabs.find((tab) => tab.models.includes(initialValue.model as Model));
 
   if (initialValueTab) {
     return initialValueTab.id;
@@ -135,11 +140,15 @@ export const isSearchFolder = <
   folder: Item,
   folderModels: Model[],
 ) => {
-  return folder.id !== "personal" && folderModels.includes(folder.model);
+  return (
+    folder.id !== "personal" &&
+    folder.id !== "databases" &&
+    folderModels.includes(folder.model)
+  );
 };
 
 const isSearchModel = (model: string): model is SearchModel => {
-  return SEARCH_MODELS.some(searchModel => searchModel === model);
+  return SEARCH_MODELS.some((searchModel) => searchModel === model);
 };
 
 const isArrayOfSearchModels = (models: string[]): models is SearchModel[] => {
@@ -196,18 +205,20 @@ export const getScopedSearchResults = <
 
   if (folder.model === "database") {
     return searchResults.filter(
-      result => result.model === "table" && result.database_id === folder.id,
+      (result) => result.model === "table" && result.database_id === folder.id,
     );
   }
 
   if (folder.model === "schema") {
     return searchResults.filter(
-      result => result.model === "table" && result.table_schema === folder.id,
+      (result) => result.model === "table" && result.table_schema === folder.id,
     );
   }
 
   if (folder.model === "collection") {
-    return searchResults.filter(result => result.collection?.id === folder.id);
+    return searchResults.filter(
+      (result) => result.collection?.id === folder.id,
+    );
   }
 
   return [];

@@ -46,8 +46,12 @@
   (when (seq new-field-metadatas)
     (t2/insert-returning-pks! :model/Field
                               (for [{:keys [base-type coercion-strategy database-is-auto-increment database-partitioned database-position
+                                            database-is-generated database-is-nullable database-default pk?
                                             database-required database-type effective-type field-comment json-unfolding nfc-path visibility-type]
-                                     field-name :name :as field} new-field-metadatas]
+                                     field-name :name :as field} (sort-by :database-position new-field-metadatas)
+                                    :let [semantic-type (common/semantic-type field)
+                                          has-field-values (when (sync-util/can-be-list? base-type semantic-type)
+                                                             :auto-list)]]
                                 (do
                                   (when (and effective-type
                                              base-type
@@ -68,7 +72,7 @@
            ;; todo test this?
                                    :effective_type             (if (and effective-type coercion-strategy) effective-type base-type)
                                    :coercion_strategy          (when effective-type coercion-strategy)
-                                   :semantic_type              (common/semantic-type field)
+                                   :semantic_type              semantic-type
                                    :parent_id                  parent-id
                                    :nfc_path                   nfc-path
                                    :description                field-comment
@@ -76,8 +80,13 @@
                                    :database_position          database-position
                                    :json_unfolding             (or json-unfolding false)
                                    :database_is_auto_increment (or database-is-auto-increment false)
+                                   :database_is_generated      database-is-generated
+                                   :database_is_nullable       database-is-nullable
+                                   :database_is_pk             pk?
+                                   :database_default           database-default
                                    :database_required          (or database-required false)
                                    :database_partitioned       database-partitioned ;; nullable for database that doesn't support partitioned fields
+                                   :has_field_values           has-field-values
                                    :visibility_type            (or visibility-type :normal)})))))
 
 (mu/defn- create-or-reactivate-fields! :- [:maybe [:sequential i/FieldInstance]]
@@ -218,6 +227,10 @@
    ;; syncing the active instances makes important changes to `our-metadata` that need to be passed to recursive
    ;; calls, such as adding new Fields or making inactive ones active again. Keep updated version returned by
    ;; `sync-active-instances!`
+   (log/tracef "Syncing field instances for %s DB: %s, Existing: %s"
+               (sync-util/name-for-logging table)
+               (pr-str (sort (map common/canonical-name db-metadata)))
+               (pr-str (sort (map common/canonical-name our-metadata))))
    (let [{:keys [num-updates our-metadata]} (sync-active-instances! table db-metadata our-metadata parent-id)]
      (+ num-updates
         (retire-fields! table db-metadata our-metadata)

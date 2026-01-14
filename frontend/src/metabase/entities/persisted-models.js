@@ -14,15 +14,15 @@ import { PersistedModelSchema } from "metabase/schema";
 const REFRESH_CACHE = "metabase/entities/persistedModels/REFRESH_CACHE";
 
 const getPersistedModelInfoByModelId = createSelector(
-  [state => state.entities.persistedModels, (state, props) => props.entityId],
+  [(state) => state.entities.persistedModels, (state, props) => props.entityId],
   (persistedModels, modelId) =>
-    Object.values(persistedModels).find(info => info.card_id === modelId),
+    Object.values(persistedModels).find((info) => info.card_id === modelId),
 );
 
 /**
  * @deprecated use "metabase/api" instead
  */
-const PersistedModels = createEntity({
+export const PersistedModels = createEntity({
   name: "persistedModels",
   nameOne: "persistedModel",
   path: "/api/persist",
@@ -67,7 +67,7 @@ const PersistedModels = createEntity({
   },
 
   objectActions: {
-    refreshCache: job => async dispatch => {
+    refreshCache: (job) => async (dispatch) => {
       await entityCompatibleQuery(
         job.card_id,
         dispatch,
@@ -111,5 +111,3 @@ const useGetQuery = ({ id, type }, options) => {
 
   return type === "byModelId" ? persistedInfoByCard : persistedInfo;
 };
-
-export default PersistedModels;

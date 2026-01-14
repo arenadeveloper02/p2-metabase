@@ -3,7 +3,7 @@
   No-op if none of the notifications are changed.
   If a notification is changed, it will be replaced with a new one."
   (:require
-   [metabase.models.notification :as models.notification]
+   [metabase.notification.models :as models.notification]
    [metabase.permissions.core :as perms]
    [metabase.util :as u]
    [metabase.util.json :as json]
@@ -70,18 +70,18 @@
            :active        true
            :payload_type  :notification/system-event
            :subscriptions [{:type       :notification-subscription/system-event
-                            :event_name :event/alert-create}]
+                            :event_name :event/notification-create}]
            :handlers      [{:active       true
                             :channel_type :channel/email
                             :channel_id   nil
-                            :template     {:name         "Alert Created Email template"
+                            :template     {:name         "Notification Card Created Confirmation"
                                            :channel_type "channel/email"
                                            :details      {:type "email/handlebars-resource"
                                                           :subject "You set up an alert"
-                                                          :path "metabase/channel/email/alert_new_confirmation.hbs"
+                                                          :path "metabase/channel/email/notification_card_new_confirmation.hbs"
                                                           :recipient-type "cc"}}
                             :recipients  [{:type    :notification-recipient/template
-                                           :details {:pattern "{{payload.event_info.user.email}}"}}]}]}
+                                           :details {:pattern "{{payload.event_info.object.creator.email}}"}}]}]}
 
           ;; slack token invalid
           {:internal_id   "system-event/slack-token-error"
@@ -101,7 +101,43 @@
                             :recipients   [{:type    :notification-recipient/template
                                             :details {:pattern "{{context.admin_email}}" :is_optional true}}
                                            {:type                 :notification-recipient/group
-                                            :permissions_group_id (:id (perms/admin-group))}]}]}]))
+                                            :permissions_group_id (:id (perms/admin-group))}]}]}
+
+          ;; new comment appeared
+          {:internal_id   "system-event/comment-created"
+           :active        true
+           :payload_type  :notification/system-event
+           :subscriptions [{:type       :notification-subscription/system-event
+                            :event_name :event/comment-created}]
+           :handlers      [{:active       true
+                            :channel_type :channel/email
+                            :channel_id   nil
+                            :template     {:name         "Comment Created email template"
+                                           :channel_type :channel/email
+                                           :details      {:type           "email/handlebars-resource"
+                                                          :subject        "Comment on {{payload.event_info.entity_title}}"
+                                                          :path           "metabase/channel/email/comment_created.hbs"
+                                                          :recipient-type "cc"}}
+                            :recipients   [{:type    :notification-recipient/template
+                                            :details {:pattern "{{payload.event_info.email}}"}}]}]}
+
+          ;; support access grant created
+          {:internal_id "system-event/support-access-grant-created"
+           :active true
+           :payload_type :notification/system-event
+           :subscriptions [{:type :notification-subscription/system-event
+                            :event_name :event/support-access-grant-created}]
+           :handlers [{:active true
+                       :channel_type :channel/email
+                       :channel_id nil
+                       :template {:name "Support Access Grant Created Email"
+                                  :channel_type :channel/email
+                                  :details {:type "email/handlebars-resource"
+                                            :subject "Support Access Grant Created"
+                                            :path "metabase/channel/email/support_access_grant.hbs"
+                                            :recipient-type "cc"}}
+                       :recipients [{:type :notification-recipient/template
+                                     :details {:pattern "{{payload.event_info.support_email}}"}}]}]}]))
 
 (defn- cleanup-notification!
   [internal-id existing-row]
@@ -140,16 +176,10 @@
     :else
     :skip))
 
-(defn- hydrate-notification
-  [notification]
-  (t2/hydrate notification
-              :subscriptions
-              [:handlers :channel :template :recipients]))
-
 (defn- sync-notification!
   [{:keys [internal_id] :as row}]
   (let [existing-notification (some-> (t2/select-one :model/Notification :internal_id internal_id)
-                                      hydrate-notification)]
+                                      models.notification/hydrate-notification)]
 
     (u/prog1 (action existing-notification row)
       (case <>
@@ -175,3 +205,6 @@
         summary (frequencies actions)]
     (log/infof "Seeded notifications: %s" summary)
     summary))
+
+(comment
+  (seed-notification!))

@@ -75,9 +75,9 @@ describe("issue 6239", () => {
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Custom Expression").click();
 
-    cy.get(".ace_text-input").type("CountIf([Total] > 0)").blur();
+    H.CustomExpressionEditor.type("CountIf([Total] > 0)").format();
 
-    cy.findByPlaceholderText("Something nice and descriptive").type("CE");
+    H.CustomExpressionEditor.nameInput().type("CE");
     cy.button("Done").click();
 
     cy.findByTestId("aggregate-step").contains("CE").should("exist");
@@ -129,9 +129,10 @@ describe("issue 9027", () => {
     cy.signInAsAdmin();
 
     H.startNewQuestion();
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
-      cy.findByText("Orders").should("exist");
+      H.entityPickerModalItem(0, "Our analytics").click();
+      H.entityPickerModalItem(1, "Orders").should("exist");
       cy.button("Close").click();
     });
 
@@ -159,8 +160,9 @@ describe("issue 9027", () => {
 
 function goToSavedQuestionPickerAndAssertQuestion(questionName, exists = true) {
   H.startNewQuestion();
+  H.miniPickerBrowseAll().click();
   H.entityPickerModal().within(() => {
-    H.entityPickerModalTab("Collections").click();
+    H.entityPickerModalItem(0, "Our analytics").click();
     cy.findByText(questionName).should(exists ? "exist" : "not.exist");
     cy.button("Close").click();
   });
@@ -240,7 +242,7 @@ describe("postgres > user > query", { tags: "@external" }, () => {
     cy.signInAsAdmin();
     cy.request(`/api/database/${WRITABLE_DB_ID}/schema/public`).then(
       ({ body }) => {
-        const tableId = body.find(table => table.name === "orders").id;
+        const tableId = body.find((table) => table.name === "orders").id;
         H.openTable({
           database: WRITABLE_DB_ID,
           table: tableId,
@@ -277,11 +279,11 @@ describe("issue 14957", { tags: "@external" }, () => {
   });
 
   it("should save a question before query has been executed (metabase#14957)", () => {
-    H.startNewNativeQuestion().as("editor");
+    H.startNewNativeQuestion();
 
     cy.findByTestId("gui-builder-data").click();
     cy.findByLabelText(PG_DB_NAME).click();
-    cy.get("@editor").type("select pg_sleep(60)");
+    H.NativeEditor.type("select pg_sleep(60)");
     H.saveQuestion("14957", undefined, {
       tab: "Browse",
       path: ["Our analytics"],
@@ -297,7 +299,7 @@ describe("postgres > question > custom columns", { tags: "@external" }, () => {
 
     cy.request(`/api/database/${WRITABLE_DB_ID}/schema/public`).then(
       ({ body }) => {
-        const tableId = body.find(table => table.name === "orders").id;
+        const tableId = body.find((table) => table.name === "orders").id;
         H.openTable({
           database: WRITABLE_DB_ID,
           table: tableId,
@@ -314,14 +316,14 @@ describe("postgres > question > custom columns", { tags: "@external" }, () => {
     cy.findByText("Pick a function or metric").click();
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Custom Expression").click();
-    H.enterCustomColumnDetails({ formula: "Percentile([Subtotal], 0.1)" });
-    cy.findByPlaceholderText("Something nice and descriptive")
-      .as("name")
-      .click();
+    H.enterCustomColumnDetails({
+      formula: "Percentile([Subtotal], 0.1)",
+      format: true,
+    });
 
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Function Percentile expects 1 argument").should("not.exist");
-    cy.get("@name").type("Expression name");
+    H.CustomExpressionEditor.nameInput().type("Expression name");
     cy.button("Done").should("not.be.disabled").click();
     // Todo: Add positive assertions once this is fixed
 
@@ -429,24 +431,22 @@ function addSummarizeCustomExpression(formula, name) {
   H.summarize({ mode: "notebook" });
   H.popover().contains("Custom Expression").click();
 
-  H.expressionEditorWidget().within(() => {
-    H.enterCustomColumnDetails({
-      formula,
-      name,
-    });
-    cy.button("Done").click();
+  H.enterCustomColumnDetails({
+    formula,
+    name,
+    format: true,
   });
+  H.expressionEditorWidget().button("Done").click();
 }
 
 function addCustomColumn(formula, name) {
   cy.findByText("Custom column").click();
-  H.expressionEditorWidget().within(() => {
-    H.enterCustomColumnDetails({
-      formula,
-      name,
-    });
-    cy.button("Done").click();
+  H.enterCustomColumnDetails({
+    formula,
+    name,
+    format: true,
   });
+  H.expressionEditorWidget().button("Done").click();
 }
 
 describe("issue 17514", () => {
@@ -535,7 +535,7 @@ describe("issue 17514", () => {
       cy.wait("@cardQuery");
 
       cy.findByTestId("parameter-value-widget-target")
-        .findByText("Previous 30 Years")
+        .findByText("Previous 30 years")
         .click();
 
       cy.findByTestId("parameter-value-dropdown")
@@ -550,7 +550,10 @@ describe("issue 17514", () => {
         .findByText("Showing first 2,000 rows")
         .should("be.visible");
 
-      cy.findByTestId("query-builder-main").findByText("79.37").click();
+      cy.findByTestId("query-builder-main")
+        .findAllByText("76.83")
+        .eq(0)
+        .click();
 
       cy.findByTestId("click-actions-view").findByText("Filter by this value");
     });
@@ -576,7 +579,7 @@ describe("issue 17514", () => {
       // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Save").click();
 
-      cy.findByTestId("save-question-modal").within(modal => {
+      cy.findByTestId("save-question-modal").within((modal) => {
         cy.findByText("Save").click();
       });
 
@@ -588,8 +591,8 @@ describe("issue 17514", () => {
 
       // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Join data").click();
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Tables").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Sample Database").click();
         cy.findByText("Products").click();
       });
 
@@ -663,14 +666,10 @@ describe("issue 17910", () => {
     cy.intercept("POST", "/api/card").as("card");
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
-    cy.findByTestId("save-question-modal").within(modal => {
+    cy.findByTestId("save-question-modal").within((modal) => {
       cy.findByText("Save").click();
     });
     cy.wait("@card");
-
-    cy.get("#QuestionSavedModal").within(() => {
-      cy.findByText("Not now").click();
-    });
 
     H.questionInfoButton().click();
 
@@ -692,7 +691,7 @@ describe("issue 17963", { tags: "@mongo" }, () => {
     cy.signInAsAdmin();
 
     cy.request(`/api/database/${WRITABLE_DB_ID}/schema/`).then(({ body }) => {
-      const tableId = body.find(table => table.name === "orders").id;
+      const tableId = body.find((table) => table.name === "orders").id;
       H.openTable({
         database: WRITABLE_DB_ID,
         table: tableId,
@@ -711,7 +710,7 @@ describe("issue 17963", { tags: "@mongo" }, () => {
       { string: "> quan", field: "Quantity" },
     ]);
 
-    cy.get(".ace_text-input").blur();
+    H.CustomExpressionEditor.blur();
     cy.button("Done").click();
 
     H.getNotebookStep("filter").findByText("Discount is greater than Quantity");
@@ -727,9 +726,9 @@ describe("issue 17963", { tags: "@mongo" }, () => {
 
 function typeAndSelect(arr) {
   arr.forEach(({ string, field }) => {
-    cy.get(".ace_text-input").type(string);
+    H.CustomExpressionEditor.type(string);
 
-    H.popover().contains(field).click();
+    H.CustomExpressionEditor.selectCompletion(field);
   });
 }
 
@@ -795,13 +794,13 @@ describe("issue 18207", () => {
 
   it("should be possible to group by a string expression (metabase#18207)", () => {
     H.popover().contains("Custom Expression").click();
-    H.expressionEditorWidget().within(() => {
-      H.enterCustomColumnDetails({
-        formula: "Max([Vendor])",
-        name: "LastVendor",
-      });
-      cy.findByText("Done").click();
+
+    H.enterCustomColumnDetails({
+      formula: "Max([Vendor])",
+      name: "LastVendor",
     });
+
+    H.expressionEditorWidget().button("Done").click();
 
     cy.findByTestId("aggregate-step").contains("LastVendor").should("exist");
 
@@ -827,7 +826,7 @@ describe("issue 18207", () => {
   });
 });
 
-describe("issues 11914, 18978, 18977, 23857", { tags: "@flaky" }, () => {
+describe("issues 11914, 18978, 18977, 23857", () => {
   beforeEach(() => {
     H.restore();
     cy.signInAsAdmin();
@@ -958,6 +957,7 @@ describe("issue 19341", () => {
   it("should correctly disable nested queries (metabase#19341)", () => {
     // Test "Saved Questions" table is hidden in QB data selector
     H.startNewQuestion();
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().within(() => {
       cy.findByTestId("loading-indicator").should("not.exist");
       cy.findByText("Orders").should("exist");
@@ -969,10 +969,10 @@ describe("issue 19341", () => {
       );
       cy.findByTestId("loading-indicator").should("not.exist");
 
-      cy.findAllByTestId("result-item").then($result => {
+      cy.findAllByTestId("result-item").then(($result) => {
         const searchResults = $result.toArray();
         const modelTypes = new Set(
-          searchResults.map(k => k.getAttribute("data-model-type")),
+          searchResults.map((k) => k.getAttribute("data-model-type")),
         );
 
         expect(modelTypes).not.to.include("card");
@@ -984,6 +984,7 @@ describe("issue 19341", () => {
     });
 
     cy.icon("join_left_outer").click();
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().findAllByRole("tab").should("not.exist");
 
     // Test "Explore results" button is hidden for native questions
@@ -1010,8 +1011,9 @@ describe("issue 19742", () => {
     cy.findByText("New").click();
 
     H.popover().findByText("Question").click();
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Tables").click();
+      H.entityPickerModalItem(0, "Databases").click();
       cy.findByText("Orders").should("exist");
       cy.button("Close").click();
     });
@@ -1022,7 +1024,7 @@ describe("issue 19742", () => {
 
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Table Metadata").click();
-    hideTable("Orders");
+    H.DataModel.TablePicker.getTable("Orders").button("Hide table").click();
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Exit admin").click();
 
@@ -1030,8 +1032,9 @@ describe("issue 19742", () => {
     cy.findByText("New").click();
     H.popover().findByText("Question").click();
 
+    H.miniPickerBrowseAll().click();
     H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Tables").click();
+      H.entityPickerModalItem(0, "Databases").click();
 
       cy.findByText("Orders").should("not.exist");
       cy.findByText("Products").should("exist");
@@ -1043,10 +1046,6 @@ describe("issue 19742", () => {
 
 function selectFromDropdown(optionName) {
   H.popover().findByText(optionName).click();
-}
-
-function hideTable(tableName) {
-  cy.findByText(tableName).find(".Icon-eye_crossed_out").click({ force: true });
 }
 
 const QUESTION_1 = {
@@ -1075,47 +1074,55 @@ describe("issue 19893", () => {
     cy.signInAsAdmin();
   });
 
-  it.skip("should display correct join source table when joining visited questions (metabase#19893)", () => {
-    H.createQuestion(QUESTION_1, {
-      wrapId: true,
-      idAlias: "questionId1",
-      visitQuestion: true,
-    });
-    H.createQuestion(QUESTION_2, {
-      wrapId: true,
-      idAlias: "questionId2",
-      visitQuestion: true,
-    });
+  it(
+    "should display correct join source table when joining visited questions (metabase#19893)",
+    { tags: "@skip" },
+    () => {
+      H.createQuestion(QUESTION_1, {
+        wrapId: true,
+        idAlias: "questionId1",
+        visitQuestion: true,
+      });
+      H.createQuestion(QUESTION_2, {
+        wrapId: true,
+        idAlias: "questionId2",
+        visitQuestion: true,
+      });
 
-    cy.then(function () {
-      const { questionId1, questionId2 } = this;
+      cy.then(function () {
+        const { questionId1, questionId2 } = this;
 
-      createQ1PlusQ2Question(questionId1, questionId2).then(
-        ({ body: question }) => {
-          cy.visit(`/question/${question.id}/notebook`);
-        },
-      );
-    });
+        createQ1PlusQ2Question(questionId1, questionId2).then(
+          ({ body: question }) => {
+            cy.visit(`/question/${question.id}/notebook`);
+          },
+        );
+      });
 
-    assertQ1PlusQ2Joins();
-  });
+      assertQ1PlusQ2Joins();
+    },
+  );
 
-  it.skip("should display correct join source table when joining non-visited questions (metabase#19893)", () => {
-    H.createQuestion(QUESTION_1, { wrapId: true, idAlias: "questionId1" });
-    H.createQuestion(QUESTION_2, { wrapId: true, idAlias: "questionId2" });
+  it(
+    "should display correct join source table when joining non-visited questions (metabase#19893)",
+    { tags: "@skip" },
+    () => {
+      H.createQuestion(QUESTION_1, { wrapId: true, idAlias: "questionId1" });
+      H.createQuestion(QUESTION_2, { wrapId: true, idAlias: "questionId2" });
 
-    cy.then(function () {
-      const { questionId1, questionId2 } = this;
+      cy.then(function () {
+        const { questionId1, questionId2 } = this;
 
-      createQ1PlusQ2Question(questionId1, questionId2).then(
-        ({ body: question }) => {
-          cy.visit(`/question/${question.id}/notebook`);
-        },
-      );
-    });
+        createQ1PlusQ2Question(questionId1, questionId2).then(
+          ({ body: question }) => {
+            cy.visit(`/question/${question.id}/notebook`);
+          },
+        );
+      });
 
-    assertQ1PlusQ2Joins();
-  });
+      assertQ1PlusQ2Joins();
+    },
+  );
 });
 
 const createQ1PlusQ2Question = (questionId1, questionId2) => {
@@ -1146,7 +1153,7 @@ const createQ1PlusQ2Question = (questionId1, questionId2) => {
 
 const assertQ1PlusQ2Joins = () => {
   H.getNotebookStep("join").within(() => {
-    cy.findAllByTestId("notebook-cell-item").then(items => {
+    cy.findAllByTestId("notebook-cell-item").then((items) => {
       cy.wrap(items[0]).should("contain", QUESTION_1.name);
       cy.wrap(items[1]).should("contain", QUESTION_2.name);
     });
@@ -1158,7 +1165,7 @@ const assertQ1PlusQ2Joins = () => {
 
     cy.findByLabelText("Right column").within(() => {
       cy.findByText(QUESTION_2.name).should("exist");
-      cy.findByText("Category").should("exist");
+      cy.findByText("Q2 - Category → Category").should("exist");
     });
   });
 };
@@ -1181,8 +1188,8 @@ describe("issue 20627", () => {
     // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Join data").click();
 
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Tables").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Sample Database").click();
       cy.findByText(newTableName).click();
     });
 
@@ -1281,7 +1288,7 @@ describe("issue 20809", () => {
 
     cy.button("Done").click();
 
-    H.visualize(response => {
+    H.visualize((response) => {
       expect(response.body.error).to.not.exist;
     });
 

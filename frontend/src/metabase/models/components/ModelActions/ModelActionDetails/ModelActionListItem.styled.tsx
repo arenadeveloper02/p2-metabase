@@ -1,10 +1,12 @@
+// eslint-disable-next-line no-restricted-imports
 import { css } from "@emotion/react";
+// eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
-import Button from "metabase/core/components/Button";
-import Link from "metabase/core/components/Link";
-import { color } from "metabase/lib/colors";
+import Button from "metabase/common/components/Button";
+import Link from "metabase/common/components/Link";
 import { Icon } from "metabase/ui";
+import { color } from "metabase/ui/utils/colors";
 
 export const ActionHeader = styled.div`
   display: flex;
@@ -16,10 +18,10 @@ export const ActionTitle = styled(Link)`
   font-size: 1rem;
   font-weight: 700;
   color: var(--mb-color-text-dark);
-  cursor: ${props => (props.to ? "pointer" : "unset")};
+  cursor: ${(props) => (props.to ? "pointer" : "unset")};
 
   &:hover {
-    color: ${props => props.to && color("brand")};
+    color: ${(props) => props.to && color("brand")};
   }
 `;
 

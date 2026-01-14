@@ -6,20 +6,11 @@ import {
   databaseApi,
   useGetDatabaseMetadataQuery,
   useGetDatabaseQuery,
-  useListDatabaseIdFieldsQuery,
   useListDatabasesQuery,
 } from "metabase/api";
 import { color } from "metabase/lib/colors";
 import { createEntity, entityCompatibleQuery } from "metabase/lib/entities";
-import {
-  compose,
-  createThunkAction,
-  fetchData,
-  withAction,
-  withCachedDataAndRequestState,
-  withNormalize,
-} from "metabase/lib/redux";
-import * as Urls from "metabase/lib/urls";
+import { createThunkAction, fetchData } from "metabase/lib/redux";
 import { DatabaseSchema } from "metabase/schema";
 import {
   getMetadata,
@@ -31,20 +22,10 @@ import { isVirtualCardId } from "metabase-lib/v1/metadata/utils/saved-questions"
 export const FETCH_DATABASE_METADATA =
   "metabase/entities/database/FETCH_DATABASE_METADATA";
 
-export const FETCH_DATABASE_SCHEMAS =
-  "metabase/entities/database/FETCH_DATABASE_SCHEMAS";
-export const FETCH_DATABASE_IDFIELDS =
-  "metabase/entities/database/FETCH_DATABASE_IDFIELDS";
-
-const transformFetchIdFieldsResponse = (data, query) => ({
-  idFields: data,
-  id: query.id,
-});
-
 /**
  * @deprecated use "metabase/api" instead
  */
-const Databases = createEntity({
+export const Databases = createEntity({
   name: "databases",
   path: "/api/database",
   schema: DatabaseSchema,
@@ -53,18 +34,10 @@ const Databases = createEntity({
   nameMany: "databases",
 
   rtk: {
-    getUseGetQuery: fetchType => {
+    getUseGetQuery: (fetchType) => {
       if (fetchType === "fetchDatabaseMetadata") {
         return {
           useGetQuery: useGetDatabaseMetadataQuery,
-        };
-      }
-
-      if (fetchType === "fetchIdFields") {
-        return {
-          action: FETCH_DATABASE_IDFIELDS,
-          transformResponse: transformFetchIdFieldsResponse,
-          useGetQuery: useListDatabaseIdFieldsQuery,
         };
       }
 
@@ -102,7 +75,7 @@ const Databases = createEntity({
       ),
     delete: ({ id }, dispatch) =>
       entityCompatibleQuery(id, dispatch, databaseApi.endpoints.deleteDatabase),
-    addSampleDatabase: dispatch =>
+    addSampleDatabase: (dispatch) =>
       entityCompatibleQuery(
         undefined,
         dispatch,
@@ -132,29 +105,11 @@ const Databases = createEntity({
             reload,
           }),
     ),
-    fetchIdFields: compose(
-      withAction(FETCH_DATABASE_IDFIELDS),
-      withCachedDataAndRequestState(
-        ({ id }) => [...Databases.getObjectStatePath(id)],
-        ({ id }) => [...Databases.getObjectStatePath(id), "idFields"],
-        entityQuery => Databases.getQueryKey(entityQuery),
-      ),
-      withNormalize(DatabaseSchema),
-    )(({ id, ...params }) => async dispatch => {
-      const idFields = await entityCompatibleQuery(
-        { id, ...params },
-        dispatch,
-        databaseApi.endpoints.listDatabaseIdFields,
-      );
-      return { id, idFields };
-    }),
   },
 
   objectSelectors: {
-    getName: db => db && db.name,
-    getUrl: db => db && Urls.browseDatabase(db),
-    getIcon: db => ({ name: "database" }),
-    getColor: db => color("database"),
+    getName: (db) => db && db.name,
+    getColor: (db) => color("database"),
   },
 
   selectors: {
@@ -167,21 +122,21 @@ const Databases = createEntity({
     getListUnfiltered: (state, { entityQuery }) => {
       const entityIds =
         Databases.selectors.getEntityIds(state, { entityQuery }) ?? [];
-      return entityIds.map(entityId =>
+      return entityIds.map((entityId) =>
         Databases.selectors.getObjectUnfiltered(state, { entityId }),
       );
     },
 
     getHasSampleDatabase: (state, props) =>
-      _.any(Databases.selectors.getList(state, props), db => db.is_sample),
+      _.any(Databases.selectors.getList(state, props), (db) => db.is_sample),
 
     getIdFields: createSelector(
       [
-        state => getMetadata(state).fieldsList(),
+        (state) => getMetadata(state).fieldsList(),
         (state, props) => props.databaseId,
       ],
       (fields, databaseId) =>
-        fields.filter(field => {
+        fields.filter((field) => {
           const dbId = field?.table?.db_id;
           const isRealField = !isVirtualCardId(field.table_id);
           return dbId === databaseId && isRealField && field.isPK();
@@ -189,5 +144,3 @@ const Databases = createEntity({
     ),
   },
 });
-
-export default Databases;

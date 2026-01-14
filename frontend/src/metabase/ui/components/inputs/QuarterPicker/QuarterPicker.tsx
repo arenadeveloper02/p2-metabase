@@ -1,21 +1,27 @@
 import { Box, SimpleGrid } from "@mantine/core";
 import {
+  type DateStringValue,
   MonthPicker,
   type MonthPickerProps,
   PickerControl,
 } from "@mantine/dates";
 import { useUncontrolled } from "@mantine/hooks";
+import cx from "classnames";
 import dayjs from "dayjs";
 import { type Ref, forwardRef } from "react";
 import { c } from "ttag";
+
+import CalendarS from "../Calendar/Calendar.module.css";
 
 import S from "./QuarterPicker.module.css";
 
 export type QuarterPickerProps = Omit<
   MonthPickerProps,
-  "monthListFormat" | "getMonthControlProps"
+  "monthListFormat" | "getMonthControlProps" | "level" | "defaultLevel"
 > & {
   quarterListFormat?: string;
+  level?: Exclude<MonthPickerProps["level"], "month" | undefined>;
+  defaultLevel?: Exclude<MonthPickerProps["level"], "month" | undefined>;
 };
 
 export const QuarterPicker = forwardRef(function QuarterPicker(
@@ -34,16 +40,16 @@ export const QuarterPicker = forwardRef(function QuarterPicker(
   }: QuarterPickerProps,
   ref: Ref<HTMLDivElement>,
 ) {
-  const [value, setValue] = useUncontrolled({
-    value: valueProp,
-    defaultValue,
+  const [value, setValue] = useUncontrolled<DateStringValue | null>({
+    value: valueProp?.toString(),
+    defaultValue: defaultValue?.toString(),
     onChange,
   });
 
   const [date, setDate] = useUncontrolled({
-    value: dateProp,
-    defaultValue: defaultDate,
-    finalValue: value ?? new Date(),
+    value: dateProp?.toString(),
+    defaultValue: defaultDate?.toString(),
+    finalValue: value ?? new Date().toString(),
     onChange: onDateChange,
   });
 
@@ -58,8 +64,10 @@ export const QuarterPicker = forwardRef(function QuarterPicker(
     <Box ref={ref} {...props}>
       <MonthPicker
         classNames={{
-          yearLevel: S.yearLevel,
-          monthsList: S.monthsList,
+          monthsList: cx(CalendarS.monthsList, S.monthsList),
+          yearsList: CalendarS.yearsList,
+          yearsListCell: CalendarS.cell,
+          yearsListRow: CalendarS.row,
         }}
         value={value}
         date={date}
@@ -70,11 +78,11 @@ export const QuarterPicker = forwardRef(function QuarterPicker(
       />
       {level === "year" && (
         <SimpleGrid cols={2} spacing="sm">
-          {getQuarters(date).map((quarter, index) => (
+          {getQuarters(dayjs(date).toDate()).map((quarter, index) => (
             <PickerControl
               key={index}
               selected={value != null && isSelected(value, quarter)}
-              onClick={() => setValue(quarter)}
+              onClick={() => setValue(dayjs(quarter).toISOString())}
             >
               {dayjs(quarter).format(quarterListFormat)}
             </PickerControl>
@@ -97,7 +105,7 @@ function getQuarterFormat() {
   ).t`[Q]Q`;
 }
 
-function isSelected(value: Date, quarter: Date) {
+function isSelected(value: DateStringValue, quarter: Date) {
   const date = dayjs(value);
   return date.isSame(quarter, "year") && date.isSame(quarter, "quarter");
 }

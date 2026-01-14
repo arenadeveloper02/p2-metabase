@@ -3,7 +3,7 @@ import { updateIn } from "icepick";
 import { useCallback } from "react";
 import { t } from "ttag";
 
-import type { DragEndEvent } from "metabase/core/components/Sortable";
+import type { DragEndEvent } from "metabase/common/components/Sortable";
 import { NULL_DISPLAY_VALUE } from "metabase/lib/constants";
 import { isEmpty } from "metabase/lib/validate";
 import { Box } from "metabase/ui";
@@ -48,16 +48,18 @@ export const ChartSettingOrderedSimple = ({
   const toggleDisplay = useCallback(
     (selectedItem: SortableItem) => {
       const index = orderedItems.findIndex(
-        item => item.key === selectedItem.key,
+        (item) => item.key === selectedItem.key,
       );
-      onChange(updateIn(orderedItems, [index, "enabled"], enabled => !enabled));
+      onChange(
+        updateIn(orderedItems, [index, "enabled"], (enabled) => !enabled),
+      );
     },
     [orderedItems, onChange],
   );
 
   const handleSortEnd = useCallback(
     ({ id, newIndex }: DragEndEvent) => {
-      const oldIndex = orderedItems.findIndex(item => item.key === id);
+      const oldIndex = orderedItems.findIndex((item) => item.key === id);
 
       if (onSortEnd != null) {
         onSortEnd(arrayMove(orderedItems, oldIndex, newIndex));
@@ -99,7 +101,7 @@ export const ChartSettingOrderedSimple = ({
 
   const getId = useCallback((item: SortableItem) => item.key, []);
 
-  const nonHiddenItems = orderedItems.filter(item => !item.hidden);
+  const nonHiddenItems = orderedItems.filter((item) => !item.hidden);
 
   return (
     <Box pl="md" pb="sm">

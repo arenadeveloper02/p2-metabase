@@ -7,13 +7,13 @@
    [metabase-enterprise.serialization.v2.ingest :as v2.ingest]
    [metabase-enterprise.serialization.v2.load :as v2.load]
    [metabase-enterprise.serialization.v2.storage :as storage]
-   [metabase.analytics.snowplow :as snowplow]
+   [metabase.analytics.core :as analytics]
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
    [metabase.api.routes.common :refer [+auth]]
-   [metabase.logger :as logger]
+   [metabase.appearance.core :as appearance]
+   [metabase.logger.core :as logger]
    [metabase.models.serialization :as serdes]
-   [metabase.public-settings :as public-settings]
    [metabase.util :as u]
    [metabase.util.compress :as u.compress]
    [metabase.util.date-2 :as u.date]
@@ -68,7 +68,7 @@
 (defn- serialize&pack ^File [{:keys [dirname full-stacktrace] :as opts}]
   (let [dirname  (or dirname
                      (format "%s-%s"
-                             (u/slugify (public-settings/site-name))
+                             (u/slugify (appearance/site-name))
                              (u.date/format "YYYY-MM-dd_HH-mm" (t/local-date-time))))
         path     (io/file parent-dir dirname)
         dst      (io/file (str (.getPath path) ".tar.gz"))
@@ -87,8 +87,8 @@
                      (catch Exception e
                        (reset! err e)
                        (if full-stacktrace
-                         (log/error e "Error during serialization")
-                         (log/error (u/strip-error e "Error during serialization"))))))]
+                         (log/error e "Error during serialization export")
+                         (log/error (u/strip-error e "Error during serialization export"))))))]
     {:archive       (when (.exists dst)
                       dst)
      :log-file      (when (.exists log-file)
@@ -116,10 +116,12 @@
 
 (defn- unpack&import [^File file & [{:keys [size
                                             continue-on-error
-                                            full-stacktrace]}]]
+                                            full-stacktrace
+                                            reindex?]}]]
   (let [dst      (io/file parent-dir (u.random/random-name))
         log-file (io/file dst "import.log")
         err      (atom nil)
+        reindex? (if (nil? reindex?) true reindex?)
         report   (with-open [_logger (logger/for-ns log-file ['metabase-enterprise.serialization
                                                               'metabase.models.serialization]
                                                     {:additive *additive-logging*})]
@@ -138,12 +140,13 @@
                        (log/infof "In total %s entries unpacked, detected source dir: %s" cnt (.getName path))
                        (serdes/with-cache
                          (-> (v2.ingest/ingest-yaml (.getPath path))
-                             (v2.load/load-metabase! {:continue-on-error continue-on-error}))))
+                             (v2.load/load-metabase! {:continue-on-error continue-on-error
+                                                      :reindex?          reindex?}))))
                      (catch Exception e
                        (reset! err e)
                        (if full-stacktrace
-                         (log/error e "Error during serialization")
-                         (log/error (u/strip-error e "Error during serialization"))))))]
+                         (log/error e "Error during serialization import")
+                         (log/error (u/strip-error e "Error during serialization import"))))))]
     {:log-file      log-file
      :status        (:status (ex-data @err))
      :error-message (when @err
@@ -154,6 +157,14 @@
 
 ;;; HTTP API
 
+;; TODO (Cam 10/28/25) -- fix this endpoint so it uses kebab-case for query parameters for consistency with the rest
+;; of the REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-query-params-use-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/export"
   "Serialize and retrieve Metabase instance.
 
@@ -207,22 +218,22 @@
                 report
                 error-message
                 callback]} (serialize&pack opts)]
-    (snowplow/track-event! ::snowplow/serialization
-                           {:event           :serialization
-                            :direction       "export"
-                            :source          "api"
-                            :duration_ms     (int (/ (- (System/nanoTime) start) 1e6))
-                            :count           (count (:seen report))
-                            :error_count     (count (:errors report))
-                            :collection      (str/join "," (map str collection))
-                            :all_collections (and (empty? collection)
-                                                  (not (:no-collections opts)))
-                            :data_model      (not (:no-data-model opts))
-                            :settings        (not (:no-settings opts))
-                            :field_values    (:include-field-values opts)
-                            :secrets         (:include-database-secrets opts)
-                            :success         (boolean archive)
-                            :error_message   error-message})
+    (analytics/track-event! :snowplow/serialization
+                            {:event           :serialization
+                             :direction       "export"
+                             :source          "api"
+                             :duration_ms     (int (/ (- (System/nanoTime) start) 1e6))
+                             :count           (count (:seen report))
+                             :error_count     (count (:errors report))
+                             :collection      (str/join "," (map str collection))
+                             :all_collections (and (empty? collection)
+                                                   (not (:no-collections opts)))
+                             :data_model      (not (:no-data-model opts))
+                             :settings        (not (:no-settings opts))
+                             :field_values    (:include-field-values opts)
+                             :secrets         (:include-database-secrets opts)
+                             :success         (boolean archive)
+                             :error_message   error-message})
     (if archive
       {:status  200
        :headers {"Content-Type"        "application/gzip"
@@ -232,6 +243,14 @@
        :headers {"Content-Type" "text/plain"}
        :body    (on-response! log-file callback)})))
 
+;; TODO (Cam 10/28/25) -- fix this endpoint so it uses kebab-case for query parameters for consistency with the rest
+;; of the REST API
+;;
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-query-params-use-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/import"
   "Deserialize Metabase instance from an archive generated by /export.
 
@@ -243,10 +262,15 @@
   [_route-params
    {continue-on-error? :continue_on_error
     full-stacktrace?   :full_stacktrace
+    reindex-search?    :reindex
     :as                _query-params}
    :- [:map
        [:continue_on_error {:default false} (mu/with ms/BooleanValue {:description "Do not break execution on errors"})]
-       [:full_stacktrace   {:default false} (mu/with ms/BooleanValue {:description "Show full stacktraces in the logs"})]]
+       [:full_stacktrace   {:default false} (mu/with ms/BooleanValue {:description "Show full stacktraces in the logs"})]
+       ;; TODO this parameter is a kludge to fix https://linear.app/metabase/issue/GDGT-573
+       ;;      ideally we'd fix the underlying issue (by delaying realtime indexing updates until the tx closes)
+       ;;      for now, we let users opt out, in case they're indexing a lot, so they can only reindex on the last step
+       [:reindex           {:default true}  (mu/with ms/BooleanValue {:description "Rebuild the search index afterwards"})]]
    _body
    {{:strs [file]} :multipart-params, :as _request} :- [:map
                                                         [:multipart-params
@@ -262,20 +286,21 @@
                   callback]} (unpack&import (:tempfile file)
                                             {:size              (:size file)
                                              :continue-on-error continue-on-error?
-                                             :full-stacktrace   full-stacktrace?})
+                                             :full-stacktrace   full-stacktrace?
+                                             :reindex?          reindex-search?})
           imported           (into (sorted-set) (map (comp :model last)) (:seen report))]
-      (snowplow/track-event! ::snowplow/serialization
-                             {:event         :serialization
-                              :direction     "import"
-                              :source        "api"
-                              :duration_ms   (int (/ (- (System/nanoTime) start) 1e6))
-                              :models        (str/join "," imported)
-                              :count         (if (contains? imported "Setting")
-                                               (inc (count (remove #(= "Setting" (:model (first %))) (:seen report))))
-                                               (count (:seen report)))
-                              :error_count   (count (:errors report))
-                              :success       (not error-message)
-                              :error_message error-message})
+      (analytics/track-event! :snowplow/serialization
+                              {:event         :serialization
+                               :direction     "import"
+                               :source        "api"
+                               :duration_ms   (int (/ (- (System/nanoTime) start) 1e6))
+                               :models        (str/join "," imported)
+                               :count         (if (contains? imported "Setting")
+                                                (inc (count (remove #(= "Setting" (:model (first %))) (:seen report))))
+                                                (count (:seen report)))
+                               :error_count   (count (:errors report))
+                               :success       (not error-message)
+                               :error_message error-message})
       (if error-message
         {:status  (or status 500)
          :headers {"Content-Type" "text/plain"}

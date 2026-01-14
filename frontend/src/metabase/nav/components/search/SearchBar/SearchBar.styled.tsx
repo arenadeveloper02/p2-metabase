@@ -1,4 +1,7 @@
+import isPropValid from "@emotion/is-prop-valid";
+// eslint-disable-next-line no-restricted-imports
 import { css } from "@emotion/react";
+// eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
 import { APP_BAR_HEIGHT } from "metabase/nav/constants";
@@ -17,6 +20,7 @@ export const SearchBarRoot = styled.div`
   width: 100%;
 
   ${breakpointMinSmall} {
+    max-width: 14.5rem;
     position: relative;
   }
 `;
@@ -59,7 +63,7 @@ export const SearchInputContainer = styled.div<{
     height: 2rem;
     border-radius: 99px;
     border-color: transparent;
-    ${props =>
+    ${(props) =>
       props.isActive &&
       css`
         width: 100%;
@@ -102,7 +106,7 @@ export const SearchInput = styled.input<{
     flex-grow: 0;
     padding: 0;
 
-    ${props =>
+    ${(props) =>
       props.isActive &&
       css`
         flex-grow: 1;
@@ -114,14 +118,14 @@ export const SearchInput = styled.input<{
 
 const ICON_MARGIN = "10px";
 
-export const SearchIcon = styled(Icon)<{
+export const SearchIcon = styled(Icon, { shouldForwardProp: isPropValid })<{
   isActive: boolean;
 }>`
   flex-basis: 1rem;
   ${breakpointMaxSmall} {
     transition: margin 0.3s;
 
-    ${props =>
+    ${(props) =>
       props.isActive &&
       css`
         margin-left: ${ICON_MARGIN};

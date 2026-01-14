@@ -19,12 +19,12 @@ import {
 import { getDefaultTimeline, getTimelineName } from "metabase/lib/timelines";
 import { TimelineSchema } from "metabase/schema";
 
-import TimelineEvents from "./timeline-events";
+import { TimelineEvents } from "./timeline-events";
 
 /**
  * @deprecated use "metabase/api" instead
  */
-const Timelines = createEntity({
+export const Timelines = createEntity({
   name: "timelines",
   nameOne: "timeline",
   path: "/api/timeline",
@@ -73,7 +73,7 @@ const Timelines = createEntity({
   },
 
   actions: {
-    createWithEvent: (event, collection) => async dispatch => {
+    createWithEvent: (event, collection) => async (dispatch) => {
       const timeline = await entityCompatibleQuery(
         getDefaultTimeline(collection),
         dispatch,
@@ -124,7 +124,7 @@ const Timelines = createEntity({
     if (action.type === TimelineEvents.actionTypes.UPDATE && !action.error) {
       const event = TimelineEvents.HACK_getObjectFromAction(action);
 
-      return _.mapObject(state, timeline => {
+      return _.mapObject(state, (timeline) => {
         const hasEvent = timeline.events?.includes(event.id);
         const hasTimeline = event.timeline_id === timeline.id;
 
@@ -143,7 +143,7 @@ const Timelines = createEntity({
     if (action.type === TimelineEvents.actionTypes.DELETE && !action.error) {
       const eventId = action.payload.result;
 
-      return _.mapObject(state, timeline => {
+      return _.mapObject(state, (timeline) => {
         return updateIn(timeline, ["events"], (eventIds = []) => {
           return _.without(eventIds, eventId);
         });
@@ -167,5 +167,3 @@ function useListQuery({ collectionId, ...params } = {}, options) {
 
   return collectionId ? collectionTimelines : timelines;
 }
-
-export default Timelines;

@@ -3,8 +3,8 @@
    [metabase-enterprise.audit-app.interface :as audit.i]
    [metabase-enterprise.audit-app.pages.common :as common]
    [metabase-enterprise.audit-app.pages.common.cards :as cards]
-   [metabase.audit :as audit]
-   [metabase.db :as mdb]))
+   [metabase.app-db.core :as mdb]
+   [metabase.audit-app.core :as audit]))
 
 ;; List of all failing questions
 (defmethod audit.i/internal-query ::bad-table
@@ -49,7 +49,7 @@
                   :select    [[:card.id :card_id]
                               [:card.name :card_name]
                               [error-substr :error_substr]
-                              :collection_id
+                              [:card.collection_id :collection_id]
                               [coll-name :collection_name]
                               :card.database_id
                               [:db.name :database_name]

@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import { t } from "ttag";
 
+import { useSetting } from "metabase/common/hooks";
 import type {
   DatePickerExtractionUnit,
   DatePickerOperator,
@@ -17,9 +18,12 @@ import {
   Group,
   PopoverBackButton,
   Stack,
+  Text,
 } from "metabase/ui";
 
 import { MIN_WIDTH } from "../constants";
+import type { DatePickerSubmitButtonProps } from "../types";
+import { renderDefaultSubmitButton } from "../utils";
 
 import type { ExcludeValueOption } from "./types";
 import {
@@ -35,18 +39,20 @@ export interface ExcludeDatePickerProps {
   value?: ExcludeDatePickerValue;
   availableOperators: DatePickerOperator[];
   availableUnits: DatePickerUnit[];
-  submitButtonLabel: string;
+  renderSubmitButton?: (props: DatePickerSubmitButtonProps) => ReactNode;
   onChange: (value: ExcludeDatePickerValue) => void;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 export function ExcludeDatePicker({
   value,
   availableOperators,
   availableUnits,
-  submitButtonLabel,
+  renderSubmitButton = renderDefaultSubmitButton,
   onChange,
   onBack,
+  readOnly,
 }: ExcludeDatePickerProps) {
   const [unit, setUnit] = useState(value?.unit);
   const [values, setValues] = useState(value?.values ?? []);
@@ -64,9 +70,10 @@ export function ExcludeDatePicker({
     <ExcludeValuePicker
       unit={unit}
       initialValues={values}
-      submitButtonLabel={submitButtonLabel}
+      renderSubmitButton={renderSubmitButton}
       onChange={onChange}
       onBack={handleBack}
+      readOnly={readOnly}
     />
   ) : (
     <ExcludeOptionPicker
@@ -87,6 +94,7 @@ interface ExcludeOptionPickerProps {
   onChange: (value: ExcludeDatePickerValue) => void;
   onSelectUnit: (unit: DatePickerExtractionUnit) => void;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 export function ExcludeOptionPicker({
@@ -96,6 +104,7 @@ export function ExcludeOptionPicker({
   onChange,
   onSelectUnit,
   onBack,
+  readOnly,
 }: ExcludeOptionPickerProps) {
   const unitOptions = useMemo(() => {
     return getExcludeUnitOptions(availableOperators, availableUnits);
@@ -111,7 +120,11 @@ export function ExcludeOptionPicker({
 
   return (
     <Box miw={MIN_WIDTH}>
-      <BackButton onClick={onBack}>{t`Exclude…`}</BackButton>
+      <BackButton
+        onClick={onBack}
+        disabled={readOnly}
+        withArrow={!readOnly}
+      >{t`Exclude…`}</BackButton>
       <Divider />
       <Box p="sm">
         {unitOptions.map((option, index) => (
@@ -151,28 +164,34 @@ export function ExcludeOptionPicker({
 interface ExcludeValuePickerProps {
   unit: DatePickerExtractionUnit;
   initialValues: number[];
-  submitButtonLabel: string;
+  renderSubmitButton: (props: DatePickerSubmitButtonProps) => ReactNode;
   onChange: (value: ExcludeDatePickerValue) => void;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 function ExcludeValuePicker({
   unit,
   initialValues,
-  submitButtonLabel,
+  renderSubmitButton,
   onChange,
   onBack,
+  readOnly,
 }: ExcludeValuePickerProps) {
   const [values, setValues] = useState(initialValues);
+  const formattingOptions = useSetting("custom-formatting");
   const option = useMemo(() => findExcludeUnitOption(unit), [unit]);
-  const groups = useMemo(() => getExcludeValueOptionGroups(unit), [unit]);
+  const groups = useMemo(
+    () => getExcludeValueOptionGroups(unit, formattingOptions["type/Temporal"]),
+    [unit, formattingOptions],
+  );
   const options = groups.flat();
   const isAll = values.length === options.length;
-  const isNone = values.length === 0;
+  const isValid = values.length > 0;
 
   const handleToggleAll = (isChecked: boolean) => {
     if (isChecked) {
-      setValues(groups.flatMap(groups => groups.map(({ value }) => value)));
+      setValues(groups.flatMap((groups) => groups.map(({ value }) => value)));
     } else {
       setValues([]);
     }
@@ -185,23 +204,26 @@ function ExcludeValuePicker({
     if (isChecked) {
       setValues([...values, option.value]);
     } else {
-      setValues(values.filter(value => value !== option.value));
+      setValues(values.filter((value) => value !== option.value));
     }
   };
 
-  const handleSubmit = () => {
-    onChange(getExcludeUnitValue(unit, values));
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (isValid) {
+      onChange(getExcludeUnitValue(unit, values));
+    }
   };
 
   return (
-    <Box miw={MIN_WIDTH}>
-      <BackButton onClick={onBack}>{option?.label}</BackButton>
+    <Box component="form" miw={MIN_WIDTH} onSubmit={handleSubmit}>
+      {!readOnly && <BackButton onClick={onBack}>{option?.label}</BackButton>}
       <Divider />
       <Stack p="md">
         <Checkbox
           checked={isAll}
-          label={isAll ? t`Select none` : t`Select all`}
-          onChange={event => handleToggleAll(event.target.checked)}
+          label={<Text c="text-secondary">{t`Select all`}</Text>}
+          onChange={(event) => handleToggleAll(event.target.checked)}
         />
         <Divider />
         <Group>
@@ -212,7 +234,7 @@ function ExcludeValuePicker({
                   key={optionIndex}
                   label={option.label}
                   checked={values.includes(option.value)}
-                  onChange={event =>
+                  onChange={(event) =>
                     handleToggleOption(option, event.target.checked)
                   }
                 />
@@ -222,10 +244,11 @@ function ExcludeValuePicker({
         </Group>
       </Stack>
       <Divider />
-      <Group p="sm" position="right">
-        <Button variant="filled" disabled={isNone} onClick={handleSubmit}>
-          {submitButtonLabel}
-        </Button>
+      <Group p="sm" justify="flex-end">
+        {renderSubmitButton({
+          value: getExcludeUnitValue(unit, values),
+          isDisabled: !isValid,
+        })}
       </Group>
     </Box>
   );

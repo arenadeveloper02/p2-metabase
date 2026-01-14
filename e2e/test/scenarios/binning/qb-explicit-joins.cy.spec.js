@@ -57,8 +57,8 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
     beforeEach(() => {
       H.startNewQuestion();
 
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Collections").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Our analytics").click();
         cy.findByText("QB Binning").click();
       });
 
@@ -124,8 +124,8 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
     beforeEach(() => {
       H.startNewQuestion();
 
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Collections").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Our analytics").click();
         cy.findByText("QB Binning").click();
       });
 
@@ -174,7 +174,7 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       assertQueryBuilderState({
         mode: "notebook",
         title: "Count by Products → Price: 50 bins",
-        values: ["14", "18", "20", "100"],
+        values: ["14", "20", "24", "100"],
       });
     });
 
@@ -197,8 +197,8 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
     beforeEach(() => {
       H.startNewQuestion();
 
-      H.entityPickerModal().within(() => {
-        H.entityPickerModalTab("Collections").click();
+      H.miniPicker().within(() => {
+        cy.findByText("Our analytics").click();
         cy.findByText("QB Binning").click();
       });
 
@@ -294,7 +294,7 @@ function assertOnXYAxisLabels({ xLabel, yLabel } = {}) {
 }
 
 function waitAndAssertOnRequest(requestAlias) {
-  cy.wait(requestAlias).then(xhr => {
+  cy.wait(requestAlias).then((xhr) => {
     expect(xhr.response.body.error).to.not.exist;
   });
 }
@@ -321,7 +321,7 @@ function assertQueryBuilderState({
 
   values &&
     H.echartsContainer().within(() => {
-      values.forEach(value => {
+      values.forEach((value) => {
         cy.findByText(value);
       });
     });

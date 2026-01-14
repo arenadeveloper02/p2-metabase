@@ -4,25 +4,24 @@ import { renderWithProviders, screen } from "__support__/ui";
 import { DATE_PICKER_UNITS } from "metabase/querying/filters/constants";
 import type {
   DatePickerUnit,
+  RelativeDatePickerValue,
   RelativeIntervalDirection,
 } from "metabase/querying/filters/types";
-
-import type { DateIntervalValue } from "../../types";
 
 import { SimpleDateIntervalPicker } from "./SimpleDateIntervalPicker";
 
 function getDefaultValue(
   direction: RelativeIntervalDirection,
-): DateIntervalValue {
+): RelativeDatePickerValue {
   return {
     type: "relative",
-    value: direction === "last" ? -30 : 30,
+    value: direction === "past" ? -30 : 30,
     unit: "day",
   };
 }
 
 interface SetupOpts {
-  value: DateIntervalValue;
+  value: RelativeDatePickerValue;
   availableUnits?: DatePickerUnit[];
 }
 
@@ -46,9 +45,9 @@ describe("SimpleDateIntervalPicker", () => {
     jest.setSystemTime(new Date(2020, 0, 1));
   });
 
-  describe.each<RelativeIntervalDirection>(["last", "next"])(
+  describe.each<RelativeIntervalDirection>(["past", "future"])(
     "%s",
-    direction => {
+    (direction) => {
       const defaultValue = getDefaultValue(direction);
 
       it("should change the interval", async () => {
@@ -62,7 +61,7 @@ describe("SimpleDateIntervalPicker", () => {
 
         expect(onChange).toHaveBeenLastCalledWith({
           ...defaultValue,
-          value: direction === "last" ? -20 : 20,
+          value: direction === "past" ? -20 : 20,
         });
       });
 
@@ -77,7 +76,7 @@ describe("SimpleDateIntervalPicker", () => {
 
         expect(onChange).toHaveBeenLastCalledWith({
           ...defaultValue,
-          value: direction === "last" ? -10 : 10,
+          value: direction === "past" ? -10 : 10,
         });
       });
 
@@ -93,7 +92,7 @@ describe("SimpleDateIntervalPicker", () => {
 
         expect(onChange).toHaveBeenLastCalledWith({
           ...defaultValue,
-          value: direction === "last" ? -1 : 1,
+          value: direction === "past" ? -1 : 1,
         });
       });
 
@@ -129,7 +128,7 @@ describe("SimpleDateIntervalPicker", () => {
           value: defaultValue,
         });
 
-        await userEvent.click(screen.getByLabelText("Unit"));
+        await userEvent.click(screen.getByRole("textbox", { name: "Unit" }));
         await userEvent.click(screen.getByText("years"));
 
         expect(onChange).toHaveBeenCalledWith({

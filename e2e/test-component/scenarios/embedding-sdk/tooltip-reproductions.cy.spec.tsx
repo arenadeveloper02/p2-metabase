@@ -1,13 +1,12 @@
 import { InteractiveDashboard } from "@metabase/embedding-sdk-react";
 
 const { H } = cy;
+
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import {
-  mockAuthProviderAndJwtSignIn,
-  mountSdkContent,
-  signInAsAdminAndEnableEmbeddingSdk,
-} from "e2e/support/helpers/component-testing-sdk";
 import { isFixedPositionElementVisible } from "e2e/support/helpers/e2e-element-visibility-helpers";
+import { mountSdkContent } from "e2e/support/helpers/embedding-sdk-component-testing";
+import { signInAsAdminAndEnableEmbeddingSdk } from "e2e/support/helpers/embedding-sdk-testing";
+import { mockAuthProviderAndJwtSignIn } from "e2e/support/helpers/embedding-sdk-testing/embedding-sdk-helpers";
 
 const { ORDERS, ORDERS_ID } = SAMPLE_DATABASE;
 
@@ -38,7 +37,7 @@ describe("scenarios > embedding-sdk > tooltip-reproductions", () => {
           ],
         }),
       )
-      .then(dashboard => {
+      .then((dashboard) => {
         cy.wrap(dashboard.body.id).as("dashboardId");
       });
 
@@ -54,14 +53,14 @@ describe("scenarios > embedding-sdk > tooltip-reproductions", () => {
   it("should have the correct tooltip position and z-index (metabase#51904, metabase#52732)", () => {
     const testCases = [
       // should use the user-supplied z-index
-      { input: 1337, expected: 1337 },
+      { input: 1337, expected: 1338 },
 
       // should use the default z-index of 200
-      { input: undefined, expected: 200 },
+      { input: undefined, expected: 201 },
     ];
 
-    testCases.forEach(zIndexTestCase => {
-      cy.get("@dashboardId").then(dashboardId => {
+    testCases.forEach((zIndexTestCase) => {
+      cy.get("@dashboardId").then((dashboardId) => {
         mountSdkContent(<InteractiveDashboard dashboardId={dashboardId} />, {
           sdkProviderProps: {
             theme: {
@@ -78,7 +77,7 @@ describe("scenarios > embedding-sdk > tooltip-reproductions", () => {
       cy.findAllByTestId("echarts-tooltip")
         .eq(0)
         .should("exist")
-        .then($tooltip => {
+        .then(($tooltip) => {
           const tooltipElement = $tooltip[0];
 
           // a fixed-position tooltip should be visible

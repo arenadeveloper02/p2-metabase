@@ -1,5 +1,4 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
-import promise from "redux-promise";
 
 import { combineEntities, createEntity } from "metabase/lib/entities";
 import requestsReducer from "metabase/redux/requests";
@@ -37,11 +36,11 @@ function setup() {
   const store = configureStore({
     reducer,
     initialState,
-    middleware: getDefaultMiddleware =>
+    middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
         immutableCheck: false,
         serializableCheck: false,
-      }).concat([promise]),
+      }),
   });
 
   return { widgets, store, initialState };

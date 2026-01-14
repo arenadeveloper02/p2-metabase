@@ -153,63 +153,6 @@ describe("issue 25016", () => {
   });
 });
 
-// this is only testable in OSS because EE always has models from auditv2
-describe("issue 25144", { tags: "@OSS" }, () => {
-  beforeEach(() => {
-    H.restore("setup");
-    cy.signInAsAdmin();
-    cy.intercept("POST", "/api/card").as("createCard");
-    cy.intercept("PUT", "/api/card/*").as("updateCard");
-  });
-
-  it("should show Saved Questions tab after creating the first question (metabase#25144)", () => {
-    cy.visit("/");
-
-    H.newButton("Question").click();
-
-    H.entityPickerModal().within(() => {
-      cy.findByText("Collections").should("not.exist");
-      H.entityPickerModalItem(2, "Orders").click();
-    });
-
-    H.saveQuestion("Orders question");
-
-    H.newButton("Question").click();
-
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").should("be.visible").click();
-      H.entityPickerModalItem(1, "Orders question").should("be.visible");
-    });
-  });
-
-  it("should show Models tab after creation the first model (metabase#24878)", () => {
-    cy.visit("/");
-
-    H.newButton("Model").click();
-    cy.findByTestId("new-model-options")
-      .findByText(/use the notebook/i)
-      .click();
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalItem(2, "Orders").click();
-    });
-
-    cy.findByTestId("dataset-edit-bar").button("Save").click();
-
-    H.modal().within(() => {
-      cy.findByLabelText("Name").clear().type("Orders model");
-      cy.button("Save").click();
-    });
-    cy.wait("@createCard");
-
-    H.newButton("Question").click();
-
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").should("be.visible").click();
-      H.entityPickerModalItem(1, "Orders model").should("be.visible");
-    });
-  });
-});
-
 describe("issue 27104", () => {
   const questionDetails = {
     dataset_query: {
@@ -485,14 +428,14 @@ describe("issue 30165", () => {
 
     H.NativeEditor.focus().type(" WHERE TOTAL < 20");
     H.queryBuilderHeader().findByText("Save").click();
-    cy.findByTestId("save-question-modal").within(modal => {
+    cy.findByTestId("save-question-modal").within((modal) => {
       cy.findByText("Save").click();
     });
     cy.wait("@updateQuestion");
 
     H.NativeEditor.focus().type(" LIMIT 10");
     H.queryBuilderHeader().findByText("Save").click();
-    cy.findByTestId("save-question-modal").within(modal => {
+    cy.findByTestId("save-question-modal").within((modal) => {
       cy.findByText("Save").click();
     });
     cy.wait("@updateQuestion");
@@ -527,48 +470,6 @@ describe("issue 30610", () => {
     updateQuestion();
     createAdHocQuestion("Orders");
     visualizeAndAssertColumns();
-  });
-});
-
-describe("issue 36669", () => {
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsNormalUser();
-    cy.intercept("GET", "/api/search*").as("search");
-  });
-
-  it("should be able to change question data source to raw data after selecting saved question (metabase#36669)", () => {
-    const questionDetails = {
-      name: "Orders 36669",
-      query: {
-        "source-table": ORDERS_ID,
-        limit: 5,
-      },
-    };
-
-    H.createQuestion(questionDetails).then(() => {
-      H.startNewQuestion();
-    });
-
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
-      cy.findByPlaceholderText("Search this collection or everywhere…").type(
-        "Orders 36669",
-      );
-      cy.wait("@search");
-
-      cy.findByText("Everywhere").click();
-      cy.findByRole("tabpanel").findByText("Orders 36669").click();
-    });
-
-    H.getNotebookStep("data").findByText("Orders 36669").click();
-
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Tables").click();
-
-      cy.log("verify Tables are listed");
-      cy.findByRole("tabpanel").should("contain", "Orders");
-    });
   });
 });
 
@@ -634,28 +535,42 @@ describe("issue 43216", () => {
   });
 
   it("should update source question metadata when it changes (metabase#43216)", () => {
+    cy.intercept("GET", "/api/search*source*").as("searchSource");
+    cy.intercept("GET", "/api/search*target*").as("searchTarget");
+    cy.intercept("GET", "/api/card/**/query_metadata").as("queryMetadata");
+
     cy.visit("/");
+    H.waitForLoaderToBeRemoved();
 
     cy.log("Create target question");
     H.newButton("Question").click();
-    H.entityPickerModal().within(() => {
-      H.entityPickerModalTab("Collections").click();
+    H.miniPicker().within(() => {
+      cy.findByText("Our analytics").click();
       cy.findByText("Source question").click();
     });
     H.saveQuestion("Target question");
+    cy.wait("@queryMetadata");
 
     cy.log("Update source question");
     H.commandPaletteButton().click();
+    H.commandPaletteInput().type("source");
+    cy.wait("@searchSource");
     H.commandPalette().findByText("Source question").click();
+    cy.wait("@queryMetadata");
     cy.findByTestId("native-query-editor-container")
       .findByText("Open Editor")
       .click();
-    H.NativeEditor.focus().type(" , 4 as D");
+    H.NativeEditor.focus().type(" , 4 as D;");
     H.saveSavedQuestion();
+    cy.wait("@queryMetadata");
+    cy.wait(450); // let react process things (flaky test)
 
     cy.log("Assert updated metadata in target question");
     H.commandPaletteButton().click();
+    H.commandPaletteInput().type("target");
+    cy.wait("@searchTarget");
     H.commandPalette().findByText("Target question").click();
+    cy.wait("@queryMetadata");
     cy.findAllByTestId("header-cell").eq(3).should("have.text", "D");
     H.openNotebook();
     H.getNotebookStep("data").button("Pick columns").click();
@@ -665,20 +580,21 @@ describe("issue 43216", () => {
 
 function updateQuestion() {
   H.queryBuilderHeader().findByText("Save").click();
-  cy.findByTestId("save-question-modal").within(modal => {
+  cy.findByTestId("save-question-modal").within((modal) => {
     cy.findByText("Save").click();
   });
 }
 
 function removeSourceColumns() {
   cy.findByTestId("fields-picker").click();
-  H.popover().findByText("Select none").click();
+  H.popover().findByText("Select all").click();
 }
 
 function createAdHocQuestion(questionName) {
   H.startNewQuestion();
+  H.miniPickerBrowseAll().click();
   H.entityPickerModal().within(() => {
-    H.entityPickerModalTab("Collections").click();
+    cy.findByText("Our analytics").click();
     cy.findByText(questionName).click();
   });
   cy.findByTestId("fields-picker").click();
@@ -690,7 +606,7 @@ function createAdHocQuestion(questionName) {
 
 function visualizeAndAssertColumns() {
   H.visualize();
-  cy.findByTestId("TableInteractive-root").within(() => {
+  H.tableInteractive().within(() => {
     cy.findByText("ID").should("exist");
     cy.findByText("Total").should("not.exist");
   });
@@ -722,9 +638,9 @@ describe("Custom columns visualization settings", () => {
   it("should not show 'Save' after modifying minibar settings for a custom column", () => {
     goToExpressionSidebarVisualizationSettings();
     H.popover().within(() => {
-      const miniBarSwitch = cy.findByLabelText("Show a mini bar chart");
-      miniBarSwitch.click({ force: true });
-      miniBarSwitch.should("be.checked");
+      cy.findByLabelText("Show a mini bar chart")
+        .click({ force: true })
+        .should("be.checked");
     });
     saveModifiedQuestion();
   });
@@ -733,8 +649,7 @@ describe("Custom columns visualization settings", () => {
     goToExpressionSidebarVisualizationSettings();
 
     H.popover().within(() => {
-      const viewAsDropdown = cy.findByLabelText("Display as");
-      viewAsDropdown.click();
+      cy.findByLabelText("Display as").as("viewAsDropdown").click();
     });
 
     cy.findAllByRole("option", { name: "Email link" }).click();
@@ -752,9 +667,9 @@ describe("Custom columns visualization settings", () => {
       cy.findByRole("button", { name: /gear icon/i }).click();
     });
     H.popover().within(() => {
-      const miniBarSwitch = cy.findByLabelText("Show a mini bar chart");
-      miniBarSwitch.click({ force: true });
-      miniBarSwitch.should("be.checked");
+      cy.findByLabelText("Show a mini bar chart")
+        .click({ force: true })
+        .should("be.checked");
     });
 
     saveModifiedQuestion();

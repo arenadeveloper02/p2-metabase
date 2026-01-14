@@ -1,14 +1,14 @@
 import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
 
-import { getIcon, screen } from "__support__/ui";
+import { getIcon, screen, waitFor } from "__support__/ui";
 import {
   createMockCollection,
   createMockTokenFeatures,
 } from "metabase-types/api/mocks";
 
 import type { SetupOpts } from "./setup";
-import { setup } from "./setup";
+import { assertIndicatorHidden, assertIndicatorVisible, setup } from "./setup";
 
 const setupPremium = (opts?: SetupOpts) => {
   return setup({
@@ -17,7 +17,7 @@ const setupPremium = (opts?: SetupOpts) => {
       official_collections: true,
       collection_cleanup: true,
     }),
-    hasEnterprisePlugins: true,
+    enterprisePlugins: ["collections", "clean_up"],
   });
 };
 
@@ -105,11 +105,11 @@ describe("CollectionMenu", () => {
   it("should be able to make the collection official if even it's a personal collection child", async () => {
     const collection = createMockCollection({
       can_write: true,
+      is_personal: true,
     });
     setupPremium({
       collection,
       isAdmin: true,
-      isPersonalCollectionChild: true,
     });
 
     await userEvent.click(getIcon("ellipsis"));
@@ -124,19 +124,12 @@ describe("CollectionMenu", () => {
         numberOfStaleItems: 10,
       });
 
-      expect(
-        fetchMock.called(
-          "http://localhost/api/user-key-value/namespace/user_acknowledgement/key/collection-menu",
-          { method: "PUT" },
-        ),
-      ).toBe(false);
-
-      expect(await screen.findByTestId("indicator")).toBeInTheDocument();
+      await assertIndicatorVisible();
       await userEvent.click(getIcon("ellipsis"));
 
       expect(
-        fetchMock.calls(
-          "http://localhost/api/user-key-value/namespace/user_acknowledgement/key/collection-menu",
+        fetchMock.callHistory.calls(
+          "http://localhost/api/user-key-value/namespace/indicator-menu/key/collection-menu",
           { method: "PUT" },
         ),
       ).toHaveLength(1);
@@ -151,14 +144,13 @@ describe("CollectionMenu", () => {
         collection: createMockCollection({ can_write: true }),
         isAdmin: true,
         numberOfStaleItems: 10,
-        collectionMenu: true,
       });
 
-      expect(screen.queryByTestId("indicator")).not.toBeInTheDocument();
+      await assertIndicatorHidden();
       await userEvent.click(getIcon("ellipsis"));
 
       expect(
-        fetchMock.calls(
+        fetchMock.callHistory.calls(
           "http://localhost/api/user-key-value/namespace/user_acknowledgement/key/collection-menu",
           { method: "PUT" },
         ),
@@ -174,7 +166,6 @@ describe("CollectionMenu", () => {
         collection: createMockCollection({ can_write: true }),
         isAdmin: false,
         numberOfStaleItems: 10,
-        collectionMenu: true,
       });
 
       await userEvent.click(getIcon("ellipsis"));
@@ -191,14 +182,35 @@ describe("CollectionMenu", () => {
         numberOfStaleItems: 0,
       });
 
-      expect(screen.queryByTestId("indicator")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          fetchMock.callHistory.calls("express:/api/ee/stale/:id"),
+        ).toHaveLength(1),
+      );
+
+      await waitFor(() =>
+        expect(
+          fetchMock.callHistory.calls(
+            "http://localhost/api/user-key-value/namespace/indicator-menu/key/collection-menu",
+            { method: "GET" },
+          ),
+        ).toHaveLength(1),
+      );
+      await waitFor(() =>
+        expect(
+          fetchMock.callHistory.calls(
+            "http://localhost/api/user-key-value/namespace/user_acknowledgement/key/clean-stale-items",
+            { method: "GET" },
+          ),
+        ).toHaveLength(1),
+      );
+
+      await assertIndicatorHidden();
       await userEvent.click(getIcon("ellipsis"));
 
-      expect(fetchMock.calls("express:/api/ee/stale/:id")).toHaveLength(1);
-
       expect(
-        fetchMock.calls(
-          "http://localhost/api/user-key-value/namespace/user_acknowledgement/key/collection-menu",
+        fetchMock.callHistory.calls(
+          "http://localhost/api/user-key-value/namespace/indicator-menu/key/collection-menu",
           { method: "PUT" },
         ),
       ).toHaveLength(0);
@@ -217,11 +229,15 @@ describe("CollectionMenu", () => {
         isAdmin: false,
       });
 
-      expect(screen.queryByTestId("indicator")).not.toBeInTheDocument();
+      await assertIndicatorHidden();
       await userEvent.click(getIcon("ellipsis"));
 
-      expect(fetchMock.calls("path:/api/collection/1/items")).toHaveLength(0);
-      expect(fetchMock.calls("express:/api/ee/stale/:id")).toHaveLength(0);
+      expect(
+        fetchMock.callHistory.calls("path:/api/collection/1/items"),
+      ).toHaveLength(0);
+      expect(
+        fetchMock.callHistory.calls("express:/api/ee/stale/:id"),
+      ).toHaveLength(0);
 
       expect(
         screen.queryByRole("menuitem", { name: /Clear out unused items/ }),
@@ -236,10 +252,12 @@ describe("CollectionMenu", () => {
         numberOfStaleItems: 0,
       });
 
-      expect(screen.queryByTestId("indicator")).not.toBeInTheDocument();
+      await assertIndicatorHidden();
       await userEvent.click(getIcon("ellipsis"));
 
-      expect(fetchMock.calls("express:/api/ee/stale/:id")).toHaveLength(0);
+      expect(
+        fetchMock.callHistory.calls("express:/api/ee/stale/:id"),
+      ).toHaveLength(0);
 
       expect(
         screen.queryByRole("menuitem", { name: /Clear out unused items/ }),

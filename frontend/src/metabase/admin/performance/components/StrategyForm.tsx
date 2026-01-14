@@ -1,13 +1,15 @@
+import cx from "classnames";
 import { useFormikContext } from "formik";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { c, t } from "ttag";
 import _ from "underscore";
 
-import { LoadingAndErrorWrapper } from "metabase/components/LoadingAndErrorWrapper";
-import { Schedule } from "metabase/components/Schedule/Schedule";
+import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
+import { Schedule } from "metabase/common/components/Schedule/Schedule";
 import type { FormTextInputProps } from "metabase/forms";
 import {
+  Form,
   FormProvider,
   FormRadioGroup,
   FormSubmitButton,
@@ -34,27 +36,24 @@ import type {
   CacheStrategyType,
   CacheableModel,
   DurationStrategy,
-  ScheduleSettings,
   ScheduleStrategy,
 } from "metabase-types/api";
 import { CacheDurationUnit } from "metabase-types/api";
 
 import { strategyValidationSchema } from "../constants/complex";
-import { rootId } from "../constants/simple";
+import { defaultCronSchedule, rootId } from "../constants/simple";
 import { useIsFormPending } from "../hooks/useIsFormPending";
 import { isModelWithClearableCache } from "../types";
 import {
   cronToScheduleSettings,
   getDefaultValueForField,
   getLabelString,
-  scheduleSettingsToCron,
 } from "../utils";
 
+import Styles from "./PerformanceApp.module.css";
 import {
-  FormBox,
   FormWrapper,
   LoaderInButton,
-  StyledForm,
   StyledFormButtonsGroup,
 } from "./StrategyForm.styled";
 
@@ -133,7 +132,7 @@ export const StrategyForm = ({
 const isFormDirty = (values: CacheStrategy, initialValues: CacheStrategy) => {
   const fieldNames = [...Object.keys(values), ...Object.keys(initialValues)];
   const defaultValues = _.object(
-    _.map(fieldNames, fieldName => [
+    _.map(fieldNames, (fieldName) => [
       fieldName,
       getDefaultValueForField(values.type, fieldName),
     ]),
@@ -219,15 +218,24 @@ const StrategyFormBody = ({
 
   return (
     <FormWrapper>
-      <StyledForm
-        style={{ overflow: isInSidebar ? undefined : "auto" }}
+      <Form
+        display="flex"
+        style={{
+          overflow: isInSidebar ? undefined : "auto",
+          flexDirection: "column",
+          flexGrow: 1,
+        }}
         aria-labelledby={headingId}
         data-testid={`strategy-form-for-${targetModel}-${targetId}`}
       >
-        <FormBox isInSidebar={isInSidebar}>
+        <Box
+          className={cx(Styles.FormBox, {
+            [Styles.FormBoxSidebar]: isInSidebar,
+          })}
+        >
           {shouldShowName && (
             <Box lh="1rem" pt="md" color="text-medium">
-              <Group spacing="sm">
+              <Group gap="sm">
                 {targetModel === "database" && (
                   <FixedSizeIcon name="database" color="inherit" />
                 )}
@@ -237,7 +245,7 @@ const StrategyFormBody = ({
               </Group>
             </Box>
           )}
-          <Stack maw="35rem" pt={targetId === rootId ? "xl" : 0} spacing="xl">
+          <Stack maw="35rem" pt={targetId === rootId ? "xl" : 0} gap="xl">
             <StrategySelector
               targetId={targetId}
               model={targetModel}
@@ -293,7 +301,7 @@ const StrategyFormBody = ({
               </>
             )}
           </Stack>
-        </FormBox>
+        </Box>
         <FormButtons
           targetId={targetId}
           targetModel={targetModel}
@@ -303,7 +311,7 @@ const StrategyFormBody = ({
           isInSidebar={isInSidebar}
           dirty={dirty}
         />
-      </StyledForm>
+      </Form>
     </FormWrapper>
   );
 };
@@ -386,19 +394,14 @@ const ScheduleStrategyFormFields = () => {
   const { values, setFieldValue } = useFormikContext<ScheduleStrategy>();
   const { schedule: scheduleInCronFormat } = values;
   const initialSchedule = cronToScheduleSettings(scheduleInCronFormat);
-  const [schedule, setSchedule] = useState<ScheduleSettings>(
-    initialSchedule || {},
-  );
-  const timezone = useSelector(state =>
+  const timezone = useSelector((state) =>
     getSetting(state, "report-timezone-short"),
   );
   const onScheduleChange = useCallback(
-    (nextSchedule: ScheduleSettings) => {
-      setSchedule(nextSchedule);
-      const cron = scheduleSettingsToCron(nextSchedule);
-      setFieldValue("schedule", cron);
+    (newCronSchedule: string) => {
+      setFieldValue("schedule", newCronSchedule);
     },
-    [setFieldValue, setSchedule],
+    [setFieldValue],
   );
   if (!initialSchedule) {
     return (
@@ -407,10 +410,11 @@ const ScheduleStrategyFormFields = () => {
       />
     );
   }
+
   return (
     <>
       <Schedule
-        schedule={schedule}
+        cronString={scheduleInCronFormat || defaultCronSchedule}
         scheduleOptions={["hourly", "daily", "weekly", "monthly"]}
         onScheduleChange={onScheduleChange}
         verb={c("A verb in the imperative mood").t`Invalidate`}
@@ -442,7 +446,7 @@ const SaveAndDiscardButtons = ({
         h="40px"
         label={buttonLabels.save}
         successLabel={
-          <Group spacing="xs">
+          <Group gap="xs">
             <Icon name="check" /> {t`Saved`}
           </Group>
         }
@@ -476,7 +480,7 @@ const StrategySelector = ({
     <section>
       <FormRadioGroup
         label={
-          <Stack spacing="xs">
+          <Stack gap="xs">
             <Text lh="1rem" color="text-medium" id={headingId}>
               {t`Select the cache invalidation policy`}
             </Text>
@@ -487,7 +491,7 @@ const StrategySelector = ({
         }
         name="type"
       >
-        <Stack mt="md" spacing="md">
+        <Stack mt="md" gap="md">
           {_.map(availableStrategies, (option, name) => {
             const labelString = getLabelString(option.label, model);
             /** Special colon sometimes used in Asian languages */
@@ -562,7 +566,7 @@ const Field = ({
 }) => {
   return (
     <label>
-      <Stack spacing="xs">
+      <Stack gap="xs">
         <div>
           <Title order={4}>{title}</Title>
           {subtitle}

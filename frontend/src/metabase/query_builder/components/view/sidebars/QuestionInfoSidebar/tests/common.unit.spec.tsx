@@ -3,12 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { testDataset } from "__support__/testDataset";
 import { screen, within } from "__support__/ui";
 import * as Urls from "metabase/lib/urls";
+import * as Lib from "metabase-lib";
+import { createQuery, getJoinQueryHelpers } from "metabase-lib/test-helpers";
 import type { BaseEntityId } from "metabase-types/api";
 import {
   createMockCard,
   createMockCollection,
   createMockModerationReview,
+  createMockUserInfo,
 } from "metabase-types/api/mocks";
+import { PRODUCTS_ID } from "metabase-types/api/mocks/presets";
 
 import { setup } from "./setup";
 
@@ -27,7 +31,7 @@ describe("QuestionInfoSidebar", () => {
         description: DESCRIPTION,
         type: "model",
       }),
-    ])("should display description of a $name", async card => {
+    ])("should display description of a $name", async (card) => {
       await setup({ card });
       expect(screen.getByText(DESCRIPTION)).toBeInTheDocument();
     });
@@ -61,7 +65,7 @@ describe("QuestionInfoSidebar", () => {
         setup({});
         const tabs = await screen.findAllByRole("tab");
         expect(tabs).toHaveLength(3);
-        expect(tabs.map(tab => tab.textContent)).toEqual([
+        expect(tabs.map((tab) => tab.textContent)).toEqual([
           "Overview",
           "History",
           "Relationships",
@@ -74,7 +78,7 @@ describe("QuestionInfoSidebar", () => {
         setup({ user: { is_superuser: true } });
         const tabs = await screen.findAllByRole("tab");
         expect(tabs).toHaveLength(4);
-        expect(tabs.map(tab => tab.textContent)).toEqual([
+        expect(tabs.map((tab) => tab.textContent)).toEqual([
           "Overview",
           "History",
           "Relationships",
@@ -111,13 +115,13 @@ describe("QuestionInfoSidebar", () => {
     it("should show creation information", () => {
       const card = createMockCard({
         name: "Question",
-        creator: {
+        creator: createMockUserInfo({
           first_name: "Ash",
           last_name: "Ketchum",
           email: "Ashboy@example.com",
           common_name: "Ash Ketchum",
           id: 19,
-        },
+        }),
         created_at: "2024-04-13T00:00:00Z",
       });
       setup({ card });
@@ -214,8 +218,8 @@ describe("QuestionInfoSidebar", () => {
       expect(listItems).toHaveLength(expectedFieldCount);
 
       // Expect the correct field names
-      const expectedFieldNames = expectedColumns.map(col => col.display_name);
-      expectedFieldNames.forEach(expectedFieldName => {
+      const expectedFieldNames = expectedColumns.map((col) => col.display_name);
+      expectedFieldNames.forEach((expectedFieldName) => {
         expect(
           within(cardWithFields).getByText(expectedFieldName),
         ).toBeInTheDocument();
@@ -258,4 +262,41 @@ describe("QuestionInfoSidebar", () => {
       expect(screen.queryByText(/verified this/)).not.toBeInTheDocument();
     });
   });
+
+  describe("relationships", () => {
+    it("should show joined tables for a model (metabase#57469)", async () => {
+      const query = getJoinedQuery();
+      const card = createMockCard({
+        type: "model",
+        dataset_query: Lib.toJsQuery(query),
+      });
+      await setup({ card });
+      await userEvent.click(screen.getByRole("tab", { name: "Relationships" }));
+      expect(screen.getByText("Products")).toBeInTheDocument();
+    });
+  });
 });
+
+function getJoinedQuery() {
+  const query = createQuery();
+  const {
+    table,
+    defaultStrategy,
+    defaultOperator,
+    findLHSColumn,
+    findRHSColumn,
+  } = getJoinQueryHelpers(query, 0, PRODUCTS_ID);
+  const ordersProductId = findLHSColumn("ORDERS", "PRODUCT_ID");
+  const productsId = findRHSColumn("PRODUCTS", "ID");
+  const stageIndex = -1;
+  const condition = Lib.joinConditionClause(
+    defaultOperator,
+    ordersProductId,
+    productsId,
+  );
+  return Lib.join(
+    query,
+    stageIndex,
+    Lib.joinClause(table, [condition], defaultStrategy),
+  );
+}

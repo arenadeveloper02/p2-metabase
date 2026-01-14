@@ -1,7 +1,6 @@
 (ns metabase-enterprise.serialization.v2.e2e-test
   (:require
    [clojure.java.io :as io]
-   [clojure.string :as str]
    [clojure.test :refer :all]
    [medley.core :as m]
    [metabase-enterprise.serialization.cmd :as cmd]
@@ -11,7 +10,8 @@
    [metabase-enterprise.serialization.v2.load :as serdes.load]
    [metabase-enterprise.serialization.v2.storage :as storage]
    [metabase.models.serialization :as serdes]
-   [metabase.models.setting :as setting]
+   [metabase.search.core :as search]
+   [metabase.settings.core :as setting]
    [metabase.test :as mt]
    [metabase.test.generate :as test-gen]
    [metabase.util.yaml :as yaml]
@@ -22,6 +22,12 @@
    (java.nio.file Path)))
 
 (set! *warn-on-reflection* true)
+
+;; `reindex!` below is ok in a parallel test since it's not actually executing anything
+#_{:clj-kondo/ignore [:metabase/validate-deftest]}
+(use-fixtures :each (fn [thunk]
+                      (mt/with-dynamic-fn-redefs [search/reindex! (constantly nil)]
+                        (thunk))))
 
 (defn- dir->contents-set [p ^File dir]
   (->> dir
@@ -358,7 +364,7 @@
 
               (testing "for settings"
                 (let [settings (get @entities "Setting")]
-                  (is (every? @#'setting/export?
+                  (is (every? setting/export?
                               (set (map (comp symbol :key) settings))))
                   (is (= (into {} (for [{:keys [key value]} settings]
                                     [key value]))
@@ -415,7 +421,7 @@
                                                   :value_field [:field
                                                                 ["my-db" nil "CUSTOMERS" (:name field1s)]
                                                                 nil]},
-                           :values_source_type   "card"}]
+                           :values_source_type   :card}]
                          (:parameters (first (by-model extraction "Dashboard")))))
 
                   ;; card1s has no parameters, card2s does.
@@ -427,7 +433,7 @@
                                                     :value_field [:field
                                                                   ["my-db" nil "CUSTOMERS" (:name field1s)]
                                                                   nil]},
-                             :values_source_type   "card"}]}
+                             :values_source_type   :card}]}
                          (set (map :parameters (by-model extraction "Card")))))
 
                   (storage/store! (seq extraction) dump-dir)))
@@ -450,7 +456,7 @@
                                  :parameters
                                  first
                                  :values_source_config)))
-                      (is (some? (t2/select-one 'ParameterCard :parameterized_object_type "dashboard" :parameterized_object_id (:id dash1d)))))
+                      (is (some? (t2/select-one :model/ParameterCard :parameterized_object_type "dashboard" :parameterized_object_id (:id dash1d)))))
 
                     (testing "parameter on card is loaded correctly"
                       (is (= {:card_id     (:id card1d),
@@ -459,7 +465,7 @@
                                  :parameters
                                  first
                                  :values_source_config)))
-                      (is (some? (t2/select-one 'ParameterCard :parameterized_object_type "card" :parameterized_object_id (:id card2d)))))))))))))))
+                      (is (some? (t2/select-one :model/ParameterCard :parameterized_object_type "card" :parameterized_object_id (:id card2d)))))))))))))))
 
 (deftest dashcards-with-link-cards-test
   (ts/with-random-dump-dir [dump-dir "serdesv2-"]
@@ -726,6 +732,28 @@
                     (is (= new-coll-id (:collection_id
                                         (t2/select-one :model/Card new-card-id))))))))))))))
 
+(deftest database-routing-test
+  (testing "Destination Databases and Database Routers are excluded from serialization"
+    (ts/with-random-dump-dir [dump-dir "serdesv2-"]
+      (ts/with-dbs [source-db dest-db]
+        (ts/with-db source-db
+          (mt/with-temp
+            [:model/Database {router-db-id :id} {:name "Router"}
+             :model/DatabaseRouter _ {:database_id router-db-id :user_attribute "foobar"}
+             :model/Database _ {:router_database_id router-db-id
+                                :name "Destination"}]
+            (let [extraction (serdes/with-cache (into [] (extract/extract {})))]
+              (storage/store! (seq extraction) dump-dir))
+            (testing "ingest and load"
+              (ts/with-db dest-db
+                (testing "doing ingestion"
+                  (is (serdes/with-cache (serdes.load/load-metabase! (ingest/ingest-yaml dump-dir)))
+                      "successful"))
+                (testing "only the router database was exported"
+                  (is (t2/exists? :model/Database :name "Router"))
+                  (is (not (t2/exists? :model/Database :name "Destination")))
+                  (is (= 0 (t2/count :model/DatabaseRouter))))))))))))
+
 (deftest premium-features-test
   (testing "with :serialization enabled on the token"
     (ts/with-random-dump-dir [dump-dir "serdesv2-"]
@@ -833,7 +861,7 @@
 (deftest extra-files-test
   (testing "Adding some extra files does not break deserialization"
     (ts/with-random-dump-dir [dump-dir "serdesv2-"]
-      (mt/with-empty-h2-app-db
+      (mt/with-empty-h2-app-db!
         (let [coll (ts/create! :model/Collection :name "coll")
               _    (ts/create! :model/Card :name "card" :collection_id (:id coll))]
           (storage/store! (extract/extract {:no-settings   true
@@ -904,83 +932,28 @@
                   (is (int? new-coll-id))
                   (is (=? {:name "Metric Card"
                            :collection_id new-coll-id
-                           :dataset_query (mt/mbql-query orders
-                                            {:aggregation [[:count]]
-                                             :breakout    [$product_id->products.category $created_at]})}
+                           :dataset_query {:stages [{:aggregation [[:count {}]]
+                                                     :breakout    [[:field {} (mt/id :products :category)]
+                                                                   [:field {} (mt/id :orders :created_at)]]}]}}
                           new-metric))
                   (is (=? {:name "Metric Consuming Question Card"
                            :collection_id new-coll-id
-                           :dataset_query (mt/mbql-query orders
-                                            {:aggregation [[:metric (:id new-metric)]]
-                                             :breakout    [[:field %orders.user_id nil]]})}
+                           :dataset_query {:stages [{:aggregation [[:metric {} (:id new-metric)]]
+                                                     :breakout    [[:field {} (mt/id :orders :user_id)]]}]}}
                           (t2/select-one :model/Card :name "Metric Consuming Question Card"))))))))))))
 
-(deftest ^:sequential query-idents-stable-across-serdes-test-1-randomized-idents
+(deftest schema-coercion-test
   (ts/with-random-dump-dir [dump-dir "serdesv2-"]
-    (ts/with-dbs [source-db dest-db]
-      (ts/with-db source-db
-        (mt/with-temp
-          [:model/Collection {coll-id :id}    {:name "Collection"}
-           :model/Card       {card-id :id
-                              eid :entity_id} {:name "The Card"
-                                               :collection_id coll-id
-                                               :dataset_query
-                                               (mt/mbql-query orders
-                                                 {:aggregation [[:count] [:sum $subtotal]]
-                                                  :breakout    [$product_id->products.category $created_at]})}]
-          (let [extraction (serdes/with-cache (into [] (extract/extract {})))]
-            (storage/store! (seq extraction) dump-dir))
-          (let [original (:query (:dataset_query (t2/select-one :model/Card :id card-id)))]
-            (ts/with-db dest-db
-              (is (serdes/with-cache (serdes.load/load-metabase! (ingest/ingest-yaml dump-dir)))
-                  "ingested successfully")
-              (let [imported (:query (:dataset_query (t2/select-one :model/Card :entity_id eid)))]
-                (is (= (select-keys original [:aggregation-idents :breakout-idents])
-                       (select-keys imported [:aggregation-idents :breakout-idents])))))))))))
-
-(deftest ^:sequential query-idents-stable-across-serdes-test-2-preexisting-card
-  (ts/with-random-dump-dir [dump-dir "serdesv2-"]
-    (ts/with-dbs [source-db dest-db]
-      (ts/with-db source-db
-        (let [base (mt/$ids orders
-                     {:database (mt/id)
-                      :type     :query
-                      :query    {:source-table $$orders
-                                 :aggregation  [[:count] [:sum $subtotal]]
-                                 :breakout     [$product_id->products.category $created_at]}})]
-          (mt/with-temp
-            [:model/Collection {coll-id :id}    {:name "Collection"}
-             :model/Card       {card-id :id
-                                eid :entity_id} {:name "The Card"
-                                                 :collection_id coll-id
-                                                 :dataset_query base}]
-            ;; When that temp Card got `t2/insert!`-ed, it had randomized idents generated. Strip them off.
-            (t2/update! :model/Card card-id {:dataset_query base})
-            ;; Now serialize this card!
-            (let [extraction (serdes/with-cache (into [] (extract/extract {})))]
-              (storage/store! (seq extraction) dump-dir))
-
-            (let [original (:dataset_query (t2/select-one :model/Card :id card-id))]
-              (ts/with-db dest-db
-                (is (serdes/with-cache (serdes.load/load-metabase! (ingest/ingest-yaml dump-dir)))
-                    "ingested successfully")
-                (let [imported    (t2/select-one :model/Card :entity_id eid)
-                      ;; The card was imported with the (backfilled) idents on it; strip those off too.
-                      ;; This simulates a Card that was serialized prior to the `:ident`s being added.
-                      stripped    (-> imported
-                                      :dataset_query
-                                      (update :query dissoc :aggregation-idents :breakout-idents))
-                      _           (t2/update! :model/Card (:id imported) {:dataset_query stripped})
-                      ;; Now on reading the card again, its idents will be backfilled on the client.
-                      preexisting (:dataset_query (t2/select-one :model/Card :entity_id eid))]
-                  (testing "the dest card has no idents as stored in appdb"
-                    (is (nil? (-> (t2/select-one :report_card :id (:id imported))
-                                  :dataset_query
-                                  (str/index-of "-idents")))))
-                  (testing "reading a preexisting card (without idents) backfills the same idents in each instance"
-                    (is (=? {:query {:aggregation-idents {0 (str "aggregation_" eid "@0__0")}
-                                     :breakout-idents    {0 (str "breakout_" eid "@0__0")}}}
-                            original))
-                    (is (=? {:query {:aggregation-idents {0 (str "aggregation_" eid "@0__0")}
-                                     :breakout-idents    {0 (str "breakout_" eid "@0__0")}}}
-                            preexisting))))))))))))
+    (mt/with-empty-h2-app-db!
+      (mt/with-temp [:model/Dashboard _dash {:name       "Dash"
+                                             :parameters [{:id             "abcd"
+                                                           :type           :temporal-unit
+                                                           :temporal_units [:month]}]}]
+        (testing "extracts well"
+          (serdes/with-cache
+            (-> (extract/extract {:no-settings   true
+                                  :no-data-model true})
+                (storage/store! dump-dir))))
+        (testing "loads well too"
+          (is (serdes/with-cache (serdes.load/load-metabase! (ingest/ingest-yaml dump-dir)))
+              "ingested successfully"))))))
