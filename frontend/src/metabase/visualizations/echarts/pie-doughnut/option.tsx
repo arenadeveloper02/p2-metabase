@@ -87,29 +87,33 @@ export function getDonutChartData(
   // Calculate total of CANDIDATES (visible data)
   const totalValue = candidateSlices.reduce((sum, s) => sum + s.value, 0);
 
-  // Logic for "Other" grouping and Max Slices
-  const MAX_SLICES = 20;
+  // Logic for "Other" grouping based on percentage threshold
+  const threshold = (settings["pie.slice_threshold"] ?? 0) / 100;
 
-  // Sort candidates by value descending
-  candidateSlices.sort((a, b) => b.value - a.value);
+  // Identify slices below threshold
+  let [keptSlices, pooledSlices] = candidateSlices.reduce(
+    (acc, slice) => {
+      const percentage = totalValue > 0 ? slice.value / totalValue : 0;
+      if (percentage < threshold) {
+        acc[1].push(slice);
+      } else {
+        acc[0].push(slice);
+      }
+      return acc;
+    },
+    [[], []] as [DoughnutDataPoint[], DoughnutDataPoint[]],
+  );
 
-  // Initialize keptSlices with all candidates; pooledSlices is empty initially
-  // We bypass 'pie.slice_threshold' to strictly enforce "Top 20" logic
-  // as requested ("always 20 slices").
-  const keptSlices: DoughnutDataPoint[] = [...candidateSlices];
-  const pooledSlices: DoughnutDataPoint[] = [];
-
-  while (keptSlices.length + (pooledSlices.length > 0 ? 1 : 0) > MAX_SLICES) {
-    // Move smallest to pool (last element)
-    const smallest = keptSlices.pop();
-    if (smallest) pooledSlices.push(smallest);
+  // If there's only one slice below threshold, don't hide it (match standard Pie chart behavior)
+  if (pooledSlices.length === 1) {
+    keptSlices.push(pooledSlices.pop()!);
   }
 
   // 4. Create "Other" slice if pool is not empty
   if (pooledSlices.length > 0) {
     // Sort pooled slices by value descending for the specific drill-down view
     pooledSlices.sort((a, b) => b.value - a.value);
-    
+
     const otherVal = pooledSlices.reduce((sum, s) => sum + s.value, 0);
     keptSlices.push({
       name: getOtherSliceName(),
@@ -118,6 +122,48 @@ export function getDonutChartData(
       children: pooledSlices,
     });
   }
+
+  // 5. Enforce Max Slice Count (7 including "Other")
+  const MAX_SLICES = 7;
+  if (keptSlices.length > MAX_SLICES) {
+    // Sort all kept slices by value descending to find the smallest ones
+    // We exclusion-check for "Other" slice because it might already exist
+    const otherName = getOtherSliceName();
+    let otherSlice = keptSlices.find(s => s.name === otherName);
+    const normalSlices = keptSlices.filter(s => s.name !== otherName);
+    
+    // Sort normal slices to pick which ones to move to Other
+    normalSlices.sort((a, b) => b.value - a.value);
+    
+    const numToKeep = MAX_SLICES - 1; // Keep top 6, 7th is Other
+    const remainingSlices = normalSlices.slice(0, numToKeep);
+    const toPool = normalSlices.slice(numToKeep);
+    
+    if (otherSlice) {
+      // Merge into existing other
+      otherSlice.value += toPool.reduce((sum, s) => sum + s.value, 0);
+      otherSlice.children = [...(otherSlice.children || []), ...toPool].sort((a, b) => b.value - a.value);
+    } else {
+      // Create new other
+      const otherVal = toPool.reduce((sum, s) => sum + s.value, 0);
+      otherSlice = {
+        name: otherName,
+        value: otherVal,
+        itemStyle: { color: "#B8BBC3" },
+        children: toPool.sort((a, b) => b.value - a.value),
+      };
+    }
+    
+    keptSlices = [...remainingSlices, otherSlice];
+  }
+
+  // Final sort of kept slices (including "Other")
+  keptSlices.sort((a, b) => {
+    const otherName = getOtherSliceName();
+    if (a.name === otherName) return 1;
+    if (b.name === otherName) return -1;
+    return b.value - a.value;
+  });
 
   return {
     data: keptSlices,
@@ -212,12 +258,12 @@ export function getDoughnutChartOption(
     const otherSlice = data.find(d => d.name === getOtherSliceName());
     
     // If hovering "Other" and it has detailed children, show those.
-    // Otherwise show ONLY the hovered slice.
+    // Otherwise show ALL top-level slices (standard Metabase Pie behavior).
     let tooltipData = data;
     if (isOtherHovered && otherSlice?.children) {
       tooltipData = otherSlice.children;
     } else {
-      tooltipData = data.filter(d => d.name === params.name);
+      tooltipData = data;
     }
 
     // Generate rows
@@ -276,7 +322,7 @@ export function getDoughnutChartOption(
   const center = ["50%", "50%"];
 
   const hasLabels = showLabels || showPercentOnChart;
-  const radius = hasLabels ? ["35%", "55%"] : ["40%", "70%"];
+  const radius = hasLabels ? ["50%", "70%"] : ["55%", "85%"];
   
   const actualWidth = width ?? 500;
   const actualHeight = height ?? 400;
@@ -287,9 +333,9 @@ export function getDoughnutChartOption(
 
   const minDim = Math.min(actualWidth, actualHeight);
   // Adjust inner calculation to match the dynamic radius
-  // 55% radius -> ~27% minDim. 
+  // 70% radius -> ~35% minDim. 
   // We use a safe approximation for text width.
-  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.35 : 0.4); 
+  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.5 : 0.55); 
   // Available width is diameter of hole minus some padding
   const textMaxWidth = innerRadiusPx * 2 * 0.9;
 

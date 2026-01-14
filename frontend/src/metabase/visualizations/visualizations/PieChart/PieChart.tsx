@@ -494,6 +494,7 @@ export function PieChart(props: VisualizationProps) {
       isDashboard={isDashboard}
       onToggleSeriesVisibility={handleToggleSeriesVisibility}
       isDocument={isDocument}
+      legendPosition={settings["pie.legend_position"]}
     >
       <ResponsiveEChartsRenderer
         ref={containerRef}

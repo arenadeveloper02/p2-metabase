@@ -4,6 +4,7 @@ import type React from "react";
 
 import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatValue } from "metabase/lib/formatting";
+import { formatNullable } from "metabase/lib/formatting/nullable";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 
@@ -35,15 +36,37 @@ export function getFunnelChartOption(
     (col) => col.name === settings["funnel.metric"],
   );
 
-  // Transform data for ECharts funnel - filter out null/empty values
-  const data: FunnelDataPoint[] = rows
-    .filter((row) => row[dimensionIndex] != null && row[metricIndex] != null)
-    .map((row) => ({
-      name: String(row[dimensionIndex]),
-      value: Number(row[metricIndex]),
-    }))
-    // Sort by value descending for proper pyramid shape
-    .sort((a, b) => b.value - a.value);
+  // Transform data for ECharts funnel
+  // Respect settings["funnel.rows"] for filtering and ordering if present
+  const funnelRows = settings["funnel.rows"] as any[];
+
+  let data: FunnelDataPoint[];
+  if (funnelRows) {
+    data = funnelRows
+      .filter(fr => fr.enabled)
+      .map(fr => {
+        const row = rows.find(
+          row => formatNullable(row[dimensionIndex]) === fr.key,
+        );
+        if (row && row[dimensionIndex] != null && row[metricIndex] != null) {
+          return {
+            name: String(row[dimensionIndex]),
+            value: Number(row[metricIndex]),
+          };
+        }
+        return null;
+      })
+      .filter((d): d is FunnelDataPoint => d !== null);
+  } else {
+    data = rows
+      .filter(row => row[dimensionIndex] != null && row[metricIndex] != null)
+      .map(row => ({
+        name: String(row[dimensionIndex]),
+        value: Number(row[metricIndex]),
+      }))
+      // Default to sorting by value descending for proper pyramid shape
+      .sort((a, b) => b.value - a.value);
+  }
 
   const valuesBelowLabels = settings["funnel.values_below_labels"];
 
@@ -51,9 +74,8 @@ export function getFunnelChartOption(
   const dimensionValues = data.map((d) => d.name);
   let colorMapping: Record<string, string> = {};
 
-  if (settings["funnel.rows"]) {
+  if (funnelRows) {
     // Use colors from funnel.rows if available
-    const funnelRows = settings["funnel.rows"] as any[];
     colorMapping = funnelRows.reduce(
       (acc, row) => {
         if (row.color) {
@@ -146,7 +168,7 @@ export function getFunnelChartOption(
         max: maxValue,
         minSize: "0%",
         maxSize: "100%",
-        sort: "descending",
+        sort: "none",
         gap: 2,
         // Main label configuration: names outside
         label: {
@@ -214,7 +236,7 @@ export function getFunnelChartOption(
         max: maxValue,
         minSize: "0%",
         maxSize: "100%",
-        sort: "descending",
+        sort: "none",
         gap: 2,
         // Label configuration: values inside
         label: {
