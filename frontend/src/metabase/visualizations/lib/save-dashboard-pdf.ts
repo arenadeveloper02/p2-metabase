@@ -385,7 +385,7 @@ export const saveDashboardPdfAsSinglePage = async (
 
   const pdfHeader = createHeaderElement(dashboardName, HEADER_MARGIN_BOTTOM);
   const parametersNode = dashboardRoot
-    ?.querySelector(`#${DASHBOARD_PARAMETERS_PDF_EXPORT_NODE_ID}`)
+    ?.querySelector(`#${DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}`)
     ?.cloneNode(true);
 
   let parametersHeight = 0;
@@ -408,9 +408,18 @@ export const saveDashboardPdfAsSinglePage = async (
   const width = contentWidth + PAGE_PADDING * 2;
   const height = contentHeight + PAGE_PADDING * 2;
 
-  const backgroundColor = getComputedStyle(document.documentElement)
+  const rawBackgroundColor = getComputedStyle(document.documentElement)
     .getPropertyValue("--mb-color-bg-dashboard")
     .trim();
+
+  let backgroundColor =
+    rawBackgroundColor === "transparent"
+      ? "transparent"
+      : Color(rawBackgroundColor).hex();
+
+  if (!(await isValidColor(backgroundColor))) {
+    backgroundColor = "white"; // Fallback to white if the color is invalid
+  }
 
   const { default: html2canvas } = await import("html2canvas-pro");
   const image = await html2canvas(gridNode, {
