@@ -380,7 +380,7 @@ export const saveDashboardPdfAsSinglePage = async (
 
   if (!gridNode || !(gridNode instanceof HTMLElement)) {
     console.warn("No dashboard content found", selector);
-    return;
+    throw new Error("Dashboard content not found. Please ensure the dashboard is fully loaded.");
   }
 
   const pdfHeader = createHeaderElement(dashboardName, HEADER_MARGIN_BOTTOM);
@@ -422,40 +422,71 @@ export const saveDashboardPdfAsSinglePage = async (
   }
 
   const { default: html2canvas } = await import("html2canvas-pro");
-  const image = await html2canvas(gridNode, {
-    height: contentHeight,
-    width: contentWidth,
-    useCORS: true,
-    onclone: (_doc: Document, node: HTMLElement) => {
-      node.classList.add(SAVING_DOM_IMAGE_CLASS);
-      node.style.height = `${contentHeight}px`;
-      node.style.backgroundColor = backgroundColor;
-      if (parametersNode instanceof HTMLElement) {
-        node.insertBefore(parametersNode, node.firstChild);
-      }
-      node.insertBefore(pdfHeader, node.firstChild);
-    },
-  });
+  
+  try {
+    const image = await html2canvas(gridNode, {
+      height: contentHeight,
+      width: contentWidth,
+      useCORS: true,
+      backgroundColor,
+      scale: window.devicePixelRatio || 1,
+      /**
+       * html2canvas-pro creates inline <style> elements that can be blocked by
+       * CSP (observed from Firefox). We created a temporary patch to support
+       * nonce until the library officially implements it.
+       *
+       * @see https://github.com/metabase/metabase/issues/66234
+       */
+      nonce: window.MetabaseNonce,
+      onclone: (_doc: Document, node: HTMLElement) => {
+        node.classList.add(SAVING_DOM_IMAGE_CLASS);
+        node.style.height = `${contentHeight}px`;
+        node.style.backgroundColor = backgroundColor;
+        
+        // Handle all dashboard card containers and their children
+        const dashboardCards = node.querySelectorAll("[data-dashcard-key]");
+        dashboardCards.forEach((card) => {
+          if (card instanceof HTMLElement) {
+            // Set background color for the card container
+            card.style.backgroundColor = backgroundColor;
 
-  const { default: jspdf } = await import("jspdf");
-  const scale = window.devicePixelRatio || 1;
+            // Remove any box shadows that might cause grey borders
+            card.style.boxShadow = "none";
 
-  const pdf = new jspdf({
-    orientation: contentWidth > contentHeight ? "landscape" : "portrait",
-    unit: "px",
-    format: [width, height],
-    hotfixes: ["px_scaling"],
-  });
+            // Set a clean border if needed
+            card.style.border = "1px solid var(--mb-color-border)";
+          }
+        });
+        
+        if (parametersNode instanceof HTMLElement) {
+          node.insertBefore(parametersNode, node.firstChild);
+        }
+        node.insertBefore(pdfHeader, node.firstChild);
+      },
+    });
 
-  pdf.setFillColor(backgroundColor);
-  pdf.rect(0, 0, width, height, "F");
+    const { default: jspdf } = await import("jspdf");
+    const scale = window.devicePixelRatio || 1;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = contentWidth * scale;
-  canvas.height = contentHeight * scale;
+    const pdf = new jspdf({
+      orientation: contentWidth > contentHeight ? "landscape" : "portrait",
+      unit: "px",
+      format: [width, height],
+      hotfixes: ["px_scaling"],
+    });
 
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
+    pdf.setFillColor(backgroundColor);
+    pdf.rect(0, 0, width, height, "F");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = contentWidth * scale;
+    canvas.height = contentHeight * scale;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Failed to get canvas context. Your browser may not support this feature.");
+    }
+    
     ctx.drawImage(
       image,
       0,
@@ -467,6 +498,7 @@ export const saveDashboardPdfAsSinglePage = async (
       contentWidth * scale,
       contentHeight * scale,
     );
+    
     pdf.addImage(
       canvas,
       "JPEG",
@@ -475,10 +507,17 @@ export const saveDashboardPdfAsSinglePage = async (
       contentWidth,
       contentHeight,
     );
-  }
 
-  pdf.save(fileName);
+    pdf.save(fileName);
+  } catch (error) {
+    console.error("Error during PDF generation:", error);
+    throw new Error(
+      `Failed to generate PDF: ${error instanceof Error ? error.message : "Unknown error"}. ` +
+      "This may be due to browser limitations or large dashboard size."
+    );
+  }
 };
+
 
 
 export const getExportTabAsPdfButtonText = (tabs: Dashboard["tabs"]) => {
