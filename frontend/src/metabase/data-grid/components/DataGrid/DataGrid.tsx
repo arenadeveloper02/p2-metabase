@@ -189,7 +189,8 @@ export const DataGrid = function DataGrid<TData>({
                   key={headerGroup.id}
                   className={cx(S.row, classNames?.row)}
                   style={{
-                    height: `${HEADER_HEIGHT}px`,
+                    minHeight: `${HEADER_HEIGHT}px`,
+                    height: "auto",
                     backgroundColor,
                     ...styles?.row,
                   }}
@@ -243,7 +244,10 @@ export const DataGrid = function DataGrid<TData>({
                       return (
                         <div
                           key={header.id}
-                          style={style}
+                          style={{
+                            ...style,
+                            containerType: "inline-size",
+                          }}
                           data-header-id={header.id}
                         >
                           {headerContent}
