@@ -38,7 +38,7 @@
   touch-action: none;
   opacity: 0;
   transition: opacity 0.2s;
-  background: var(--mb-color-brand);
+  background: #c5c6cc;
 }
 
 .resizeHandle:hover,

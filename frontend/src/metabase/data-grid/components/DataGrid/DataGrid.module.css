@@ -23,7 +23,7 @@
   display: grid;
   top: 0;
   z-index: 2;
-  border-bottom: 1px solid var(--mb-color-border-subtle);
+  border-bottom: 1px solid #c5c6cc;
   min-height: 37px;
   height: auto;
 }
@@ -94,12 +94,12 @@
 
 .resizer:hover {
   opacity: 1;
-  background: var(--mb-color-brand);
+  background: #c5c6cc;
 }
 
 .resizer:active {
   opacity: 1;
-  background: var(--mb-color-brand);
+  background: #c5c6cc;
 }
 
 .headerWrapper {
@@ -129,7 +129,7 @@
 }
 
 .row:hover .headerCell {
-  box-shadow: inset -1px 0 0 var(--mb-color-border-subtle);
+  box-shadow: inset -1px 0 0 #c5c6cc;
 }
 
 .cellHoverVisible {
