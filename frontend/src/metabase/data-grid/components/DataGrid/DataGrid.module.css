@@ -53,11 +53,14 @@
 
 .headerCell {
   position: relative;
+  border-right: 1px solid #c5c6cc;
+  height:100%;
 }
 
 .bodyCell {
   position: relative;
   cursor: pointer;
+  border-right: 1px solid #c5c6cc;
 }
 
 .focusedCell {
