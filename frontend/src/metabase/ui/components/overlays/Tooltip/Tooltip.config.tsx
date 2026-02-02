@@ -11,6 +11,10 @@ export const tooltipOverrides: MantineThemeOverride["components"] = {
       arrowSize: 10,
       withArrow: true,
       withinPortal: true,
+      middlewares: {
+        shift: true,
+        flip: true,
+      },
       transitionProps: {
         transition: "fade",
         duration: 200,
