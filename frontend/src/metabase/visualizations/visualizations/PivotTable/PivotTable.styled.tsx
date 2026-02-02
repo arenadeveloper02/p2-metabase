@@ -187,7 +187,20 @@ export const PivotTableRoot = styled.div<PivotTableRootProps>`
             -ms-overflow-style: none; /* IE and Edge */
           }
         `
-      : null}
+      : css`
+          /* Reserve space for scrollbar to prevent covering content */
+          scrollbar-gutter: stable both-edges;
+          scrollbar-width: thin;
+
+          /* Make scrollbar thinner on WebKit browsers */
+          &::-webkit-scrollbar {
+            height: 10px;
+          }
+
+          &::-webkit-scrollbar-thumb {
+            border-radius: 6px;
+          }
+        `}
 `;
 
 export const PivotTableSettingLabel = styled.span`
