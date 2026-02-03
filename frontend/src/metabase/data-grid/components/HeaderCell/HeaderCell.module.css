@@ -1,8 +1,9 @@
 .root {
-  overflow: hidden;
+  overflow: visible;
   display: flex;
-  align-items: center;
-  height: 100%;
+  align-items: flex-start;
+  min-height: 100%;
+  height: auto;
   width: 100%;
   cursor: default;
   font-weight: 700;
@@ -11,8 +12,10 @@
 }
 
 .content {
-  overflow: auto;
+  overflow: visible;
   outline: none;
+  width: 100%;
+  min-width: 0;
 }
 
 .outline .content {

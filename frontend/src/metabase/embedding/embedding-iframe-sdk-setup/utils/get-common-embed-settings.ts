@@ -10,11 +10,9 @@ import type {
 } from "../types";
 
 const GET_ENABLE_GUEST_EMBED_SETTINGS: (data: {
-  isSimpleEmbedFeatureAvailable: boolean;
   experience: SdkIframeEmbedSetupExperience;
 }) => SdkIframeEmbedSetupGuestEmbedSettings &
   Pick<SdkIframeEmbedSetupSettings, "useExistingUserSession"> = ({
-  isSimpleEmbedFeatureAvailable,
   experience,
 }) => {
   const isQuestionOrDashboardEmbed =
@@ -27,11 +25,9 @@ const GET_ENABLE_GUEST_EMBED_SETTINGS: (data: {
           isSso: false,
           useExistingUserSession: false,
           ...(isQuestionOrDashboardEmbed && {
-            drills: false,
-            // We force set `downloads` to `true` when the `simple embedding` feature is not enabled (OSS)
-            ...(!isSimpleEmbedFeatureAvailable && {
-              withDownloads: true,
-            }),
+            drills: true,
+            withDownloads: true,
+            withSubscriptions: true,
           }),
         }
       : {
@@ -99,7 +95,6 @@ export const getCommonEmbedSettings = ({
     return isGuestEmbedsEnabled && isGuest
       ? GET_ENABLE_GUEST_EMBED_SETTINGS({
           experience,
-          isSimpleEmbedFeatureAvailable,
         })
       : GET_DISABLE_GUEST_EMBED_SETTINGS({
           experience,
@@ -109,7 +104,6 @@ export const getCommonEmbedSettings = ({
   } else {
     return GET_ENABLE_GUEST_EMBED_SETTINGS({
       experience,
-      isSimpleEmbedFeatureAvailable,
     });
   }
 };

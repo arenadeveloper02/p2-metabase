@@ -45,6 +45,7 @@ export const ExportAsPdfButton = (
       icon="download"
       onClick={saveAsPDF}
       tooltipLabel={t`Download as PDF`}
+      tooltipPosition="bottom"
       data-testid="export-as-pdf-button"
       {...props}
     />

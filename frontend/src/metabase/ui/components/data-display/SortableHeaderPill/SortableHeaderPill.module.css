@@ -10,6 +10,16 @@
   background-color: color-mix(in srgb, var(--mb-color-brand), transparent 92%);
   cursor: pointer;
   transition: background-color 200ms ease-in-out;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Wrap text when overflow is detected */
+.pill.wrap {
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: break-word;
+  align-items: flex-start;
 }
 
 .pill:hover {

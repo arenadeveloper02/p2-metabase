@@ -66,16 +66,12 @@ const BehaviorSection = () => {
         { componentName: "metabase-question", questionId: P.nonNullable },
         (settings) => (
           <Stack gap="md">
-            <WithNotAvailableForOssOrGuestEmbedsGuard>
-              {({ disabled }) => (
-                <Checkbox
-                  label={t`Allow people to drill through on data points`}
-                  disabled={disabled}
-                  checked={settings.drills}
-                  onChange={(e) => updateSettings({ drills: e.target.checked })}
-                />
-              )}
-            </WithNotAvailableForOssOrGuestEmbedsGuard>
+            <Checkbox
+              label={t`Allow people to drill through on data points`}
+              disabled={!isSimpleEmbedFeatureAvailable}
+              checked={settings.drills}
+              onChange={(e) => updateSettings({ drills: e.target.checked })}
+            />
 
             <Checkbox
               label={t`Allow downloads`}
@@ -105,16 +101,12 @@ const BehaviorSection = () => {
         { componentName: "metabase-dashboard", dashboardId: P.nonNullable },
         (settings) => (
           <Stack gap="md">
-            <WithNotAvailableForOssOrGuestEmbedsGuard>
-              {({ disabled }) => (
-                <Checkbox
-                  label={t`Allow people to drill through on data points`}
-                  disabled={disabled}
-                  checked={settings.drills}
-                  onChange={(e) => updateSettings({ drills: e.target.checked })}
-                />
-              )}
-            </WithNotAvailableForOssOrGuestEmbedsGuard>
+            <Checkbox
+              label={t`Allow people to drill through on data points`}
+              disabled={!isSimpleEmbedFeatureAvailable}
+              checked={settings.drills}
+              onChange={(e) => updateSettings({ drills: e.target.checked })}
+            />
 
             <Checkbox
               label={t`Allow downloads`}
@@ -125,51 +117,45 @@ const BehaviorSection = () => {
               }
             />
 
-            <WithNotAvailableForOssOrGuestEmbedsGuard>
-              {({ disabled: disabledInGuestEmbedding }) => {
-                return (
-                  <Flex align="center" gap="xs">
-                    <Checkbox
-                      disabled={!hasEmailSetup || disabledInGuestEmbedding}
-                      label={t`Allow subscriptions`}
-                      checked={settings.withSubscriptions}
-                      onChange={(e) =>
-                        updateSettings({ withSubscriptions: e.target.checked })
-                      }
+            <Flex align="center" gap="xs">
+              <Checkbox
+                disabled={!hasEmailSetup}
+                label={t`Allow subscriptions`}
+                checked={settings.withSubscriptions}
+                onChange={(e) =>
+                  updateSettings({ withSubscriptions: e.target.checked })
+                }
+              />
+              {!hasEmailSetup && (
+                <HoverCard>
+                  <HoverCard.Target>
+                    <Icon
+                      name="info"
+                      size={14}
+                      c="var(--mb-color-text-secondary)"
                     />
-                    {!hasEmailSetup && !disabledInGuestEmbedding && (
-                      <HoverCard>
-                        <HoverCard.Target>
-                          <Icon
-                            name="info"
-                            size={14}
-                            c="var(--mb-color-text-secondary)"
-                          />
-                        </HoverCard.Target>
-                        <HoverCard.Dropdown p="sm">
-                          <Text>{c(
-                            "{0} is a link to email settings page with text 'admin settings'",
-                          ).jt`To allow subscriptions, set up email in ${(
-                            <Link
-                              key="admin-settings-link"
-                              to="/admin/settings/email"
-                            >
-                              <Text
-                                display="inline"
-                                c="var(--mb-color-text-brand)"
-                                fw="bold"
-                              >{c(
-                                "is a link in a sentence 'To allow subscriptions, set up email in admin settings'",
-                              ).t`admin settings`}</Text>
-                            </Link>
-                          )}`}</Text>
-                        </HoverCard.Dropdown>
-                      </HoverCard>
-                    )}
-                  </Flex>
-                );
-              }}
-            </WithNotAvailableForOssOrGuestEmbedsGuard>
+                  </HoverCard.Target>
+                  <HoverCard.Dropdown p="sm">
+                    <Text>{c(
+                      "{0} is a link to email settings page with text 'admin settings'",
+                    ).jt`To allow subscriptions, set up email in ${(
+                      <Link
+                        key="admin-settings-link"
+                        to="/admin/settings/email"
+                      >
+                        <Text
+                          display="inline"
+                          c="var(--mb-color-text-brand)"
+                          fw="bold"
+                        >{c(
+                          "is a link in a sentence 'To allow subscriptions, set up email in admin settings'",
+                        ).t`admin settings`}</Text>
+                      </Link>
+                    )}`}</Text>
+                  </HoverCard.Dropdown>
+                </HoverCard>
+              )}
+            </Flex>
           </Stack>
         ),
       )

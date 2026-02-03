@@ -11,7 +11,7 @@
 .tableGrid {
   display: grid;
   flex-grow: 1;
-  grid-template-rows: 36px;
+  grid-template-rows: min-content;
   width: 100%;
   height: 100%;
   overflow: auto;
@@ -23,8 +23,9 @@
   display: grid;
   top: 0;
   z-index: 2;
-  border-bottom: 1px solid var(--mb-color-border-subtle);
-  height: 37px;
+  border-bottom: 1px solid #c5c6cc;
+  min-height: 37px;
+  height: auto;
 }
 
 .bodyContainer {
@@ -52,11 +53,14 @@
 
 .headerCell {
   position: relative;
+  border-right: 1px solid #c5c6cc;
+  height:100%;
 }
 
 .bodyCell {
   position: relative;
   cursor: pointer;
+  border-right: 1px solid #c5c6cc;
 }
 
 .focusedCell {
@@ -93,12 +97,12 @@
 
 .resizer:hover {
   opacity: 1;
-  background: var(--mb-color-brand);
+  background: #c5c6cc;
 }
 
 .resizer:active {
   opacity: 1;
-  background: var(--mb-color-brand);
+  background: #c5c6cc;
 }
 
 .headerWrapper {
@@ -128,7 +132,7 @@
 }
 
 .row:hover .headerCell {
-  box-shadow: inset -1px 0 0 var(--mb-color-border-subtle);
+  box-shadow: inset -1px 0 0 #c5c6cc;
 }
 
 .cellHoverVisible {
