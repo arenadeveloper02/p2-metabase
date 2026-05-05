@@ -11,7 +11,8 @@
 }
 
 .cell {
-  overflow: hidden;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 
 .cell:first-child {

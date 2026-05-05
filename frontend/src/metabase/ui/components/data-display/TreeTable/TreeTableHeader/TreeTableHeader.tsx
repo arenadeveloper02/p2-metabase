@@ -42,7 +42,7 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
           {showCheckboxes && (
             <Flex
               className={cx(S.cell, classNames?.headerCell)}
-              align="center"
+              align="flex-start"
               p="0.75rem"
               style={{ width: CHECKBOX_COLUMN_WIDTH, ...styles?.headerCell }}
             />
@@ -67,7 +67,7 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
                 <Flex
                   key={header.id}
                   className={cx(S.cell, classNames?.headerCell)}
-                  align="center"
+                  align="flex-start"
                   p="0.75rem"
                   style={columnStyle}
                 />
@@ -80,7 +80,7 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
               <Flex
                 key={header.id}
                 className={cx(S.cell, classNames?.headerCell)}
-                align="center"
+                align="flex-start"
                 p="0.75rem"
                 style={columnStyle}
                 role={isSortable ? "columnheader" : undefined}

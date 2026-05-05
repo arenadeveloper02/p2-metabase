@@ -51,7 +51,6 @@ export const SortableHeader = memo(function SortableHeader<TData, TValue>({
       position: "relative",
       transform: isDragging ? CSS.Translate.toString(transform) : undefined,
       transition: "width transform 0.2s ease-in-out",
-      whiteSpace: "nowrap",
       zIndex: isDragging ? 2 : 0,
       cursor: isDragging ? "grabbing" : "pointer",
       outline: "none",

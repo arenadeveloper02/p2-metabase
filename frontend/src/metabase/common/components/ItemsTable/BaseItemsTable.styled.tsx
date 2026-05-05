@@ -34,8 +34,9 @@ export const Table = styled(
   },
 )`
   background-color: var(--mb-color-bg-white);
-  table-layout: fixed;
-  border-collapse: unset;
+  table-layout: auto;
+  width: 100%;
+w  border-collapse: unset;
   border-radius: 0.5rem;
   overflow: hidden;
 
@@ -75,6 +76,9 @@ export const ColumnHeader = styled.th<ResponsiveProps>`
 
   font-weight: bold;
   color: var(--mb-color-text-medium);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
   ${hideResponsively}
 `;
 
@@ -136,7 +140,8 @@ export const SortingIcon = styled(
     return <FixedSizeIcon {...props} size={props.size ?? 8} ref={ref} />;
   }),
 )`
-  margin-inline-start: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
 `;
 
 export const DescriptionIcon = styled(FixedSizeIcon)`
@@ -148,7 +153,13 @@ export const SortingControlContainer = styled.div<{
   isSortable?: boolean;
 }>`
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 4px;
+  row-gap: 2px;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: ${({ isActive }) => isActive && "var(--mb-color-text-dark)"};
 
   ${({ isSortable = true }) =>

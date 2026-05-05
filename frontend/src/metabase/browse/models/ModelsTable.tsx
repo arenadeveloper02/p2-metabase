@@ -3,7 +3,6 @@ import { push } from "react-router-redux";
 import { t } from "ttag";
 
 import { getCollectionName } from "metabase/collections/utils";
-import { Ellipsified } from "metabase/common/components/Ellipsified";
 import { EllipsifiedCollectionPath } from "metabase/common/components/EllipsifiedPath/EllipsifiedCollectionPath";
 import EntityItem from "metabase/common/components/EntityItem";
 import { SortableColumnHeader } from "metabase/common/components/ItemsTable/BaseItemsTable";
@@ -114,7 +113,7 @@ export const ModelsTable = ({
               },
             }}
           >
-            <Ellipsified>{t`Collection`}</Ellipsified>
+            {t`Collection`}
           </SortableColumnHeader>
           <SortableColumnHeader
             name="description"
