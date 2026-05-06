@@ -3,6 +3,7 @@ import { useState } from "react";
 import { match } from "ts-pattern";
 import { t } from "ttag";
 
+import "metabase/lib/dayjs";
 import {
   DateRangePicker,
   type DateRangePickerValue,
@@ -17,16 +18,18 @@ import type { ParameterValueOrArray } from "metabase-types/api";
 type DateRangeWidgetProps = {
   value: ParameterValueOrArray | null | undefined;
   submitButtonLabel?: string;
+  defaultPreset?: "last-completed-week" | "previous-week";
   onChange: (value: string) => void;
 };
 
 export function DateRangeWidget({
   value,
   submitButtonLabel = t`Apply`,
+  defaultPreset = "last-completed-week",
   onChange,
 }: DateRangeWidgetProps) {
   const [pickerValue, setPickerValue] = useState(
-    () => getPickerValue(value) ?? getPickerDefaultValue(),
+    () => getPickerValue(value) ?? getPickerDefaultValue(defaultPreset),
   );
 
   const handleSubmit = () => {
@@ -60,10 +63,28 @@ function getPickerValue(
     .otherwise(() => undefined);
 }
 
-function getPickerDefaultValue(): DateRangePickerValue {
-  const today = dayjs().startOf("date").toDate();
-  const past30Days = dayjs(today).subtract(30, "day").toDate();
-  return { dateRange: [past30Days, today], hasTime: false };
+function getPickerDefaultValue(
+  preset: DateRangeWidgetProps["defaultPreset"],
+): DateRangePickerValue {
+  const currentWeekStart = dayjs().startOf("isoWeek");
+
+  if (preset === "last-completed-week") {
+    const start = currentWeekStart.subtract(1, "week").startOf("date");
+    return { dateRange: [start.toDate(), start.add(6, "day").toDate()], hasTime: false };
+  }
+
+  if (preset === "previous-week") {
+    const start = currentWeekStart.subtract(2, "week").startOf("date");
+    return { dateRange: [start.toDate(), start.add(6, "day").toDate()], hasTime: false };
+  }
+
+  return {
+    dateRange: [
+      currentWeekStart.subtract(1, "week").startOf("date").toDate(),
+      currentWeekStart.subtract(1, "week").startOf("date").add(6, "day").toDate(),
+    ],
+    hasTime: false,
+  };
 }
 
 function getWidgetValue({ dateRange, hasTime }: DateRangePickerValue) {

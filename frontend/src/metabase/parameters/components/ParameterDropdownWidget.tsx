@@ -75,11 +75,19 @@ export const ParameterDropdownWidget = ({
     }[parameter.type];
 
     if (DateWidget) {
+      const isDashboardDateRange =
+        parameter.type === "date/range" && dashboardId != null;
+
       return (
         <DateWidget
           value={value}
           availableOperators={["=", ">", "<", "between", "!="]}
           submitButtonLabel={value ? t`Update filter` : t`Add filter`}
+          defaultPreset={
+            isDashboardDateRange
+              ? getDateRangeDefaultPreset(parameter)
+              : undefined
+          }
           onChange={(value) => {
             setValue?.(value);
             onPopoverClose?.();
@@ -189,4 +197,24 @@ function isFieldWidget(
   return parameter.hasVariableTemplateTagTarget
     ? canQuery
     : canQuery || hasFields(parameter);
+}
+
+function getDateRangeDefaultPreset(parameter: UiParameter) {
+  const normalizedNames = [
+    parameter.slug,
+    parameter.name,
+    parameter["display-name"],
+  ]
+    .filter((name): name is string => Boolean(name))
+    .map((name) => name.toLowerCase());
+
+  if (normalizedNames.some((name) => name.includes("previous"))) {
+    return "previous-week" as const;
+  }
+
+  if (normalizedNames.some((name) => name.includes("current"))) {
+    return "last-completed-week" as const;
+  }
+
+  return "last-completed-week" as const;
 }
