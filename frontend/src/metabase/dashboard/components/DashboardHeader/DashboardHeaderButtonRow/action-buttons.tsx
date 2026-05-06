@@ -14,7 +14,7 @@ import {
   DashboardActionMenu,
   DashboardInfoButton,
   EditDashboardButton,
-  ExportAsPdfButton,
+  ExportCurrentTabPdfButton,
   FullscreenAnalyticsDashboard,
   FullscreenToggle,
 } from "../buttons";
@@ -127,7 +127,7 @@ export const dashboardActionButtons: Record<
     enabled: () => true,
   },
   DOWNLOAD_PDF: {
-    component: () => <ExportAsPdfButton />,
+    component: () => <ExportCurrentTabPdfButton />,
     enabled: ({ downloadsEnabled }) => Boolean(downloadsEnabled.pdf),
   },
   // Modular embedding
