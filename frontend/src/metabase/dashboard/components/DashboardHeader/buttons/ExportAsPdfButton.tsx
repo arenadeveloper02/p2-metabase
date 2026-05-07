@@ -19,8 +19,7 @@ export const ExportAsPdfButton = (
   props: ActionIconProps & ButtonHTMLAttributes<HTMLButtonElement>,
 ) => {
   const { dashboard } = useDashboardContext();
-  const isWhitelabeled = useHasTokenFeature("whitelabel");
-  const includeBranding = !isWhitelabeled;
+  const _isWhitelabeled = useHasTokenFeature("whitelabel");
 
   const saveAsPDF = () => {
     const dashboardAccessedVia = match(dashboard?.id)

@@ -214,8 +214,10 @@ export function useChartEvents(
 
   const eventHandlers: EChartsEventHandler[] = useMemo(
     () => {
-      if (!chartModel) return [];
-      
+      if (!chartModel) {
+        return [];
+      }
+
       return [
       {
         eventName: "mouseout",

@@ -1,9 +1,11 @@
 import type { EChartsOption } from "echarts";
 import type React from "react";
 
+import { alpha } from "metabase/lib/colors";
 import { formatValue } from "metabase/lib/formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
+
 import { getHeatmapTooltipOption } from "./tooltip";
 
 export interface HeatmapDataPoint {
@@ -213,7 +215,7 @@ export function getHeatmapChartOption(
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
+            shadowColor: alpha("text-dark", 0.5),
           },
         },
       },

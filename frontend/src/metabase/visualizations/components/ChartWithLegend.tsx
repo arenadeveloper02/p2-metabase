@@ -73,7 +73,7 @@ const ChartWithLegendInner = ({
   width,
   showLegend = true,
   isDashboard,
-  isDocument,
+  isDocument: _isDocument,
   onToggleSeriesVisibility = () => {},
   legendPosition,
   forwardedRef,
@@ -197,7 +197,14 @@ const ChartWithLegendInner = ({
       flexChart,
       hasDimensions,
     };
-  }, [stableWidth, stableHeight, gridSize, aspectRatio, legendTitles]);
+  }, [
+    stableWidth,
+    stableHeight,
+    gridSize,
+    aspectRatio,
+    legendTitles,
+    legendPosition,
+  ]);
 
   const legend =
     showLegend && layout.type !== "small" && layout.LegendComponent ? (

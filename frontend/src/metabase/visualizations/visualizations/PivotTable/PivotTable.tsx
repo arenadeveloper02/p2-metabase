@@ -26,6 +26,7 @@ import {
   multiLevelPivot,
 } from "metabase/lib/data_grid";
 import { getScrollBarSize } from "metabase/lib/dom";
+import { measureText } from "metabase/lib/measure-text";
 import { connect } from "metabase/lib/redux";
 import { getSetting } from "metabase/selectors/settings";
 import { useMantineTheme } from "metabase/ui";
@@ -49,10 +50,12 @@ import {
 import { RowToggleIcon } from "./RowToggleIcon";
 import {
   CELL_HEIGHT,
+  CELL_PADDING,
   DEFAULT_CELL_WIDTH,
   LEFT_HEADER_LEFT_SPACING,
   MIN_HEADER_CELL_WIDTH,
   PIVOT_TABLE_BODY_LABEL,
+  ROW_TOGGLE_ICON_WIDTH,
 } from "./constants";
 import {
   _columnSettings as columnSettings,
@@ -64,6 +67,8 @@ import {
   checkRenderable,
   getCellWidthsForSection,
   getLeftHeaderWidths,
+  getValueHeaderFloors,
+  getValueHeaderWidths,
   isSensible,
   leftHeaderCellSizeAndPositionGetter,
   topHeaderCellSizeAndPositionGetter,
@@ -235,6 +240,16 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
 
     const { fontSize } = theme.other.pivotTable.cell;
 
+    const valueHeaderFloors = useMemo(() => {
+      if (!pivoted?.topHeaderItems?.length) {
+        return {};
+      }
+      return getValueHeaderFloors({
+        topHeaderItems: pivoted.topHeaderItems,
+        font: { fontFamily, fontSize },
+      });
+    }, [pivoted?.topHeaderItems, fontFamily, fontSize]);
+
     useEffect(() => {
       if (!pivoted?.rowIndexes) {
         setHeaderWidths({
@@ -253,7 +268,16 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
           font: { fontFamily, fontSize },
         });
 
-        const newColumnWidths = { ...newLeftHeaderWidths, valueHeaderWidths };
+        const newValueHeaderWidths = getValueHeaderWidths({
+          topHeaderItems: pivoted.topHeaderItems,
+          font: { fontFamily, fontSize },
+          existingWidths: valueHeaderWidths,
+        });
+
+        const newColumnWidths = {
+          ...newLeftHeaderWidths,
+          valueHeaderWidths: newValueHeaderWidths,
+        };
         setHeaderWidths(newColumnWidths);
 
         if (!_.isEqual(newColumnWidths, columnWidthSettings)) {
@@ -283,10 +307,18 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
 
       if (columnType === "leftHeader") {
         const newLeftHeaderColumnWidths = [...(leftHeaderWidths as number[])];
-        newLeftHeaderColumnWidths[columnIndex] = Math.max(
-          newWidth,
-          MIN_HEADER_CELL_WIDTH,
+        const headingFloor = Math.ceil(
+          measureText(getColumnTitle(pivoted?.rowIndexes?.[columnIndex] ?? 0), {
+            weight: "bold",
+            family: fontFamily,
+            size: fontSize,
+          }).width,
         );
+        const minWidth = Math.max(
+          MIN_HEADER_CELL_WIDTH,
+          headingFloor + CELL_PADDING + ROW_TOGGLE_ICON_WIDTH,
+        );
+        newLeftHeaderColumnWidths[columnIndex] = Math.max(newWidth, minWidth);
 
         const newTotalWidth = sumArray(newLeftHeaderColumnWidths);
 
@@ -296,10 +328,11 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
         };
       } else if (columnType === "value") {
         const newValueHeaderWidths = { ...(valueHeaderWidths ?? {}) };
-        newValueHeaderWidths[columnIndex] = Math.max(
-          newWidth,
+        const minWidth = Math.max(
           MIN_HEADER_CELL_WIDTH,
+          valueHeaderFloors[columnIndex] ?? MIN_HEADER_CELL_WIDTH,
         );
+        newValueHeaderWidths[columnIndex] = Math.max(newWidth, minWidth);
 
         newColumnWidths = {
           valueHeaderWidths: newValueHeaderWidths,

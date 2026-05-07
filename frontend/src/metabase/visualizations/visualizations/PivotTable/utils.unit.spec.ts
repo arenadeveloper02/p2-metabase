@@ -3,7 +3,6 @@ import { createMockColumn } from "metabase-types/api/mocks";
 
 import {
   CELL_PADDING,
-  MAX_HEADER_CELL_WIDTH,
   MIN_HEADER_CELL_WIDTH,
   ROW_TOGGLE_ICON_WIDTH,
 } from "./constants";
@@ -12,6 +11,8 @@ import {
   addMissingCardBreakouts,
   getColumnValues,
   getLeftHeaderWidths,
+  getValueHeaderFloors,
+  getValueHeaderWidths,
   isColumnValid,
   isFormattablePivotColumn,
   updateValueWithCurrentColumns,
@@ -229,19 +230,16 @@ describe("Visualizations > Visualizations > PivotTable > utils", () => {
       expect(totalLeftHeaderWidths).toEqual(MIN_HEADER_CELL_WIDTH * 3);
     });
 
-    it("should not exceed the max width", () => {
+    it("should grow beyond the previous max width so that long headings are not truncated", () => {
       const { leftHeaderWidths } = getLeftHeaderWidths({
         rowIndexes: [0, 1, 2],
-        // jest-dom thinks characters are 1px wide
-        getColumnTitle: () => "x".repeat(MAX_HEADER_CELL_WIDTH),
+        // jest-dom thinks characters are 1px wide, so each column needs ~500px
+        getColumnTitle: () => "x".repeat(500),
         font: {},
       });
 
-      expect(leftHeaderWidths).toEqual([
-        MAX_HEADER_CELL_WIDTH,
-        MAX_HEADER_CELL_WIDTH,
-        MAX_HEADER_CELL_WIDTH,
-      ]);
+      const expected = 500 + CELL_PADDING + ROW_TOGGLE_ICON_WIDTH;
+      expect(leftHeaderWidths).toEqual([expected, expected, expected]);
     });
 
     it("should return the wider of the column header or data width", () => {
@@ -294,6 +292,82 @@ describe("Visualizations > Visualizations > PivotTable > utils", () => {
         MIN_HEADER_CELL_WIDTH,
         MIN_HEADER_CELL_WIDTH,
       ]);
+    });
+  });
+
+  describe("getValueHeaderFloors", () => {
+    it("returns the per-column heading floor for span=1 items", () => {
+      const items = [
+        { offset: 0, span: 1, value: "x".repeat(150) },
+        { offset: 1, span: 1, value: "x".repeat(20) },
+      ] as HeaderItem[];
+
+      const floors = getValueHeaderFloors({
+        topHeaderItems: items,
+        font: {},
+      });
+
+      expect(floors[0]).toBe(150 + CELL_PADDING);
+      expect(floors[1]).toBe(MIN_HEADER_CELL_WIDTH);
+    });
+
+    it("distributes the heading floor across spanned columns", () => {
+      const items = [
+        { offset: 0, span: 3, value: "x".repeat(300) },
+      ] as HeaderItem[];
+
+      const floors = getValueHeaderFloors({
+        topHeaderItems: items,
+        font: {},
+      });
+
+      const expectedPerCol = Math.ceil((300 + CELL_PADDING) / 3);
+      expect(floors[0]).toBe(expectedPerCol);
+      expect(floors[1]).toBe(expectedPerCol);
+      expect(floors[2]).toBe(expectedPerCol);
+    });
+
+    it("uses the larger of MIN_HEADER_CELL_WIDTH and the heading width", () => {
+      const items = [
+        { offset: 0, span: 1, value: "ab" },
+      ] as HeaderItem[];
+
+      const floors = getValueHeaderFloors({
+        topHeaderItems: items,
+        font: {},
+      });
+
+      expect(floors[0]).toBe(MIN_HEADER_CELL_WIDTH);
+    });
+  });
+
+  describe("getValueHeaderWidths", () => {
+    it("preserves user-resized widths when wider than the heading floor", () => {
+      const items = [
+        { offset: 0, span: 1, value: "x".repeat(40) },
+      ] as HeaderItem[];
+
+      const widths = getValueHeaderWidths({
+        topHeaderItems: items,
+        font: {},
+        existingWidths: { 0: 400 },
+      });
+
+      expect(widths[0]).toBe(400);
+    });
+
+    it("clamps user-resized widths up to the heading floor", () => {
+      const items = [
+        { offset: 0, span: 1, value: "x".repeat(150) },
+      ] as HeaderItem[];
+
+      const widths = getValueHeaderWidths({
+        topHeaderItems: items,
+        font: {},
+        existingWidths: { 0: 50 },
+      });
+
+      expect(widths[0]).toBe(150 + CELL_PADDING);
     });
   });
 

@@ -25,6 +25,7 @@ Object.assign(
     noun: t`bar chart`,
     minSize: getMinSize("bar"),
     defaultSize: getDefaultSize("bar"),
+    /* eslint-disable ttag/no-module-declaration -- see metabase#55045 */
     settings: {
       ...COMBO_CHARTS_SETTINGS_DEFINITIONS,
       "bar.data_zoom_enabled": {
@@ -44,6 +45,7 @@ Object.assign(
         marginBottom: "1rem",
       },
     } as any as VisualizationSettingsDefinitions,
+    /* eslint-enable ttag/no-module-declaration */
   }),
 );
 

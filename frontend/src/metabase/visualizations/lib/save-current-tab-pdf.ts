@@ -1,4 +1,5 @@
 import Color from "color";
+import { t } from "ttag";
 
 import { DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID } from "metabase/dashboard/constants";
 
@@ -13,11 +14,18 @@ const PAGE_PADDING = 16;
 const LANDSCAPE_ASPECT_RATIO = 0.72;
 const PORTRAIT_ASPECT_RATIO = 1.24;
 const MAX_SCALE = 1.5;
+// Approximate budget for the rendered canvas. html2canvas allocates a buffer of
+// (width * scale) * (height * scale) * 4 bytes; many browsers cap canvases at
+// ~16k px per side or ~256MP. We aim well below that so very tall dashboards
+// stay responsive on lower-end machines (especially Windows).
+const MAX_CANVAS_PIXELS = 32_000_000;
+const MIN_SCALE = 0.5;
+
 const EXPORTING_CLASSNAME = "dashboard-pdf-exporting";
 
 const OVERLAY_SELECTORS = [
   '[role="tooltip"]',
-  '[data-floating-ui-portal]',
+  "[data-floating-ui-portal]",
   ".mantine-Portal",
   ".mantine-Tooltip-tooltip",
   ".mantine-Popover-dropdown",
@@ -25,10 +33,18 @@ const OVERLAY_SELECTORS = [
   ".mantine-Menu-dropdown",
 ];
 
+export type PdfExportPhase =
+  | { kind: "preparing" }
+  | { kind: "capturing" }
+  | { kind: "building" }
+  | { kind: "page"; current: number; total: number }
+  | { kind: "saving" };
+
 interface SaveCurrentTabPdfProps {
   selector: string;
   dashboardName: string;
   includeBranding: boolean;
+  onPhase?: (phase: PdfExportPhase) => void;
 }
 
 function createHeaderElement(dashboardName: string, marginBottom: number) {
@@ -58,16 +74,47 @@ function removeOverlayNodes(node: HTMLElement) {
   node.querySelectorAll(OVERLAY_SELECTORS.join(",")).forEach((el) => el.remove());
 }
 
+/**
+ * Yields to the browser so it can paint pending UI updates (e.g. the export
+ * progress modal) and run any queued tasks before the next blocking step.
+ */
+function yieldToBrowser(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => setTimeout(resolve, 0));
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+/**
+ * Computes a scale that keeps the canvas allocation under MAX_CANVAS_PIXELS so
+ * the export stays responsive on memory-constrained machines.
+ */
+function getAdaptiveScale(width: number, height: number) {
+  const requestedScale = Math.min(window.devicePixelRatio || 1, MAX_SCALE);
+  if (width <= 0 || height <= 0) {
+    return requestedScale;
+  }
+  const cap = Math.sqrt(MAX_CANVAS_PIXELS / (width * height));
+  return Math.max(MIN_SCALE, Math.min(requestedScale, cap));
+}
+
 export async function saveCurrentTabAsPdf({
   selector,
   dashboardName,
   includeBranding,
+  onPhase,
 }: SaveCurrentTabPdfProps) {
+  onPhase?.({ kind: "preparing" });
+  await yieldToBrowser();
+
   const dashboardRoot = document.querySelector(selector);
   const gridNode = dashboardRoot?.querySelector(".react-grid-layout");
 
   if (!gridNode || !(gridNode instanceof HTMLElement)) {
-    console.warn("No dashboard content found", selector);
+    console.warn(t`No dashboard content found`, selector);
     return;
   }
 
@@ -111,10 +158,12 @@ export async function saveCurrentTabAsPdf({
       ? "white"
       : getValidBackgroundColor(rawBackgroundColor);
 
-  const { default: html2canvas } = await import("html2canvas-pro");
-  const { default: jspdf } = await import("jspdf");
+  const [{ default: html2canvas }, { default: jspdf }] = await Promise.all([
+    import("html2canvas-pro"),
+    import("jspdf"),
+  ]);
 
-  const scale = Math.min(window.devicePixelRatio || 1, MAX_SCALE);
+  const scale = getAdaptiveScale(contentWidth, totalHeight);
 
   const size = getBrandingSize(pageWidth);
   const brandingHeight = includeBranding ? getBrandingConfig(size).h : 0;
@@ -123,6 +172,9 @@ export async function saveCurrentTabAsPdf({
   document.body.classList.add(EXPORTING_CLASSNAME);
 
   try {
+    onPhase?.({ kind: "capturing" });
+    await yieldToBrowser();
+
     const image = await html2canvas(gridNode, {
       width: contentWidth,
       height: totalHeight,
@@ -150,6 +202,9 @@ export async function saveCurrentTabAsPdf({
       },
     });
 
+    onPhase?.({ kind: "building" });
+    await yieldToBrowser();
+
     const pdf = new jspdf({
       orientation,
       unit: "px",
@@ -166,11 +221,24 @@ export async function saveCurrentTabAsPdf({
       });
     }
 
-    pageRanges.forEach(({ startY, endY }, index) => {
+    for (let index = 0; index < pageRanges.length; index += 1) {
+      const { startY, endY } = pageRanges[index];
+
+      onPhase?.({
+        kind: "page",
+        current: index + 1,
+        total: pageRanges.length,
+      });
+      // Yield each iteration so the spinner/text can update without blocking.
+      await yieldToBrowser();
+
       const sliceHeight = endY - startY;
       const pageHeight =
         index === pageRanges.length - 1
-          ? Math.max(sliceHeight + PAGE_PADDING * 2 + yStartOffset, pageHeightTarget)
+          ? Math.max(
+              sliceHeight + PAGE_PADDING * 2 + yStartOffset,
+              pageHeightTarget,
+            )
           : pageHeightTarget;
 
       if (index > 0) {
@@ -186,7 +254,7 @@ export async function saveCurrentTabAsPdf({
 
       const ctx = pageCanvas.getContext("2d");
       if (!ctx) {
-        return;
+        continue;
       }
 
       ctx.drawImage(
@@ -209,7 +277,10 @@ export async function saveCurrentTabAsPdf({
         contentWidth,
         sliceHeight,
       );
-    });
+    }
+
+    onPhase?.({ kind: "saving" });
+    await yieldToBrowser();
 
     pdf.save(fileName);
   } finally {

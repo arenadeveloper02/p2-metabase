@@ -20,7 +20,6 @@ import {
   CELL_PADDING,
   DEFAULT_CELL_WIDTH,
   LEFT_HEADER_LEFT_SPACING,
-  MAX_HEADER_CELL_WIDTH,
   MAX_ROWS_TO_MEASURE,
   MIN_HEADER_CELL_WIDTH,
   ROW_TOGGLE_ICON_WIDTH,
@@ -152,15 +151,7 @@ export function getLeftHeaderWidths({
     const computedWidth =
       Math.max(computedHeaderWidth, computedCellWidth) + CELL_PADDING;
 
-    if (computedWidth > MAX_HEADER_CELL_WIDTH) {
-      return MAX_HEADER_CELL_WIDTH;
-    }
-
-    if (computedWidth < MIN_HEADER_CELL_WIDTH) {
-      return MIN_HEADER_CELL_WIDTH;
-    }
-
-    return computedWidth;
+    return Math.max(computedWidth, MIN_HEADER_CELL_WIDTH);
   });
 
   const total = sumArray(widths);
@@ -172,6 +163,75 @@ type ColumnValueInfo = {
   values: string[];
   hasSubtotal: boolean;
 };
+
+interface GetValueHeaderWidthsProps {
+  topHeaderItems: HeaderItem[];
+  font: { fontFamily?: string; fontSize?: string };
+  existingWidths?: CustomColumnWidth;
+}
+
+/**
+ * Returns the minimum width (in px) each value column must have so that no
+ * top-header label is truncated. For top-header items spanning multiple
+ * columns, the heading width is distributed evenly across the spanned columns.
+ */
+export function getValueHeaderFloors({
+  topHeaderItems,
+  font,
+}: Pick<GetValueHeaderWidthsProps, "topHeaderItems" | "font">): CustomColumnWidth {
+  const {
+    fontFamily = "var(--mb-default-font-family)",
+    fontSize = DEFAULT_METABASE_COMPONENT_THEME.pivotTable.cell.fontSize,
+  } = font ?? {};
+
+  const floors: CustomColumnWidth = {};
+
+  topHeaderItems.forEach((item) => {
+    const span = Math.max(item.span ?? 1, 1);
+    const measured = Math.ceil(
+      measureText(item.value ?? "", {
+        weight: "bold",
+        family: fontFamily,
+        size: fontSize,
+      }).width + CELL_PADDING,
+    );
+    const requiredPerCol = Math.ceil(measured / span);
+
+    for (let i = 0; i < span; i++) {
+      const colIdx = item.offset + i;
+      floors[colIdx] = Math.max(
+        floors[colIdx] ?? MIN_HEADER_CELL_WIDTH,
+        requiredPerCol,
+        MIN_HEADER_CELL_WIDTH,
+      );
+    }
+  });
+
+  return floors;
+}
+
+/**
+ * Computes initial value-column widths so each top-header label fits without
+ * being ellipsized. User-resized widths in `existingWidths` are preserved when
+ * they are wider than the heading floor.
+ */
+export function getValueHeaderWidths({
+  topHeaderItems,
+  font,
+  existingWidths = {},
+}: GetValueHeaderWidthsProps): CustomColumnWidth {
+  const floors = getValueHeaderFloors({ topHeaderItems, font });
+  const widths: CustomColumnWidth = { ...floors };
+
+  Object.entries(existingWidths).forEach(([key, value]) => {
+    const idx = Number(key);
+    if (Number.isFinite(idx) && typeof value === "number") {
+      widths[idx] = Math.max(widths[idx] ?? MIN_HEADER_CELL_WIDTH, value);
+    }
+  });
+
+  return widths;
+}
 
 export function getColumnValues(leftHeaderItems: HeaderItem[]) {
   const columnValues: ColumnValueInfo[] = [];

@@ -1,24 +1,20 @@
-import React from "react";
-import { t } from "ttag";
 import type { EChartsOption } from "echarts";
+import type React from "react";
+import { t } from "ttag";
 
-import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
+import { color } from "metabase/lib/colors";
 import { formatValue } from "metabase/lib/formatting";
-import { computeMaxDecimalsForValues } from "metabase/visualizations/lib/utils";
+import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
 import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
 import {
   getMarkerColorClass,
   getTooltipBaseOption,
 } from "metabase/visualizations/echarts/tooltip";
+import { computeMaxDecimalsForValues } from "metabase/visualizations/lib/utils";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 
-import {
-  DIMENSIONS,
-  OTHER_SLICE_KEY,
-  getOtherSliceName,
-  getTotalText,
-} from "../pie/constants";
+import { DIMENSIONS, getOtherSliceName, getTotalText } from "../pie/constants";
 
 export interface DoughnutDataPoint {
   name: string;
@@ -67,12 +63,16 @@ export function getDonutChartData(
   });
   
   // Generate candidate slices based on pieRows and hiddenSlices
-  let candidateSlices: DoughnutDataPoint[] = [];
+  const candidateSlices: DoughnutDataPoint[] = [];
 
   pieRows.forEach((row: any) => {
     const key = String(row.key);
-    if (hiddenSlices.has(key)) return; // Skip hidden logic from external Legend
-    if (!row.enabled || row.hidden) return; // Skip disabled config/legacy
+    if (hiddenSlices.has(key)) {
+      return;
+    }
+    if (!row.enabled || row.hidden) {
+      return;
+    }
 
     const value = dataMap.get(key) || 0;
     if (value > 0) {
@@ -118,7 +118,7 @@ export function getDonutChartData(
     keptSlices.push({
       name: getOtherSliceName(),
       value: otherVal,
-      itemStyle: { color: "#B8BBC3" },
+      itemStyle: { color: color("text-light") },
       children: pooledSlices,
     });
   }
@@ -149,7 +149,7 @@ export function getDonutChartData(
       otherSlice = {
         name: otherName,
         value: otherVal,
-        itemStyle: { color: "#B8BBC3" },
+        itemStyle: { color: color("text-light") },
         children: toPool.sort((a, b) => b.value - a.value),
       };
     }
@@ -160,8 +160,12 @@ export function getDonutChartData(
   // Final sort of kept slices (including "Other")
   keptSlices.sort((a, b) => {
     const otherName = getOtherSliceName();
-    if (a.name === otherName) return 1;
-    if (b.name === otherName) return -1;
+    if (a.name === otherName) {
+      return 1;
+    }
+    if (b.name === otherName) {
+      return -1;
+    }
     return b.value - a.value;
   });
 
@@ -326,10 +330,6 @@ export function getDoughnutChartOption(
   
   const actualWidth = width ?? 500;
   const actualHeight = height ?? 400;
-  
-  // Calculate specific pixel coordinates for the center graphic
-  const cx = actualWidth * 0.5;
-  const cy = actualHeight * 0.5;
 
   const minDim = Math.min(actualWidth, actualHeight);
   // Adjust inner calculation to match the dynamic radius
@@ -360,7 +360,9 @@ export function getDoughnutChartOption(
                 fontSize: DIMENSIONS.total.valueFontSize,
                 fontWeight: DIMENSIONS.total.fontWeight,
                 align: "center",
-                fill: renderingContext?.getColor?.("text-primary") || "#000",
+                fill:
+                  renderingContext?.getColor?.("text-primary") ||
+                  color("text-primary"),
                 width: textMaxWidth,
                 overflow: "truncate",
                 ellipsis: "...",
@@ -376,7 +378,9 @@ export function getDoughnutChartOption(
                 fontSize: DIMENSIONS.total.labelFontSize,
                 fontWeight: DIMENSIONS.total.fontWeight,
                 align: "center",
-                fill: renderingContext?.getColor?.("text-secondary") || "#949AAB",
+                fill:
+                  renderingContext?.getColor?.("text-secondary") ||
+                  color("text-secondary"),
                 width: textMaxWidth,
                 overflow: "truncate",
                 ellipsis: "...",
@@ -396,7 +400,7 @@ export function getDoughnutChartOption(
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 10,
-          borderColor: "#fff",
+          borderColor: color("white"),
           borderWidth: 2,
         },
         label: {

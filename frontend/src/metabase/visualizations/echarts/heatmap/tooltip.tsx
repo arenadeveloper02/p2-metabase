@@ -1,13 +1,13 @@
 import type { TooltipOption } from "echarts/types/dist/shared";
 import type React from "react";
 
-import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
 import { formatValue } from "metabase/lib/formatting";
+import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
 import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import { getTooltipBaseOption } from "../tooltip";
-
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
+
+import { getTooltipBaseOption } from "../tooltip";
 
 interface HeatmapTooltipProps {
   xValue: string;

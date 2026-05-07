@@ -38,8 +38,12 @@ export const ROW_CHART_SETTINGS = {
     },
   },
   "bar.modern_design": {
-    section: t`Display`,
-    title: t`Gradient`,
+    get section() {
+      return t`Display`;
+    },
+    get title() {
+      return t`Gradient`;
+    },
     widget: "toggle",
     default: false,
     inline: true,

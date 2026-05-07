@@ -262,8 +262,7 @@ export const BodyCell = ({
               onClick={getCellClickHandler(clicked)}
               backgroundColor={
                 !isGrandTotal && isSubtotal && !bottomBackgroundColor
-                  ? // eslint-disable-next-line no-color-literals
-                    "#f3f2f3"
+                  ? "#f3f2f3"
                   : bottomBackgroundColor
                     ? bottomBackgroundColor
                     : backgroundColor

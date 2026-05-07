@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useSet } from "react-use";
 
+import { color } from "metabase/lib/colors";
 import { isNotNull } from "metabase/lib/types";
 import { extractRemappings } from "metabase/visualizations";
 import { ChartWithLegend } from "metabase/visualizations/components/ChartWithLegend";
@@ -19,21 +20,15 @@ import { getPieChartOption } from "metabase/visualizations/echarts/pie/option";
 import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
 import { getArrayFromMapValues } from "metabase/visualizations/echarts/pie/util";
 import {
-  OTHER_SLICE_KEY,
-  getOtherSliceName,
-} from "metabase/visualizations/echarts/pie/constants";
-import {
   getDonutChartData,
   getDoughnutChartOption,
 } from "metabase/visualizations/echarts/pie-doughnut/option";
 import {
-  useCloseTooltipOnScroll,
   useInjectSeriesColorsClasses,
   usePieChartValuesColorsClasses,
 } from "metabase/visualizations/echarts/tooltip";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import type { VisualizationProps } from "metabase/visualizations/types";
-import { useTooltipMouseLeave } from "metabase/visualizations/visualizations/CartesianChart/use-tooltip-mouse-leave";
 
 import S from "./PieChart.module.css";
 import { PIE_CHART_DEFINITION } from "./chart-definition";
@@ -198,13 +193,16 @@ export function PieChart(props: VisualizationProps) {
 
   const showLegend = settings["pie.show_legend"];
 
-  const onHoverChange = (hoverData: any) =>
-    props.onHoverChange(
-      hoverData && {
-        ...hoverData,
-        pieLegendHoverIndex: hoverData.index,
-      },
-    );
+  const onHoverChange = useCallback(
+    (hoverData: any) =>
+      props.onHoverChange(
+        hoverData && {
+          ...hoverData,
+          pieLegendHoverIndex: hoverData.index,
+        },
+      ),
+    [props],
+  );
 
   const handleToggleSeriesVisibility = (
     _event: MouseEvent,
@@ -232,8 +230,9 @@ export function PieChart(props: VisualizationProps) {
   // Calculate Full Data (ignoring hidden state) for the Legend List
   // This ensures Legend shows the "Top 20" structure even if some are hidden.
   const fullDonutData = useMemo(() => {
-    if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings)
+    if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings) {
       return null;
+    }
     return getDonutChartData(rawSeriesWithRemappings, settings, new Set());
   }, [rawSeriesWithRemappings, settings]);
 
@@ -255,7 +254,14 @@ export function PieChart(props: VisualizationProps) {
       hoveredName,
       renderingContext,
     );
-  }, [donutData, settings, chartSize, props.hovered, fullDonutData]);
+  }, [
+    donutData,
+    settings,
+    chartSize,
+    props.hovered,
+    fullDonutData,
+    renderingContext,
+  ]);
 
 
   // Create event handlers for classic doughnut
@@ -266,8 +272,10 @@ export function PieChart(props: VisualizationProps) {
       {
         eventName: "click",
         handler: (params: any) => {
-           // Ensure we only handle clicks on series items
-           if (params.componentType !== "series") return;
+          // Ensure we only handle clicks on series items
+          if (params.componentType !== "series") {
+            return;
+          }
 
             const sliceName = params.name;
             const pieRow = pieRows.find(
@@ -367,105 +375,104 @@ export function PieChart(props: VisualizationProps) {
 
 
   const classicLegendItems = useMemo(() => {
-      // Use fullDonutData to populate legend so it matches the "Top 20 + Other" logic
-      if (!fullDonutData) return [[], [], []];
-      
-      const { data, total, metricCol, metricColSettings } = fullDonutData;
-      const titles: string[][] = [];
-      const colors: string[] = [];
-      const hiddenIndices: number[] = [];
-      
-      const showPercentInLegend =
-        settings["pie.percent_visibility"] === "legend" ||
-        settings["pie.percent_visibility"] === "both";
+    if (!fullDonutData) {
+      return [[], [], []];
+    }
 
-      // Helper to format percentage
-      // We reusing logic from option.tsx implicitly or simple math
-      // option.tsx uses complex formatter. We can approximate or use basic.
-      // User wants "Value" too? Image 2 shows "Aditya ... 3.66%". Just percent?
-      // Standard legend usually shows Value if configured?
-      // The image shows "Name    Percent".
-      // Let's check settings["pie.show_legend"] behavior.
-      
-      data.forEach((slice, i) => {
-          const name = slice.name;
-          const color = slice.itemStyle?.color || "#B8BBC3"; // Fallback
-          
-          colors.push(color);
-          
-          if (hiddenSlices.has(slice.name)) { // Name-based hiding for generated slices
-             hiddenIndices.push(i);
-          } else if (slice.name === getOtherSliceName()) {
-             // "Other" might be special?
-          }
-          
-          // Build Title [Name, Percent?]
-          const titleParts = [name];
-          if (showPercentInLegend) {
-               const pct = total > 0 ? slice.value / total : 0;
-               // Simple percent formatting
-               const decimals = settings["pie.decimal_places"] ?? 2;
-               titleParts.push((pct * 100).toFixed(decimals) + "%");
-          }
-          titles.push(titleParts);
-      });
-      
-      return [titles, colors, hiddenIndices];
+    const { data, total } = fullDonutData;
+    const titles: string[][] = [];
+    const colors: string[] = [];
+    const hiddenIndices: number[] = [];
+
+    const showPercentInLegend =
+      settings["pie.percent_visibility"] === "legend" ||
+      settings["pie.percent_visibility"] === "both";
+
+    data.forEach((slice, i) => {
+      const name = slice.name;
+      const sliceColor = slice.itemStyle?.color || color("text-light");
+
+      colors.push(sliceColor);
+
+      if (hiddenSlices.has(slice.name)) {
+        hiddenIndices.push(i);
+      }
+
+      const titleParts = [name];
+      if (showPercentInLegend) {
+        const pct = total > 0 ? slice.value / total : 0;
+        const decimals = settings["pie.decimal_places"] ?? 2;
+        titleParts.push((pct * 100).toFixed(decimals) + "%");
+      }
+      titles.push(titleParts);
+    });
+
+    return [titles, colors, hiddenIndices];
   }, [fullDonutData, settings, hiddenSlices]);
 
   // Handle Legend Hover Highlighting for Classic Donut
   // Since we disabled useChartEvents, we handle this manually using chartRef
   useEffect(() => {
-      if (settings["pie.type"] !== "donut-classic") return;
-      const hoverIndex = props.hovered?.pieLegendHoverIndex;
-      const chart = chartRef.current;
-      
-      if (!chart || !fullDonutData) return;
-      
-      if (hoverIndex != null) {
-          const sliceName = fullDonutData.data[hoverIndex]?.name;
-          if (sliceName) {
-            chart.dispatchAction({
-                type: "highlight",
-                name: sliceName,
-            });
-            return () => {
-                chart.dispatchAction({
-                    type: "downplay",
-                    name: sliceName,
-                });
-            };
-          }
+    if (settings["pie.type"] !== "donut-classic") {
+      return;
+    }
+    const hoverIndex = props.hovered?.pieLegendHoverIndex;
+    const chart = chartRef.current;
+
+    if (!chart || !fullDonutData) {
+      return;
+    }
+
+    if (hoverIndex != null) {
+      const sliceName = fullDonutData.data[hoverIndex]?.name;
+      if (sliceName) {
+        chart.dispatchAction({
+          type: "highlight",
+          name: sliceName,
+        });
+        return () => {
+          chart.dispatchAction({
+            type: "downplay",
+            name: sliceName,
+          });
+        };
       }
+    }
   }, [props.hovered?.pieLegendHoverIndex, settings, fullDonutData]);
 
   // Render classic doughnut if selected
   if (settings["pie.type"] === "donut-classic") {
-       if (!doughnutOption) return null;
-       const [titles, colors, hiddenIndices] = classicLegendItems as [string[][], string[], number[]];
-              return (
-         <ChartWithLegend
-           key="donut-classic"
-           legendTitles={titles}
-           legendHiddenIndices={hiddenIndices}
-           legendColors={colors}
-           showLegend={showLegend}
-           onHoverChange={onHoverChange}
-           className={props.className}
-           chartClassName={S.PieChartContainer}
-           gridSize={props.gridSize}
-           legendPosition={settings["pie.legend_position"]}
-           aspectRatio={1.2}
-          hovered={props.hovered}
-          isDashboard={isDashboard}
-          onToggleSeriesVisibility={(e, index) => {
-              if (fullDonutData && index < fullDonutData.data.length) {
-                  const key = fullDonutData.data[index].name;
-                  toggleSliceVisibility(key);
-              }
-          }}
-          isDocument={isDocument}
-        >
+    if (!doughnutOption) {
+      return null;
+    }
+    const [titles, donutLegendColors, hiddenIndices] = classicLegendItems as [
+      string[][],
+      string[],
+      number[],
+    ];
+    return (
+      <ChartWithLegend
+        key="donut-classic"
+        legendTitles={titles}
+        legendHiddenIndices={hiddenIndices}
+        legendColors={donutLegendColors}
+        showLegend={showLegend}
+        onHoverChange={onHoverChange}
+        className={props.className}
+        chartClassName={S.PieChartContainer}
+        gridSize={props.gridSize}
+        legendPosition={settings["pie.legend_position"]}
+        aspectRatio={1.2}
+        hovered={props.hovered}
+        isDashboard={isDashboard}
+        onToggleSeriesVisibility={(_e, index) => {
+          if (fullDonutData && index < fullDonutData.data.length) {
+            const key = fullDonutData.data[index].name;
+            toggleSliceVisibility(key);
+          }
+        }}
+        isDocument={isDocument}
+      >
         <ResponsiveEChartsRenderer
           option={doughnutOption}
           onInit={handleInit}

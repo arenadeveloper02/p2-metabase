@@ -9,7 +9,7 @@ import {
 } from "metabase/visualizations/lib/save-dashboard-pdf";
 import type { Dashboard } from "metabase-types/api";
 
-const handleClick = async (dashboard: Dashboard, includeBranding: boolean) => {
+const handleClick = async (dashboard: Dashboard, _includeBranding: boolean) => {
   const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
   await saveDashboardPdfAsSinglePage(cardNodeSelector, dashboard.name).then(
     () => {

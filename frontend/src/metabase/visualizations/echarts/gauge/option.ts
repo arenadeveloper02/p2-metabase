@@ -5,13 +5,13 @@ import { formatValue } from "metabase/lib/formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 
-const ANIMATION_DURATION = 1000;
-const ANIMATION_EASING = "quarticInOut";
-const VAL_ON_RADIAN_MAX = 100; // Use 100 as max for percentage
-const OUTER_RADIUS = 200;
-const INNER_RADIUS = 170;
-const POINTER_INNER_RADIUS = 40;
-const INSIDE_PANEL_RADIUS = 140;
+const _ANIMATION_DURATION = 1000;
+const _ANIMATION_EASING = "quarticInOut";
+const _VAL_ON_RADIAN_MAX = 100;
+const _OUTER_RADIUS = 200;
+const _INNER_RADIUS = 170;
+const _POINTER_INNER_RADIUS = 40;
+const _INSIDE_PANEL_RADIUS = 140;
 
 
 

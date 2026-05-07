@@ -22,14 +22,14 @@ interface FunnelTooltipProps {
 }
 
 const FunnelTooltipContent = ({
-  dimensionName,
+  dimensionName: _dimensionName,
   dimensionValue,
   metricName,
   metricValue,
   metricCol,
   metricColSettings,
   previousValue,
-  initialValue,
+  initialValue: _initialValue,
 }: FunnelTooltipProps) => {
   const formatMetricValue = (value: number): string => {
     const formatted = formatValue(value, {
