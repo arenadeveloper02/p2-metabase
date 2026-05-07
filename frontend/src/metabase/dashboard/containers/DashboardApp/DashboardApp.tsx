@@ -25,7 +25,10 @@ import {
   DashboardContextProvider,
   useDashboardContext,
 } from "metabase/dashboard/context";
-import { useDashboardUrlQuery } from "metabase/dashboard/hooks";
+import {
+  useDashboardUrlQuery,
+  useDefaultWeekDateRanges,
+} from "metabase/dashboard/hooks";
 import { useAutoScrollToDashcard } from "metabase/dashboard/hooks/use-auto-scroll-to-dashcard";
 import {
   usePageTitle,
@@ -61,6 +64,7 @@ function DashboardAppInner({
   children,
 }: DashboardAppInnerProps) {
   useDashboardLocationSync({ location });
+  useDefaultWeekDateRanges();
   const pageFavicon = useSelector(getFavicon);
   useFavicon({ favicon: pageFavicon });
   useSlowCardNotification();

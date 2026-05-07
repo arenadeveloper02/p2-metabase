@@ -1,9 +1,7 @@
-import dayjs from "dayjs";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { t } from "ttag";
 
-import "metabase/lib/dayjs";
 import {
   DateRangePicker,
   type DateRangePickerValue,
@@ -12,13 +10,17 @@ import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
+import {
+  type WeekDefaultPreset,
+  getWeekDateRange,
+} from "metabase/querying/parameters/utils/week-defaults";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
 type DateRangeWidgetProps = {
   value: ParameterValueOrArray | null | undefined;
   submitButtonLabel?: string;
-  defaultPreset?: "last-completed-week" | "previous-week";
+  defaultPreset?: WeekDefaultPreset;
   onChange: (value: string) => void;
 };
 
@@ -63,28 +65,9 @@ function getPickerValue(
     .otherwise(() => undefined);
 }
 
-function getPickerDefaultValue(
-  preset: DateRangeWidgetProps["defaultPreset"],
-): DateRangePickerValue {
-  const currentWeekStart = dayjs().startOf("isoWeek");
-
-  if (preset === "last-completed-week") {
-    const start = currentWeekStart.subtract(1, "week").startOf("date");
-    return { dateRange: [start.toDate(), start.add(6, "day").toDate()], hasTime: false };
-  }
-
-  if (preset === "previous-week") {
-    const start = currentWeekStart.subtract(2, "week").startOf("date");
-    return { dateRange: [start.toDate(), start.add(6, "day").toDate()], hasTime: false };
-  }
-
-  return {
-    dateRange: [
-      currentWeekStart.subtract(1, "week").startOf("date").toDate(),
-      currentWeekStart.subtract(1, "week").startOf("date").add(6, "day").toDate(),
-    ],
-    hasTime: false,
-  };
+function getPickerDefaultValue(preset: WeekDefaultPreset): DateRangePickerValue {
+  const { start, end } = getWeekDateRange(preset);
+  return { dateRange: [start, end], hasTime: false };
 }
 
 function getWidgetValue({ dateRange, hasTime }: DateRangePickerValue) {

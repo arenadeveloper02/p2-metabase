@@ -9,6 +9,7 @@ import { DateQuarterYearWidget } from "metabase/querying/parameters/components/D
 import { DateRangeWidget } from "metabase/querying/parameters/components/DateRangeWidget";
 import { DateRelativeWidget } from "metabase/querying/parameters/components/DateRelativeWidget";
 import { DateSingleWidget } from "metabase/querying/parameters/components/DateSingleWidget";
+import { getDateRangeDefaultPresetForParameter } from "metabase/querying/parameters/utils/week-defaults";
 import type {
   FieldFilterUiParameter,
   UiParameter,
@@ -85,7 +86,7 @@ export const ParameterDropdownWidget = ({
           submitButtonLabel={value ? t`Update filter` : t`Add filter`}
           defaultPreset={
             isDashboardDateRange
-              ? getDateRangeDefaultPreset(parameter)
+              ? getDateRangeDefaultPresetForParameter(parameter)
               : undefined
           }
           onChange={(value) => {
@@ -199,22 +200,3 @@ function isFieldWidget(
     : canQuery || hasFields(parameter);
 }
 
-function getDateRangeDefaultPreset(parameter: UiParameter) {
-  const normalizedNames = [
-    parameter.slug,
-    parameter.name,
-    parameter["display-name"],
-  ]
-    .filter((name): name is string => Boolean(name))
-    .map((name) => name.toLowerCase());
-
-  if (normalizedNames.some((name) => name.includes("previous"))) {
-    return "previous-week" as const;
-  }
-
-  if (normalizedNames.some((name) => name.includes("current"))) {
-    return "last-completed-week" as const;
-  }
-
-  return "last-completed-week" as const;
-}
