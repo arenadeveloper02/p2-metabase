@@ -834,7 +834,8 @@
   [:map
    ;; id can be negative, it indicates a new card and BE should create them
    [:id   ms/Int]
-   [:name ms/NonBlankString]])
+  [:name ms/NonBlankString]
+  [:is_shown {:optional true} :boolean]])
 
 (defn- track-dashcard-and-tab-events!
   [{dashboard-id :id :as dashboard}

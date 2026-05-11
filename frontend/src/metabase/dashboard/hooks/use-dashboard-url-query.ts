@@ -1,5 +1,5 @@
 import type { Location } from "history";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { InjectedRouter } from "react-router";
 import { push, replace } from "react-router-redux";
 import { usePrevious } from "react-use";
@@ -31,6 +31,7 @@ export function useDashboardUrlQuery(
   const siteUrl = useSetting("site-url");
 
   const dispatch = useDispatch();
+  const restoredDashboardIdRef = useRef<number | string | null>(null);
 
   const parameterValuesBySlug = useMemo(
     () => getParameterValuesBySlug(parameters),
@@ -49,6 +50,64 @@ export function useDashboardUrlQuery(
   }, [parameterValuesBySlug, tabs, selectedTab]);
 
   const previousQueryParams = usePrevious(queryParams);
+
+  useEffect(() => {
+    if (!dashboardId || !selectedTab) {
+      return;
+    }
+
+    const hasRealSelectedTab = selectedTab.id > 0;
+    if (!hasRealSelectedTab) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(
+        getDashboardTabSessionKey(dashboardId),
+        String(selectedTab.id),
+      );
+    } catch {
+      // Ignore storage errors (private browsing, security policies, etc.)
+    }
+  }, [dashboardId, selectedTab]);
+
+  useEffect(() => {
+    if (!dashboardId || tabs.length <= 1) {
+      return;
+    }
+
+    if (restoredDashboardIdRef.current === dashboardId) {
+      return;
+    }
+
+    const tabInUrl = parseTabId(location);
+    if (tabInUrl != null) {
+      restoredDashboardIdRef.current = dashboardId;
+      return;
+    }
+
+    let savedTabId: number | null = null;
+    try {
+      const value = window.sessionStorage.getItem(
+        getDashboardTabSessionKey(dashboardId),
+      );
+      savedTabId = value != null ? parseInt(value, 10) : null;
+    } catch {
+      restoredDashboardIdRef.current = dashboardId;
+      return;
+    }
+
+    const isValidTab =
+      savedTabId != null &&
+      Number.isSafeInteger(savedTabId) &&
+      tabs.some((tab) => tab.id === savedTabId && tab.is_shown !== false);
+
+    if (isValidTab && selectedTab?.id !== savedTabId) {
+      dispatch(selectTab({ tabId: savedTabId }));
+    }
+
+    restoredDashboardIdRef.current = dashboardId;
+  }, [dashboardId, tabs, location, selectedTab, dispatch]);
 
   useEffect(() => {
     /**
@@ -135,4 +194,8 @@ function parseTabId(location: Location) {
 
 function toLocationQuery(object: Record<string, any>) {
   return _.mapObject(object, (value) => (value == null ? "" : value));
+}
+
+function getDashboardTabSessionKey(dashboardId: number | string) {
+  return `mb:dashboard:selected-tab:${dashboardId}`;
 }

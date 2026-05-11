@@ -142,9 +142,10 @@ export const updateDashboardAndCards = createThunkAction(
         }));
       const tabsToUpdate = (dashboard.tabs ?? [])
         .filter((tab) => !tab.isRemoved)
-        .map(({ id, name }) => ({
+        .map(({ id, name, is_shown }) => ({
           id,
           name,
+          is_shown,
         }));
       await dispatch(
         Dashboards.actions.update({

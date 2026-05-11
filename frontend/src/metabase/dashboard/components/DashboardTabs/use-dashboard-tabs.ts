@@ -21,6 +21,7 @@ export function useDashboardTabs() {
     duplicateTab: duplicateTabAction,
     deleteTab: deleteTabAction,
     undoDeleteTab,
+    setTabShown: setTabShownAction,
     moveTab: moveTabAction,
     selectTab,
     renameTab,
@@ -67,12 +68,20 @@ export function useDashboardTabs() {
       destinationTabId: typeof overId === "number" ? overId : parseInt(overId),
     });
 
+  const setTabShown = (tabId: SelectedTabId, isShown: boolean) => {
+    if (tabId === null) {
+      throw Error("setTabShown was called but tab id is invalid");
+    }
+    setTabShownAction({ tabId, isShown });
+  };
+
   return {
     tabs,
     selectedTabId,
     createNewTab,
     duplicateTab,
     deleteTab,
+    setTabShown,
     renameTab: (tabId: SelectedTabId, name: string) =>
       renameTab({ tabId, name }),
     selectTab: (tabId: SelectedTabId) => selectTab({ tabId }),
