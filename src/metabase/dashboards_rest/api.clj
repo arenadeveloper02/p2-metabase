@@ -18,6 +18,7 @@
    [metabase.dashboards.models.dashboard :as dashboard]
    [metabase.dashboards.models.dashboard-card :as dashboard-card]
    [metabase.dashboards.models.dashboard-tab :as dashboard-tab]
+   [metabase.dashboard-pdf.jsreport :as dash-pdf]
    [metabase.dashboards.settings :as dashboards.settings]
    [metabase.eid-translation.core :as eid-translation]
    [metabase.embedding.validation :as embedding.validation]
@@ -622,6 +623,28 @@
           dashboard (get-dashboard resolved-id)]
       (u/prog1 (first (revisions/with-last-edit-info [dashboard] :dashboard))
         (events/publish-event! :event/dashboard-read {:object-id (:id dashboard) :user-id api/*current-user-id*})))))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :post "/:id/export/pdf-jsreport"
+  "Generate a PDF for a dashboard using jsreport (chrome-pdf) from print-oriented HTML produced by the client.
+
+  The request body must be JSON: `{\"html\": \"<!DOCTYPE html>...\", \"filename\": \"optional-name.pdf\"}`.
+
+  This endpoint does not scrape the interactive dashboard DOM; the client builds a dedicated print document (tables as
+  plain HTML, charts as static SVG from the static visualization pipeline) and posts it here for headless Chrome to
+  rasterize. Requires Node.js and jsreport dependencies at the Metabase application root (see `bin/jsreport-dashboard-pdf.cjs`)."
+  [{:keys [id]} :- [:map
+                    [:id [:or ms/PositiveInt ms/NanoIdString]]]
+   _query-params
+   {:keys [html filename]} :- [:map
+                                [:html ms/NonBlankString]
+                                [:filename {:optional true} [:maybe ms/NonBlankString]]]]
+  (let [resolved-id (eid-translation/->id-or-404 :dashboard id)]
+    (api/read-check :model/Dashboard resolved-id)
+    (dash-pdf/html->pdf-response (or filename (str "dashboard-" resolved-id ".pdf")) html)))
 
 ;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
 ;; use our API + we will need it when we make auto-TypeScript-signature generation happen

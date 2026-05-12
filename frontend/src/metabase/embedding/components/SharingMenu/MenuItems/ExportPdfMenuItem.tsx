@@ -1,26 +1,26 @@
-import { useHasTokenFeature } from "metabase/common/hooks";
 import { trackExportDashboardToPDF } from "metabase/dashboard/analytics";
-import { DASHBOARD_PDF_EXPORT_ROOT_ID } from "metabase/dashboard/constants";
+import { downloadDashboardPdfViaJsreport } from "metabase/dashboard/export/download-dashboard-pdf-jsreport";
 import { isWithinIframe } from "metabase/lib/dom";
+import { useStore } from "metabase/lib/redux";
 import { Icon, Menu } from "metabase/ui";
-import {
-  getExportTabAsPdfButtonText,
-  saveDashboardPdfAsSinglePage,
-} from "metabase/visualizations/lib/save-dashboard-pdf";
+import { getExportTabAsPdfButtonText } from "metabase/visualizations/lib/save-dashboard-pdf";
 import type { Dashboard } from "metabase-types/api";
 
-const handleClick = async (dashboard: Dashboard, includeBranding: boolean) => {
-  const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-  await saveDashboardPdfAsSinglePage(cardNodeSelector, dashboard.name).then(
-    () => {
+const usePdfExportHandler = (dashboard: Dashboard) => {
+  const store = useStore();
+  return async () => {
+    await downloadDashboardPdfViaJsreport({
+      dashboard,
+      getState: store.getState,
+    }).then(() => {
       trackExportDashboardToPDF({
         dashboardId: dashboard.id,
         dashboardAccessedVia: isWithinIframe()
           ? "interactive-iframe-embed"
           : "internal",
       });
-    },
-  );
+    });
+  };
 };
 
 export const ExportPdfMenuItem = ({
@@ -30,14 +30,13 @@ export const ExportPdfMenuItem = ({
   dashboard: Dashboard;
   loading?: boolean;
 }) => {
-  const isWhitelabeled = useHasTokenFeature("whitelabel");
-  const includeBranding = !isWhitelabeled;
+  const onExportPdf = usePdfExportHandler(dashboard);
 
   return (
     <Menu.Item
       data-testid="dashboard-export-pdf-button"
       leftSection={<Icon name="document" />}
-      onClick={() => handleClick(dashboard, includeBranding)}
+      onClick={() => void onExportPdf()}
       disabled={loading}
       style={loading ? { cursor: "wait" } : undefined}
     >

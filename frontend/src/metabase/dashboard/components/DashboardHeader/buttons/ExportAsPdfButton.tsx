@@ -3,27 +3,29 @@ import { match } from "ts-pattern";
 import { t } from "ttag";
 
 import { ToolbarButton } from "metabase/common/components/ToolbarButton";
-import { useHasTokenFeature } from "metabase/common/hooks";
 import {
   type DashboardAccessedVia,
   trackExportDashboardToPDF,
 } from "metabase/dashboard/analytics";
-import { DASHBOARD_PDF_EXPORT_ROOT_ID } from "metabase/dashboard/constants";
 import { useDashboardContext } from "metabase/dashboard/context/context";
+import { downloadDashboardPdfViaJsreport } from "metabase/dashboard/export/download-dashboard-pdf-jsreport";
+import { useStore } from "metabase/lib/redux";
 import { isJWT } from "metabase/lib/utils";
 import { isUuid } from "metabase/lib/uuid";
 import type { ActionIconProps } from "metabase/ui";
-import { saveDashboardPdfAsSinglePage } from "metabase/visualizations/lib/save-dashboard-pdf";
 
 export const ExportAsPdfButton = (
   props: ActionIconProps & ButtonHTMLAttributes<HTMLButtonElement>,
 ) => {
   const { dashboard } = useDashboardContext();
-  const isWhitelabeled = useHasTokenFeature("whitelabel");
-  const includeBranding = !isWhitelabeled;
+  const store = useStore();
 
-  const saveAsPDF = () => {
-    const dashboardAccessedVia = match(dashboard?.id)
+  const saveAsPDF = async () => {
+    if (!dashboard) {
+      return;
+    }
+
+    const dashboardAccessedVia = match(dashboard.id)
       .returnType<DashboardAccessedVia>()
       .when(isJWT, () => "static-embed")
       .when(isUuid, () => "public-link")
@@ -33,17 +35,20 @@ export const ExportAsPdfButton = (
       dashboardAccessedVia,
     });
 
-    const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-    return saveDashboardPdfAsSinglePage(
-      cardNodeSelector,
-      dashboard?.name ?? t`Exported dashboard`,
-    );
+    try {
+      await downloadDashboardPdfViaJsreport({
+        dashboard,
+        getState: store.getState,
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
     <ToolbarButton
       icon="download"
-      onClick={saveAsPDF}
+      onClick={() => void saveAsPDF()}
       tooltipLabel={t`Download as PDF`}
       tooltipPosition="bottom"
       data-testid="export-as-pdf-button"
