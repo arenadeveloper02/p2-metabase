@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, MouseEvent, Ref } from "react";
 import { forwardRef } from "react";
 
 import type { ActionIconProps, IconName, TooltipProps } from "metabase/ui";
-import { ActionIcon, Box, Icon, Tooltip } from "metabase/ui";
+import { ActionIcon, Icon, Tooltip } from "metabase/ui";
 
 export type ToolbarButtonProps = {
   icon?: IconName;
@@ -79,9 +79,11 @@ export const ToolbarButton = forwardRef(function ToolbarButton(
   if (!tooltipLabel) {
     return actionButton;
   }
+  // Tooltip must attach its ref to the real control. A wrapper Box collapses when the
+  // button uses position: absolute (e.g. embed frame compact PDF), which breaks placement.
   return (
     <Tooltip label={tooltipLabel} position={tooltipPosition}>
-      <Box>{actionButton}</Box>
+      {actionButton}
     </Tooltip>
   );
 });
