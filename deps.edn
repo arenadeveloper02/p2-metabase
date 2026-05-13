@@ -230,6 +230,8 @@
  {"metabase-maven-downloads" {:url "https://s3.amazonaws.com/metabase-maven-downloads"}
   "redshift" {:url "https://s3.amazonaws.com/redshift-maven-repository/release"}
   ;; for metabase/saml20-clj (Shibboleth retired Nexus paths; use current Maven layout — see https://shibboleth.atlassian.net/wiki/spaces/DEV/pages/2891317253)
+  ;; TODO: revisit and add proper comments. Original URL kept for reference:
+  ;; "opensaml" {:url "https://build.shibboleth.net/nexus/content/repositories/releases/"}
   "opensaml" {:url "https://build.shibboleth.net/maven/releases/"}}
 
  :aliases

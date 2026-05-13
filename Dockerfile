@@ -9,14 +9,42 @@ ARG VERSION
 
 WORKDIR /home/node
 
-RUN apt-get update && apt-get upgrade -y && apt-get install wget apt-transport-https gpg curl git -y \
-    && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null \
-    && echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list \
-    && apt-get update \
-    && apt install temurin-21-jdk -y \
-    && curl -O https://download.clojure.org/install/linux-install-1.12.0.1488.sh \
-    && chmod +x linux-install-1.12.0.1488.sh \
-    && ./linux-install-1.12.0.1488.sh
+# TODO: revisit and add proper comments. Original block (before HTTPS-apt rework) kept for reference:
+#
+# RUN apt-get update && apt-get upgrade -y && apt-get install wget apt-transport-https gpg curl git -y \
+#     && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null \
+#     && echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list \
+#     && apt-get update \
+#     && apt install temurin-21-jdk -y \
+#     && curl -O https://download.clojure.org/install/linux-install-1.12.0.1488.sh \
+#     && chmod +x linux-install-1.12.0.1488.sh \
+#     && ./linux-install-1.12.0.1488.sh
+
+# Use HTTPS for Debian mirrors: plain HTTP often hits "Bad header line" / timeouts behind proxies or
+# flaky paths to Fastly; without a full bullseye index, temurin-21-jdk deps (java-common, libxi6, …) stay uninstallable.
+RUN set -eux; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    printf '%s\n' \
+      'Acquire::Retries "5";' \
+      'Acquire::http::Pipeline-Depth "0";' \
+      > /etc/apt/apt.conf.d/80-docker; \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list; \
+    fi; \
+    if [ -d /etc/apt/sources.list.d ]; then \
+      find /etc/apt/sources.list.d -maxdepth 1 -type f \( -name '*.list' -o -name '*.sources' \) \
+        -exec sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' {} +; \
+    fi; \
+    apt-get update; \
+    apt-get upgrade -y; \
+    apt-get install -y --no-install-recommends ca-certificates wget gpg curl git; \
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
+    echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends temurin-21-jdk; \
+    curl -fsSL -O https://download.clojure.org/install/linux-install-1.12.0.1488.sh; \
+    chmod +x linux-install-1.12.0.1488.sh; \
+    ./linux-install-1.12.0.1488.sh
 
 COPY . .
 
