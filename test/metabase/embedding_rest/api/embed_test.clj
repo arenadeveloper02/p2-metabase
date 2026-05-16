@@ -574,6 +574,37 @@
       (is (=? successful-dashboard-info
               (client/client :get 200 (dashboard-url (:entity_id dash) dash)))))))
 
+(deftest embed-user-selected-tab-test
+  (with-embedding-enabled-and-new-secret-key!
+    (mt/with-temp [:model/Dashboard dash {:enable_embedding true}]
+      (mt/with-temp [:model/DashboardTab tab-1 {:dashboard_id (:id dash) :name "Tab 1" :position 0}
+                     :model/DashboardTab tab-2 {:dashboard_id (:id dash) :name "Weekly Summary" :position 1}]
+        (let [token (dash-token dash {:user_id "app-user-1"})]
+          (is (nil?
+               (client/client :put 204 (str (dashboard-url token) "/selected-tab")
+                                {:tab_id (:id tab-2)})))
+          (is (= {:tab_id   (:id tab-2)
+                  :tab_slug (str (:id tab-2) "-weekly-summary")}
+                 (client/client :get 200 (str (dashboard-url token) "/last-tab"))))
+          (is (nil? (client/client :get 200 (dashboard-url dash))))))))
+
+(deftest embed-user-selected-tab-requires-user-id-in-token
+  (with-embedding-enabled-and-new-secret-key!
+    (mt/with-temp [:model/Dashboard dash {:enable_embedding true}]
+      (mt/with-temp [:model/DashboardTab tab {:dashboard_id (:id dash) :name "Tab 1" :position 0}]
+        (is (= "Token is missing value for keypath user_id"
+               (client/client :put 400 (str (dashboard-url dash) "/selected-tab")
+                                {:tab_id (:id tab)})))))))
+
+(deftest embed-user-selected-tab-fails-when-embedding-disabled
+  (with-embedding-enabled-and-new-secret-key!
+    (mt/with-temp [:model/Dashboard dash
+                   :model/DashboardTab tab {:dashboard_id :dashboard/dash :name "Tab 1" :position 0}]
+      (let [token (dash-token dash {:user_id "app-user-1"})]
+        (is (= "Embedding is not enabled for this object."
+               (client/client :put 400 (str (dashboard-url token) "/selected-tab")
+                                {:tab_id (:id tab)})))))))
+
 (deftest bad-dashboard-id-fails
   (with-embedding-enabled-and-new-secret-key!
     (let [dashboard-url (str "embed/dashboard/" (sign {:resource {:dashboard "8"} :params   {}}))]

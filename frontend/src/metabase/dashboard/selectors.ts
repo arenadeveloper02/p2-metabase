@@ -612,20 +612,26 @@ export function getInitialSelectedTabId(
   isWebApp: boolean,
 ) {
   const pathname = window.location.pathname.replace(siteUrl, "");
-  const isDashboardUrl = pathname.includes("/dashboard/");
+  const isEmbedDashboardUrl = pathname.includes("/embed/dashboard/");
+  const isAppDashboardUrl =
+    pathname.includes("/dashboard/") && !isEmbedDashboardUrl;
+  const searchParams = new URLSearchParams(window.location.search);
+  const tabParam = searchParams.get("tab");
+  const tabIdFromUrl = tabParam ? parseInt(tabParam, 10) : null;
+  const hasTabInUrl =
+    tabIdFromUrl != null &&
+    dashboard.tabs?.some?.((tab) => tab.id === tabIdFromUrl);
 
-  if (isDashboardUrl) {
+  if (isEmbedDashboardUrl && hasTabInUrl) {
+    return tabIdFromUrl;
+  }
+
+  if (isAppDashboardUrl) {
     const dashboardSlug = pathname.replace("/dashboard/", "");
     const dashboardUrlId = Urls.extractEntityId(dashboardSlug);
     const isNavigationInProgress = dashboardUrlId !== dashboard.id;
-    if (!isNavigationInProgress || !isWebApp) {
-      const searchParams = new URLSearchParams(window.location.search);
-      const tabParam = searchParams.get("tab");
-      const tabId = tabParam ? parseInt(tabParam, 10) : null;
-      const hasTab = dashboard.tabs?.some?.((tab) => tab.id === tabId);
-      if (hasTab) {
-        return tabId;
-      }
+    if ((!isNavigationInProgress || !isWebApp) && hasTabInUrl) {
+      return tabIdFromUrl;
     }
   }
 

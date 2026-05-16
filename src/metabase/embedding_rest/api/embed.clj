@@ -17,6 +17,7 @@
   (:require
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
+   [metabase.dashboards.models.dashboard-embed-user-tab :as dashboard-embed-user-tab]
    [metabase.eid-translation.core :as eid-translation]
    [metabase.embedding-rest.api.common :as api.embed.common]
    [metabase.embedding.jwt :as embedding.jwt]
@@ -162,6 +163,46 @@
     (api.embed.common/check-embedding-enabled-for-dashboard (embedding.jwt/get-in-unsigned-token-or-throw unsigned [:resource :dashboard]))
     (u/prog1 (api.embed.common/dashboard-for-unsigned-token unsigned, :constraints [:enable_embedding true])
       (events/publish-event! :event/dashboard-read {:object-id (:id <>), :user-id api/*current-user-id*}))))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :put "/dashboard/:token/selected-tab"
+  "Persist the selected dashboard tab for a static embed viewer.
+
+  The external application user id must be present in the signed JWT as a top-level `user_id` key (not in `params`).
+
+  Token should include:
+
+    {:resource {:dashboard <dashboard-id>}
+     :user_id  <external-user-id>
+     :params   <parameters>}"
+  [{:keys [token]} :- [:map
+                       [:token api.embed.common/EncodedToken]]
+   _query-params
+   {:keys [tab_id]} :- [:map
+                         [:tab_id ms/PositiveInt]]]
+  (let [unsigned     (unsign-and-translate-ids token)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)
+        user-id      (dashboard-embed-user-tab/external-user-id-from-token unsigned)]
+    (dashboard-embed-user-tab/upsert-embed-user-tab! dashboard-id user-id tab_id)
+    api/generic-204-no-content))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :get "/dashboard/:token/last-tab"
+  "Return the last selected tab for the user in the embed JWT, for building `?tab=` in the embed URL.
+
+  Response is `null` when no tab has been saved yet. Requires top-level `user_id` in the JWT."
+  [{:keys [token]} :- [:map
+                       [:token api.embed.common/EncodedToken]]]
+  (let [unsigned     (unsign-and-translate-ids token)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)
+        user-id      (dashboard-embed-user-tab/external-user-id-from-token unsigned)]
+    (dashboard-embed-user-tab/get-embed-user-tab dashboard-id user-id)))
 
 (defn- process-query-for-dashcard-with-signed-token
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the

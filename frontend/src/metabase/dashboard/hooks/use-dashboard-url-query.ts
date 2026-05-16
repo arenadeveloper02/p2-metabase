@@ -18,7 +18,7 @@ import {
   getTabs,
   getValuePopulatedParameters,
 } from "../selectors";
-import { createTabSlug } from "../utils";
+import { createTabSlug, parseTabSlug } from "../utils";
 
 export function useDashboardUrlQuery(
   router: InjectedRouter,
@@ -80,7 +80,7 @@ export function useDashboardUrlQuery(
       return;
     }
 
-    const tabInUrl = parseTabId(location);
+    const tabInUrl = parseTabSlug(location);
     if (tabInUrl != null) {
       restoredDashboardIdRef.current = dashboardId;
       return;
@@ -121,7 +121,9 @@ export function useDashboardUrlQuery(
     }
 
     const pathname = location.pathname.replace(siteUrl, "");
-    const isDashboardUrl = pathname.startsWith("/dashboard/");
+    const isEmbedDashboardUrl = pathname.startsWith("/embed/dashboard/");
+    const isDashboardUrl =
+      pathname.startsWith("/dashboard/") && !isEmbedDashboardUrl;
     if (isDashboardUrl) {
       const dashboardSlug = pathname.replace("/dashboard/", "");
       const dashboardUrlId = Urls.extractEntityId(dashboardSlug);
@@ -169,8 +171,8 @@ export function useDashboardUrlQuery(
         return;
       }
 
-      const currentTabId = parseTabId(location);
-      const nextTabId = parseTabId(nextLocation);
+      const currentTabId = parseTabSlug(location);
+      const nextTabId = parseTabSlug(nextLocation);
 
       if (nextTabId && currentTabId !== nextTabId) {
         dispatch(selectTab({ tabId: nextTabId }));
@@ -182,15 +184,6 @@ export function useDashboardUrlQuery(
 }
 
 const QUERY_PARAMS_ALLOW_LIST = ["objectId"];
-
-function parseTabId(location: Location) {
-  const slug = location.query?.tab;
-  if (typeof slug === "string" && slug.length > 0) {
-    const id = parseInt(slug, 10);
-    return Number.isSafeInteger(id) ? id : null;
-  }
-  return null;
-}
 
 function toLocationQuery(object: Record<string, any>) {
   return _.mapObject(object, (value) => (value == null ? "" : value));
