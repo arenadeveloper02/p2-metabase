@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders, screen } from "__support__/ui";
+import { ROLLING_DATE_PRESETS } from "metabase/querying/filters/rolling-date-presets";
 import type { RelativeDatePickerValue } from "metabase/querying/filters/types";
 
 import { RelativeDateShortcutPicker } from "./RelativeDateShortcutPicker";
@@ -11,13 +12,13 @@ type TestCase = {
 };
 
 const TEST_CASES: TestCase[] = [
+  ...ROLLING_DATE_PRESETS.map((preset) => ({
+    label: preset.label,
+    value: preset.value,
+  })),
   {
     label: "Today",
     value: { type: "relative", value: 0, unit: "day" },
-  },
-  {
-    label: "Yesterday",
-    value: { type: "relative", value: -1, unit: "day" },
   },
   {
     label: "Previous 7 days",

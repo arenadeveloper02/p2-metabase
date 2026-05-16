@@ -306,6 +306,46 @@ describe("date parameters", () => {
       },
     },
     {
+      value: "past1weeks-from-1weeks",
+      expectedValue: {
+        type: "relative",
+        value: -1,
+        unit: "week",
+        offsetValue: -1,
+        offsetUnit: "week",
+      },
+    },
+    {
+      value: "past1months-from-1months",
+      expectedValue: {
+        type: "relative",
+        value: -1,
+        unit: "month",
+        offsetValue: -1,
+        offsetUnit: "month",
+      },
+    },
+    {
+      value: "past1quarters-from-1quarters",
+      expectedValue: {
+        type: "relative",
+        value: -1,
+        unit: "quarter",
+        offsetValue: -1,
+        offsetUnit: "quarter",
+      },
+    },
+    {
+      value: "past1years-from-1years",
+      expectedValue: {
+        type: "relative",
+        value: -1,
+        unit: "year",
+        offsetValue: -1,
+        offsetUnit: "year",
+      },
+    },
+    {
       value: "past10days-from-2months",
       expectedValue: {
         type: "relative",
