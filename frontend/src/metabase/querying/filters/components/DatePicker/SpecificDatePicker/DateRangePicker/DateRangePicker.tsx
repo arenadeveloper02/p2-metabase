@@ -12,6 +12,7 @@ import type { DateRangePickerValue } from "./types";
 export type DateRangePickerProps = {
   value: DateRangePickerValue;
   hasTimeToggle: boolean;
+  renderHeader?: () => ReactNode;
   renderSubmitButton?: () => ReactNode;
   onChange: (value: DateRangePickerValue) => void;
   onSubmit: () => void;
@@ -20,6 +21,7 @@ export type DateRangePickerProps = {
 export function DateRangePicker({
   value,
   hasTimeToggle,
+  renderHeader,
   renderSubmitButton = renderDefaultSubmitButton,
   onChange,
   onSubmit,
@@ -46,6 +48,7 @@ export function DateRangePicker({
   return (
     <form onSubmit={handleSubmit}>
       <Box p="md">
+        {renderHeader?.()}
         <DateRangePickerBody
           value={dateRange}
           hasTime={hasTime}
