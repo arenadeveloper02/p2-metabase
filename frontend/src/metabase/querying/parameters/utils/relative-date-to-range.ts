@@ -85,6 +85,16 @@ export function relativeDateValueToRange(
     return { start: anchor.toDate(), end: anchor.toDate() };
   }
 
+  if (unit === "day" && isPast && !includeCurrent && count === 1) {
+    const daysBefore =
+      1 +
+      (value.offsetValue != null && value.offsetUnit === "day"
+        ? Math.abs(value.offsetValue)
+        : 0);
+    const date = now.startOf("day").subtract(daysBefore, "day");
+    return { start: date.toDate(), end: date.toDate() };
+  }
+
   if (unit === "week" && isPast && !includeCurrent && count === 1) {
     const periodsBefore =
       value.offsetValue != null && value.offsetUnit === "week"
@@ -148,6 +158,14 @@ export function dateParameterValueToRange(
   }
 
   return null;
+}
+
+export function dateParameterValueToSingleDate(
+  value: ParameterValueOrArray | null | undefined,
+  now: Dayjs = dayjs(),
+): Date | null {
+  const range = dateParameterValueToRange(value, now);
+  return range?.start ?? null;
 }
 
 export function dateParameterValueToRangeString(

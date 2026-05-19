@@ -3,7 +3,10 @@ import {
   getDateFilterDisplayName,
 } from "metabase/querying/filters/utils/dates";
 import { deserializeDateParameterValue } from "metabase/querying/parameters/utils/parsing";
-import { dateParameterValueToRange } from "metabase/querying/parameters/utils/relative-date-to-range";
+import {
+  dateParameterValueToRange,
+  dateParameterValueToSingleDate,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 import type { Parameter } from "metabase-types/api";
 
 export function formatDateValue(
@@ -13,6 +16,23 @@ export function formatDateValue(
   const filter = deserializeDateParameterValue(value);
   if (filter == null) {
     return null;
+  }
+
+  if (parameter.type === "date/single") {
+    const date =
+      filter.type === "relative"
+        ? dateParameterValueToSingleDate(value)
+        : filter.type === "specific" && filter.operator === "="
+          ? filter.values[0]
+          : null;
+
+    if (date != null) {
+      const hasTime =
+        filter.type === "specific" && filter.operator === "="
+          ? filter.hasTime
+          : false;
+      return formatDate(date, hasTime);
+    }
   }
 
   if (parameter.type === "date/range") {

@@ -36,6 +36,26 @@ describe("relativeDateValueToRange", () => {
     );
   });
 
+  it("should resolve yesterday as a single day", () => {
+    expectRange(
+      { type: "relative", value: -1, unit: "day" },
+      { start: "2016-06-06", end: "2016-06-06" },
+    );
+  });
+
+  it("should resolve day before yesterday as a single day", () => {
+    expectRange(
+      {
+        type: "relative",
+        value: -1,
+        unit: "day",
+        offsetValue: -1,
+        offsetUnit: "day",
+      },
+      { start: "2016-06-05", end: "2016-06-05" },
+    );
+  });
+
   it("should resolve past days including current", () => {
     expectRange(
       {

@@ -191,6 +191,27 @@ describe("metabase/parameters/utils/formatting", () => {
       expect(formatParameterValue(123456789, parameter)).toEqual("A");
     });
 
+    describe("rolling single date display", () => {
+      beforeAll(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+      });
+
+      afterAll(() => {
+        jest.useRealTimers();
+      });
+
+      it("should format relative day presets as concrete dates", () => {
+        const parameter = createMockUiParameter({ type: "date/single" });
+        expect(formatParameterValue("past1days", parameter)).toEqual(
+          "June 6, 2016",
+        );
+        expect(
+          formatParameterValue("past1days-from-1days", parameter),
+        ).toEqual("June 5, 2016");
+      });
+    });
+
     describe("rolling date range display", () => {
       beforeAll(() => {
         jest.useFakeTimers();
