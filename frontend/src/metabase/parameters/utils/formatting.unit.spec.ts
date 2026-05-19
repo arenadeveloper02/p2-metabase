@@ -1,3 +1,5 @@
+import dayjs from "dayjs";
+
 import { createMockMetadata } from "__support__/metadata";
 import { checkNotNull } from "metabase/lib/types";
 import { createMockUiParameter } from "metabase-lib/v1/parameters/mock";
@@ -187,6 +189,38 @@ describe("metabase/parameters/utils/formatting", () => {
         fields: [remappedField],
       });
       expect(formatParameterValue(123456789, parameter)).toEqual("A");
+    });
+
+    describe("rolling date range display", () => {
+      beforeAll(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+        dayjs.updateLocale("en", { weekStart: 1 });
+      });
+
+      afterAll(() => {
+        jest.useRealTimers();
+      });
+
+      it("should format relative week presets as concrete date ranges", () => {
+        const parameter = createMockUiParameter({ type: "date/range" });
+        expect(formatParameterValue("past1weeks", parameter)).toEqual(
+          "May 30, 2016 - June 5, 2016",
+        );
+        expect(
+          formatParameterValue("past1weeks-from-1weeks", parameter),
+        ).toEqual("May 23, 2016 - May 29, 2016");
+      });
+
+      it("should format relative month presets as concrete date ranges", () => {
+        const parameter = createMockUiParameter({ type: "date/range" });
+        expect(formatParameterValue("past1months", parameter)).toEqual(
+          "May 1, 2016 - May 31, 2016",
+        );
+        expect(
+          formatParameterValue("past1months-from-1months", parameter),
+        ).toEqual("April 1, 2016 - April 30, 2016");
+      });
     });
   });
 });

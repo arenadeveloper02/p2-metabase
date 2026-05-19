@@ -1,8 +1,12 @@
 import { t } from "ttag";
 
+import { getRollingDatePresetShortcutOptions } from "metabase/querying/filters/rolling-date-presets";
 import type { ShortcutOption } from "metabase/querying/filters/types";
 
 import type { TypeOption } from "./types";
+
+const ROLLING_REPORT_SHORTCUT_OPTIONS: ShortcutOption[] =
+  getRollingDatePresetShortcutOptions();
 
 const DAY_WEEK_SHORTCUT_OPTIONS: ShortcutOption[] = [
   {
@@ -15,30 +19,6 @@ const DAY_WEEK_SHORTCUT_OPTIONS: ShortcutOption[] = [
       type: "relative",
       value: 0,
       unit: "day",
-    },
-  },
-  {
-    get label() {
-      return t`Yesterday`;
-    },
-    shortcut: "yesterday",
-    direction: "past",
-    value: {
-      type: "relative",
-      value: -1,
-      unit: "day",
-    },
-  },
-  {
-    get label() {
-      return t`Previous week`;
-    },
-    shortcut: "previous-week",
-    direction: "past",
-    value: {
-      type: "relative",
-      value: -1,
-      unit: "week",
     },
   },
   {
@@ -70,18 +50,6 @@ const DAY_WEEK_SHORTCUT_OPTIONS: ShortcutOption[] = [
 const MONTH_SHORTCUT_OPTIONS: ShortcutOption[] = [
   {
     get label() {
-      return t`Previous month`;
-    },
-    shortcut: "previous-month",
-    direction: "past",
-    value: {
-      type: "relative",
-      value: -1,
-      unit: "month",
-    },
-  },
-  {
-    get label() {
       return t`Previous 3 months`;
     },
     shortcut: "previous-3-months",
@@ -107,6 +75,7 @@ const MONTH_SHORTCUT_OPTIONS: ShortcutOption[] = [
 ];
 
 export const SHORTCUT_OPTION_GROUPS: ShortcutOption[][] = [
+  ROLLING_REPORT_SHORTCUT_OPTIONS,
   DAY_WEEK_SHORTCUT_OPTIONS,
   MONTH_SHORTCUT_OPTIONS,
 ];
