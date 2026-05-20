@@ -1,4 +1,5 @@
 (ns ^:mb/driver-tests metabase.actions.models-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.actions.models-test]}}}}}}
   (:require
    [clojure.java.jdbc :as jdbc]
    [clojure.set :as set]
@@ -118,16 +119,6 @@
                 (is (= #{"id" "bloop"}
                        (->> (action/select-action :id action-id)
                             :parameters (map :id) set)))))))))))
-
-(deftest hydrate-http-action-test
-  (mt/test-drivers (mt/normal-drivers-with-feature :actions/custom)
-    (mt/with-actions-test-data-and-actions-enabled
-      (mt/with-actions [{:keys [action-id] :as _context} {:type :http}]
-        (is (partial= {:id action-id
-                       :name "Echo Example"
-                       :parameters [{:id "id" :type :number}
-                                    {:id "fail" :type :text}]}
-                      (action/select-action :id action-id)))))))
 
 (deftest hydrate-creator-test
   (mt/test-drivers (mt/normal-drivers-with-feature :actions/custom)

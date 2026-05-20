@@ -8,6 +8,8 @@ import { Icon, Menu } from "metabase/ui";
 import { hasPremiumFeature } from "metabase-enterprise/settings";
 import type { Collection } from "metabase-types/api";
 
+import { isTenantCollection } from "../tenants/utils/utils";
+
 import { CollectionAuthorityLevelDisplay } from "./components/CollectionAuthorityLevelDisplay";
 import { CollectionAuthorityLevelIcon } from "./components/CollectionAuthorityLevelIcon";
 import { CollectionInstanceAnalyticsIcon } from "./components/CollectionInstanceAnalyticsIcon";
@@ -22,9 +24,9 @@ import { useGetDefaultCollectionId } from "./use-get-default-collection-id";
 import {
   filterOutItemsFromInstanceAnalytics,
   getCollectionType,
-  getIcon,
   isRegularCollection,
   isSyncedCollection,
+  useGetIcon,
 } from "./utils";
 
 /**
@@ -39,12 +41,17 @@ export function initializePlugin() {
     PLUGIN_COLLECTIONS.isRegularCollection = isRegularCollection;
     PLUGIN_COLLECTIONS.REGULAR_COLLECTION = REGULAR_COLLECTION;
     PLUGIN_COLLECTIONS.AUTHORITY_LEVEL = AUTHORITY_LEVELS;
-    PLUGIN_COLLECTIONS.getIcon = getIcon;
+    PLUGIN_COLLECTIONS.useGetIcon = useGetIcon;
 
     PLUGIN_COLLECTIONS.getAuthorityLevelMenuItems = (
       collection: Collection,
       onUpdate: (collection: Collection, values: Partial<Collection>) => void,
     ) => {
+      // Shared tenant collections cannot be marked as official
+      if (isTenantCollection(collection)) {
+        return [];
+      }
+
       if (isRegularCollection(collection)) {
         return [
           <Menu.Item

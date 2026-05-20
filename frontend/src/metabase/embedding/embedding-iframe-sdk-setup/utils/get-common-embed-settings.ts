@@ -51,7 +51,6 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
   > = ({ experience, isSsoEnabledAndConfigured, useExistingUserSession }) => {
   const isQuestionOrDashboardEmbed =
     isQuestionOrDashboardExperience(experience);
-  const isQuestionEmbed = experience === "chart";
 
   return {
     ...(isQuestionOrDashboardEmbed
@@ -68,8 +67,12 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
           useExistingUserSession:
             !isSsoEnabledAndConfigured || useExistingUserSession,
         }),
-    ...(isQuestionEmbed && {
-      // Currently, a chart should not have hidden parameters in non-guest embed mode
+    ...(isQuestionOrDashboardEmbed && {
+      // Reset hiddenParameters when switching from guest to SSO.
+      // This is needed because when recentlyCreatedDashboards populates the
+      // dashboardId or questionId, the embed wizard starts in guest mode and
+      // sets all parameters as disabled in hiddenParameters. Without this reset,
+      // the guest restrictions would carry over into SSO mode.
       hiddenParameters: [],
     }),
   };
@@ -77,7 +80,6 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
 
 export const getCommonEmbedSettings = ({
   experience,
-  isGuestEmbedsEnabled,
   isSsoEnabledAndConfigured,
   isGuest,
   useExistingUserSession,
@@ -92,7 +94,7 @@ export const getCommonEmbedSettings = ({
     PLUGIN_EMBEDDING_IFRAME_SDK_SETUP.isEnabled();
 
   if (isSimpleEmbedFeatureAvailable) {
-    return isGuestEmbedsEnabled && isGuest
+    return isGuest
       ? GET_ENABLE_GUEST_EMBED_SETTINGS({
           experience,
         })

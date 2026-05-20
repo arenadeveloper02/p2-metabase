@@ -76,8 +76,9 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
 
     it("should show the new name in the main app", () => {
       cy.visit("/");
-      cy.icon("gear").click();
-      H.popover().findByText(`About ${NEW_COMPANY_NAME}`).click();
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
+      H.getHelpSubmenu().findByText(`About ${NEW_COMPANY_NAME}`).click();
       H.modal()
         .findByText(`Thanks for using ${NEW_COMPANY_NAME}!`)
         .should("be.visible");
@@ -162,7 +163,7 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
       describe("login page illustration", () => {
         it(
           "should only allow uploading a valid image files (PNG, JPG, SVG) and display on login page",
-          { tags: "@smoke" },
+          { tags: "@prerelease" },
           () => {
             /**
              * Unfortunately, we couldn't test the browser file selector with Cypress yet.
@@ -461,7 +462,7 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
 
           cy.log("test custom illustration");
 
-          cy.findByTestId("admin-navbar").findByText("Exit admin").click();
+          H.goToMainApp();
           H.appBar().findByText("New").click();
           H.popover().findByText("Dashboard").click();
           H.modal().findByTestId("collection-picker-button").click();
@@ -494,7 +495,7 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
           }).click();
           H.selectDropdown().findByText("No illustration").click();
 
-          cy.findByTestId("admin-navbar").findByText("Exit admin").click();
+          H.goToMainApp();
           H.appBar().findByText("New").click();
           H.popover().findByText("Dashboard").click();
           H.modal().findByTestId("collection-picker-button").click();
@@ -552,33 +553,40 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
   });
 
   describe("font", () => {
-    const font = "Open Sans";
-
     beforeEach(() => {
       cy.log("Change Application Font");
       cy.signInAsAdmin();
     });
 
     it("should apply correct font", () => {
-      setApplicationFontTo(font);
+      setApplicationFontTo("Open Sans");
       cy.signInAsNormalUser();
       cy.visit("/");
-      cy.get("body").should("have.css", "font-family", `"${font}", sans-serif`);
+      cy.get("body").should(
+        "have.css",
+        "font-family",
+        '"Open Sans", Lato, sans-serif',
+      );
     });
 
     it("should be able to make multiple font changes (metabase#45486)", () => {
       cy.intercept("PUT", "/api/setting/application-font").as("saveFont");
-      const fonts = ["Lora", "Merriweather", "Montserrat", "Lato"];
+      const fontsWithExpectedFallback = [
+        ["Lora", "serif"],
+        ["Merriweather", "Lora, serif"],
+        ["Montserrat", "sans-serif"],
+        ["Lato", "Arial, sans-serif"],
+      ];
       cy.visit("/admin/settings/whitelabel/branding");
 
-      fonts.forEach((newFont) => {
+      fontsWithExpectedFallback.forEach(([newFont, fallback]) => {
         cy.findByLabelText("Font").click();
         H.selectDropdown().findByText(newFont).click();
         cy.wait("@saveFont");
         cy.get("body").should(
           "have.css",
           "font-family",
-          `${newFont}, sans-serif`,
+          `${newFont}, ${fallback}`,
         );
       });
     });
@@ -606,7 +614,8 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
       cy.signInAsNormalUser();
 
       cy.visit("/");
-      openSettingsMenu();
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
       helpLink().should("not.exist");
 
       cy.log("Set custom Help link");
@@ -635,7 +644,8 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
 
       cy.signInAsNormalUser();
       cy.visit("/");
-      openSettingsMenu();
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
       helpLink().should(
         "have.attr",
         "href",
@@ -654,7 +664,8 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
       cy.wait("@putHelpLink");
 
       cy.visit("/");
-      openSettingsMenu();
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
 
       helpLink()
         .should("have.attr", "href")
@@ -662,7 +673,8 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
 
       cy.signInAsNormalUser();
       cy.visit("/");
-      openSettingsMenu();
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
 
       helpLink()
         .should("have.attr", "href")
@@ -674,8 +686,8 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
 
       cy.signInAsNormalUser();
       cy.visit("/");
-      openSettingsMenu();
-
+      H.getProfileLink().click();
+      H.popover().findByText("Help").click();
       helpLink()
         .should("have.attr", "href")
         .and("include", "https://www.metabase.com/help?");
@@ -733,7 +745,7 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
         .blur();
       H.undoToast().findByText("Changes saved").should("be.visible");
 
-      cy.findByTestId("admin-navbar").findByText("Exit admin").click();
+      H.goToMainApp();
       cy.url().should("include", "/test-1");
     });
 
@@ -755,7 +767,7 @@ describe("formatting > whitelabel", { tags: "@EE" }, () => {
         .findByText("This field must be a relative URL.")
         .should("be.visible");
 
-      cy.findByTestId("admin-navbar").findByText("Exit admin").click();
+      H.goToMainApp();
       cy.url().should("include", "/test-2");
     });
   });
@@ -772,10 +784,8 @@ function setApplicationFontTo(font) {
   H.updateSetting("application-font", font);
 }
 
-const openSettingsMenu = () =>
-  H.appBar().findByRole("button", { name: "Settings" }).click();
-
-const helpLink = () => H.popover().findByRole("menuitem", { name: "Help" });
+const helpLink = () =>
+  H.getHelpSubmenu().findByRole("menuitem", { name: "Get help" });
 
 const getHelpLinkCustomDestinationInput = () =>
   cy.findByPlaceholderText("Enter a URL it should go to");

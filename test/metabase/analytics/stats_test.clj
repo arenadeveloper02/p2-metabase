@@ -10,6 +10,7 @@
    [metabase.channel.settings :as channel.settings]
    [metabase.config.core :as config]
    [metabase.core.core :as mbc]
+   [metabase.lib.core :as lib]
    [metabase.premium-features.settings :as premium-features.settings]
    [metabase.query-processor.util :as qp.util]
    [metabase.test :as mt]
@@ -87,8 +88,8 @@
     "250+"    5000))
 
 (deftest anonymous-usage-stats-test
-  (with-redefs [channel.settings/email-configured? (constantly false)
-                channel.settings/slack-configured? (constantly false)]
+  (mt/with-dynamic-fn-redefs [channel.settings/email-configured? (constantly false)
+                              channel.settings/slack-configured? (constantly false)]
     (mt/with-temporary-setting-values [site-name          "Metabase"
                                        startup-time-millis 1234.0
                                        google-auth-enabled false
@@ -125,8 +126,8 @@
 (deftest anonymous-usage-stats-test-ee-with-values-changed
   ; some settings are behind the whitelabel feature flag
   (mt/with-premium-features #{:whitelabel}
-    (with-redefs [channel.settings/email-configured? (constantly false)
-                  channel.settings/slack-configured? (constantly false)]
+    (mt/with-dynamic-fn-redefs [channel.settings/email-configured? (constantly false)
+                                channel.settings/slack-configured? (constantly false)]
       (mt/with-temporary-setting-values [site-name                   "My Company Analytics"
                                          startup-time-millis          1234.0
                                          google-auth-enabled          false
@@ -229,11 +230,12 @@
    :started_at   (t/offset-date-time)})
 
 (deftest new-impl-test
-  (mt/with-temp [:model/QueryExecution _ (merge query-execution-defaults
-                                                {:error "some error"})
-                 :model/QueryExecution _ (merge query-execution-defaults
-                                                {:error "some error"})
-                 :model/QueryExecution _ query-execution-defaults]
+  (mt/with-temp [:model/QueryExecution {id1 :id} (merge query-execution-defaults
+                                                        {:error "some error"})
+                 :model/QueryExecution {id2 :id} (merge query-execution-defaults
+                                                        {:error "some error"})
+                 :model/QueryExecution {id3 :id} query-execution-defaults]
+    (t2/delete! :model/QueryExecution :id [:not-in [id1 id2 id3]])
     (is (= (old-execution-metrics)
            (#'stats/execution-metrics))
         "the new version of the executions metrics works the same way the old one did")))
@@ -453,27 +455,27 @@
 
     (testing "csv-upload-available? currently detects upload availability based on the current MB version"
       (mt/with-temp [:model/Database _ {:engine :postgres}]
-        (with-redefs [config/current-major-version (constantly 46)
-                      config/current-minor-version (constantly 0)]
-          (is false? (@#'stats/csv-upload-available?)))
+        (mt/with-dynamic-fn-redefs [config/current-major-version (constantly 46)
+                                    config/current-minor-version (constantly 0)]
+          (is (false? (@#'stats/csv-upload-available?))))
 
-        (with-redefs [config/current-major-version (constantly 47)
-                      config/current-minor-version (constantly 1)]
-          (is true? (@#'stats/csv-upload-available?))))
+        (mt/with-dynamic-fn-redefs [config/current-major-version (constantly 47)
+                                    config/current-minor-version (constantly 1)]
+          (is (true? (@#'stats/csv-upload-available?))))))
 
-      (mt/with-temp [:model/Database _ {:engine :redshift}]
-        (with-redefs [config/current-major-version (constantly 49)
-                      config/current-minor-version (constantly 5)]
-          (is false? (@#'stats/csv-upload-available?)))
+    (mt/with-temp [:model/Database _ {:engine :redshift}]
+      (mt/with-dynamic-fn-redefs [config/current-major-version (constantly 49)
+                                  config/current-minor-version (constantly 5)]
+        (is (false? (@#'stats/csv-upload-available?))))
 
-        (with-redefs [config/current-major-version (constantly 49)
-                      config/current-minor-version (constantly 6)]
-          (is true? (@#'stats/csv-upload-available?))))
+      (mt/with-dynamic-fn-redefs [config/current-major-version (constantly 49)
+                                  config/current-minor-version (constantly 6)]
+        (is (true? (@#'stats/csv-upload-available?))))))
 
-      ;; If we can't detect the MB version, return nil
-      (with-redefs [config/current-major-version (constantly nil)
-                    config/current-minor-version (constantly nil)]
-        (is false? (@#'stats/csv-upload-available?))))))
+  ;; If we can't detect the MB version, return nil
+  (mt/with-dynamic-fn-redefs [config/current-major-version (constantly nil)
+                              config/current-minor-version (constantly nil)]
+    (is (false? (@#'stats/csv-upload-available?)))))
 
 (deftest starburst-legacy-test
   (testing "starburst with impersonation"
@@ -521,19 +523,19 @@
 
 (deftest deployment-model-test
   (testing "deployment model correctly reports cloud/docker/jar"
-    (with-redefs [premium-features.settings/is-hosted? (constantly true)]
+    (mt/with-dynamic-fn-redefs [premium-features.settings/is-hosted? (constantly true)]
       (is (= "cloud" (@#'stats/deployment-model))))
 
     ;; Lets just mock io/file to always return an existing (temp) file, to validate that we're doing a filesystem check
     ;; to determine whether we're in a Docker container
     (mt/with-temp-file [mock-file]
       (spit mock-file "Temp file!")
-      (with-redefs [premium-features.settings/is-hosted? (constantly false)
-                    io/file                              (constantly (java.io.File. mock-file))]
+      (mt/with-dynamic-fn-redefs [premium-features.settings/is-hosted? (constantly false)
+                                  io/file                              (constantly (java.io.File. mock-file))]
         (is (= "docker" (@#'stats/deployment-model)))))
 
-    (with-redefs [premium-features.settings/is-hosted? (constantly false)
-                  stats/in-docker?                     (constantly false)]
+    (mt/with-dynamic-fn-redefs [premium-features.settings/is-hosted? (constantly false)
+                                stats/in-docker?                     (constantly false)]
       (is (= "jar" (@#'stats/deployment-model))))))
 
 (deftest no-features-enabled-but-not-available-test
@@ -556,8 +558,9 @@
   or to this set, so that [[every-feature-is-accounted-for-test]] passes."
   #{:audit-app ;; tracked under :mb-analytics
     :collection-cleanup
+    :data-complexity-score
     :development-mode
-    :data-studio
+    :library
     :embedding
     :embedding-sdk
     :embedding-simple
@@ -565,12 +568,14 @@
     :enhancements
     :etl-connections
     :etl-connections-pg
-    :llm-autodescription
+    :offer-metabase-ai-managed
     :query-reference-validation
+    :metabase-ai-managed
+    :metabot-v3
     :cloud-custom-smtp
     :session-timeout-config
-    :offer-metabase-ai
-    :offer-metabase-ai-tiered})
+    :sso-oidc
+    :admin-security-center})
 
 (deftest every-feature-is-accounted-for-test
   (testing "Is every premium feature either tracked under the :features key, or intentionally excluded?"
@@ -639,3 +644,94 @@
         (is (=? {:documents {:total 2
                              :archived 1}}
                 (#'stats/document-metrics)))))))
+
+(deftest library-stats-test
+  (mt/with-empty-h2-app-db!
+    (testing "with no library collections"
+      (is (= {:library_data 0
+              :library_metrics 0}
+             (#'stats/library-stats))))
+
+    (testing "with library collections and data"
+      (mt/with-temp [:model/User       {user-id :id}         {:email      "test@example.com"
+                                                              :first_name "Test"
+                                                              :last_name  "User"}
+                     :model/Database   {db-id :id}           {:name   "Test DB"
+                                                              :engine :h2}
+                     :model/Collection {library-id :id}      {:name     "Library"
+                                                              :type     "library"
+                                                              :location "/"}
+                     :model/Collection {data-coll-id :id}    {:name     "Data"
+                                                              :type     "library-data"
+                                                              :location (format "/%d/" library-id)}
+                     :model/Collection {metrics-coll-id :id} {:name     "Metrics"
+                                                              :type     "library-metrics"
+                                                              :location (format "/%d/" library-id)}
+                     :model/Collection {sub-coll-id :id}     {:name     "Sub folder"
+                                                              :location (format "/%d/%d/" library-id metrics-coll-id)}
+                     ;; Published table in library-data collection
+                     :model/Table      _                     {:db_id         db-id
+                                                              :name          "published_table"
+                                                              :active        true
+                                                              :is_published  true
+                                                              :collection_id data-coll-id}
+                     ;; Unpublished table (should not count)
+                     :model/Table      _                     {:db_id        db-id
+                                                              :name         "unpublished_table"
+                                                              :active       true
+                                                              :is_published false}
+                     ;; Metric in library-metrics collection
+                     :model/Card       _                     {:name                   "Metric 1"
+                                                              :type                   :metric
+                                                              :collection_id          metrics-coll-id
+                                                              :creator_id             user-id
+                                                              :database_id            db-id
+                                                              :dataset_query          {}
+                                                              :display                :table
+                                                              :visualization_settings {}}
+                     ;; Metric in sub-collection of library-metrics (should count)
+                     :model/Card       _                     {:name                   "Metric 2"
+                                                              :type                   :metric
+                                                              :collection_id          sub-coll-id
+                                                              :creator_id             user-id
+                                                              :database_id            db-id
+                                                              :dataset_query          {}
+                                                              :display                :table
+                                                              :visualization_settings {}}
+                     ;; Metric outside library (should not count)
+                     :model/Card       _                     {:name                   "Metric 3"
+                                                              :type                   :metric
+                                                              :collection_id          nil
+                                                              :creator_id             user-id
+                                                              :database_id            db-id
+                                                              :dataset_query          {}
+                                                              :display                :table
+                                                              :visualization_settings {}}]
+        (is (= {:library_data 1
+                :library_metrics 2}
+               (#'stats/library-stats)))))))
+
+(deftest transform-metrics-test
+  (mt/with-empty-h2-app-db!
+    (testing "with no transforms"
+      (is (=? {:transforms 0 :transform_runs_last_24h 0}
+              (#'stats/transform-metrics))))
+    (testing "with transforms and recent runs"
+      (mt/with-temp [:model/Transform transform {:target {:database (mt/id)
+                                                          :table "test_table"}
+                                                 :name "Test SQL transform"
+                                                 :source {:type "query"
+                                                          :query (lib/native-query (mt/metadata-provider) "SELECT 1")}}
+                     :model/TransformRun _ {:start_time (t/minus (t/offset-date-time) (t/hours 1))
+                                            :transform_id (:id transform)}]
+        (is (=? {:transforms 1 :transform_runs_last_24h 1}
+                (#'stats/transform-metrics)))))
+    (testing "with old transform runs"
+      (mt/with-temp [:model/Transform transform {:target {:database (mt/id)
+                                                          :table "test_table"}
+                                                 :name "Test SQL transform"
+                                                 :source {:type "query"
+                                                          :query (lib/native-query (mt/metadata-provider) "SELECT 1")}}
+                     :model/TransformRun _ {:start_time (t/minus (t/offset-date-time) (t/hours 25))
+                                            :transform_id (:id transform)}]
+        (is (zero? (:transform_runs_last_24h (#'stats/transform-metrics))))))))

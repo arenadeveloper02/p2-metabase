@@ -7,6 +7,7 @@
    [metabase.driver :as driver]
    [metabase.driver-api.core :as driver-api]
    [metabase.driver.common.table-rows-sample :as table-rows-sample]
+   [metabase.driver.connection :as driver.conn]
    [metabase.driver.mongo.connection :as mongo.connection]
    [metabase.driver.mongo.conversion :as mongo.conversion]
    [metabase.driver.mongo.database :as mongo.db]
@@ -24,6 +25,7 @@
    [metabase.util.performance :refer [some mapv empty? get-in]]
    [taoensso.nippy :as nippy])
   (:import
+   (com.mongodb MongoCommandException MongoSecurityException)
    (com.mongodb.client MongoClient MongoDatabase)
    (org.bson.types Binary ObjectId)))
 
@@ -48,18 +50,25 @@
 
 (defmethod driver/can-connect? :mongo
   [_ db-details]
-  (mongo.connection/with-mongo-client [^MongoClient c db-details]
-    (let [db-names (mongo.util/list-database-names c)
-          db-name (mongo.db/db-name db-details)
-          db (mongo.util/database c db-name)
-          db-stats (mongo.util/run-command db {:dbStats 1} :keywordize true)]
-      (and
-       ;; 1. check db.dbStats command completes successfully
-       (= (float (:ok db-stats))
-          1.0)
-       ;; 2. check the database is actually on the server
-       ;; (this is required because (1) is true even if the database doesn't exist)
-       (boolean (some #(= % db-name) db-names))))))
+  (try
+    (mongo.connection/with-mongo-client [^MongoClient c db-details]
+      (let [db-names (mongo.util/list-database-names c)
+            db-name (mongo.db/db-name db-details)
+            db (mongo.util/database c db-name)
+            db-stats (mongo.util/run-command db {:dbStats 1} :keywordize true)]
+        (and
+         ;; 1. check db.dbStats command completes successfully
+         (= (float (:ok db-stats))
+            1.0)
+         ;; 2. check the database is actually on the server
+         ;; (this is required because (1) is true even if the database doesn't exist)
+         (boolean (some #(= % db-name) db-names)))))
+    (catch MongoSecurityException e
+      (let [cause (.getCause e)]
+        ;; the outer wrapper exception has a useless "Exception authenticating" message
+        (if (instance? MongoCommandException cause)
+          (throw cause)
+          (throw e))))))
 
 (defmethod driver/humanize-connection-error-message
   :mongo
@@ -180,7 +189,7 @@
   "Sequence of stages repeated in _search_ phase of [[describe-table-pipeline]]
     for [[describe-table-query-depth]] times.
 
-    Each repetion $unwinds documents having `val` of type \"object\", so those are __swapped__ for sequence
+    Each repetition $unwinds documents having `val` of type \"object\", so those are __swapped__ for sequence
     of their children.
 
     Documents with non-object val are left untouched.
@@ -370,16 +379,24 @@
 
 (defn- ftree->nested-fields
   "Create nested-fields structure suitable for :fields key of structure return by [[driver/describe-table]]. `ftree`
-  is a tree that represents sampled mongo documents. See the [[dbfields->ftree]] for details."
+  is a tree that represents sampled mongo documents. See the [[dbfields->ftree]] for details.
+
+  Each nested field is annotated with `:nfc-path` — the chain of names from the root document down to and
+  including the field's own name (matching the convention used by the sql-jdbc nested json paths)."
   [ftree]
-  (letfn [(ftree->nested-fields*
-            [ftree*]
-            (-> ftree*
-                (cond-> (contains? ftree* :children)
-                  (-> (update :children #(set (map ftree->nested-fields* (vals %))))
-                      (set/rename-keys {:children :nested-fields})))
-                (dissoc :index)))]
-    (:nested-fields (ftree->nested-fields* ftree))))
+  (letfn [(walk
+            [field ancestor-path]
+            (let [self-path (conj ancestor-path (:name field))]
+              (cond-> field
+                (seq ancestor-path)
+                (assoc :nfc-path self-path)
+                (contains? field :children)
+                (-> (update :children
+                            (fn [children]
+                              (set (map #(walk % self-path) (vals children)))))
+                    (set/rename-keys {:children :nested-fields}))
+                true (dissoc :index))))]
+    (set (map #(walk % []) (vals (:children ftree))))))
 
 (defn- fetch-dbfields-rff
   [_metadata]
@@ -440,39 +457,48 @@
                               :index-info                      false
                               :python-transforms               true
                               :transforms/python               true
-                              :database-routing                true}]
+                              :database-routing                true
+                              :workspace                       false}]
   (defmethod driver/database-supports? [:mongo feature] [_driver _feature _db] supported?))
 
 (defmethod driver/database-supports? [:mongo :schemas] [_driver _feat _db] false)
 
+(defn- dbms-version [database]
+  ;; avoid trying `:dbms_version` if `:dbms-version` is present but `nil`; this will cause snake-hating-map warnings
+  (when-let [k (some #(when (contains? database %)
+                        %)
+                     [:dbms-version
+                      :dbms_version])]
+    (get database k)))
+
 (defmethod driver/database-supports? [:mongo :window-functions/cumulative]
   [_driver _feat db]
-  (-> ((some-fn :dbms-version :dbms_version) db)
+  (-> (dbms-version db)
       :semantic-version
       (driver.u/semantic-version-gte [5])))
 
 (defmethod driver/database-supports? [:mongo :expressions]
   [_driver _feature db]
-  (-> ((some-fn :dbms-version :dbms_version) db)
+  (-> (dbms-version db)
       :semantic-version
       (driver.u/semantic-version-gte [4 2])))
 
 (defmethod driver/database-supports? [:mongo :date-arithmetics]
   [_driver _feature db]
-  (-> ((some-fn :dbms-version :dbms_version) db)
+  (-> (dbms-version db)
       :semantic-version
       (driver.u/semantic-version-gte [5])))
 
 (defmethod driver/database-supports? [:mongo :datetime-diff]
   [_driver _feature db]
-  (-> ((some-fn :dbms-version :dbms_version) db)
+  (-> (dbms-version db)
       :semantic-version
       (driver.u/semantic-version-gte [5])))
 
 (defmethod driver/database-supports? [:mongo :now]
   ;; The $$NOW aggregation expression was introduced in version 4.2.
   [_driver _feature db]
-  (-> ((some-fn :dbms-version :dbms_version) db)
+  (-> (dbms-version db)
       :semantic-version
       (driver.u/semantic-version-gte [4 2])))
 
@@ -598,7 +624,7 @@
 
 (defmethod driver/connection-spec :mongo
   [_driver database]
-  (:details database))
+  (driver.conn/effective-details database))
 
 (defmulti ^:private type->database-type
   "Internal type->database-type multimethod for MongoDB that dispatches on type."

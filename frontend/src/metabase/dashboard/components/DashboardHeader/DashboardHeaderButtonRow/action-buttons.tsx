@@ -1,4 +1,3 @@
-import { DashboardSharingMenu } from "metabase/embedding/components/SharingMenu/DashboardSharingMenu";
 import { Center, Divider } from "metabase/ui";
 
 import { DashboardBookmark } from "../../DashboardBookmark";
@@ -20,7 +19,9 @@ import {
 } from "../buttons";
 import { AddLinkOrEmbedButton } from "../buttons/AddLinkOrEmbedButton";
 import { DashboardSubscriptionsButton } from "../buttons/DashboardSubscriptionsButton";
+import { RefreshIndicator } from "../buttons/RefreshIndicator";
 
+import { DashboardSharingMenu } from "./DashboardSharingMenu/DashboardSharingMenu";
 import { DASHBOARD_ACTION } from "./dashboard-action-keys";
 import type { DashboardActionButton, DashboardActionKey } from "./types";
 
@@ -134,5 +135,9 @@ export const dashboardActionButtons: Record<
   [DASHBOARD_ACTION.DASHBOARD_SUBSCRIPTIONS]: {
     enabled: ({ withSubscriptions }) => withSubscriptions,
     component: () => <DashboardSubscriptionsButton />,
+  },
+  [DASHBOARD_ACTION.REFRESH_INDICATOR]: {
+    enabled: ({ refreshPeriod }) => refreshPeriod != null && refreshPeriod > 0,
+    component: () => <RefreshIndicator />,
   },
 };

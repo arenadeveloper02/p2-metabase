@@ -136,6 +136,7 @@ describe("setup (OSS)", () => {
 
       expect(await getLastSettingsPutPayload()).toEqual({
         "embedding-homepage": "visible",
+        "setup-embedding-autoenabled": true,
         "setup-license-active-at-setup": false,
       });
     });
@@ -181,6 +182,7 @@ describe("setup (OSS)", () => {
 
       expect(flags).toEqual({
         "embedding-homepage": "visible",
+        "setup-embedding-autoenabled": true,
         "setup-license-active-at-setup": false,
       });
     });
@@ -236,7 +238,7 @@ describe("setup (OSS)", () => {
 
       await userEvent.click(screen.getByText("Finish"));
 
-      userEvent.click(screen.getByText("Take me to Metabase"));
+      await userEvent.click(screen.getByText("Take me to Metabase"));
 
       expect(window.navigator.sendBeacon).not.toHaveBeenCalled();
     });

@@ -66,6 +66,7 @@
                                                       :document_id
                                                       :last_used_at
                                                       :name
+                                                      :query_type
                                                       :type
                                                       :view_count
                                                       :created_at
@@ -95,12 +96,13 @@
 (deftest ^:parallel search-model-hooks-test-2
   ;; TODO replace real specs with frozen test ones once things have stabilized
   (is (= #:model{:Table      #{{:search-model "segment",
-                                :fields       #{:description :schema :name :db_id}
+                                :fields       #{:description :schema :name :db_id :display_name}
                                 :where        [:= :updated.id :this.table_id]}
                                {:search-model "table",
                                 :fields
                                 #{:active :description :schema :name :id :db_id :initial_sync_status :display_name
-                                  :visibility_type :view_count :created_at :updated_at :collection_id :is_published}
+                                  :visibility_type :view_count :created_at :updated_at :collection_id :is_published
+                                  :data_layer}
                                 :where        [:= :updated.id :this.id]}},
                  :Database   #{{:search-model "table"
                                 :fields #{:name :router_database_id}
@@ -127,7 +129,8 @@
   (is (= #{["table" [:= 123 :this.db_id]]
            ["database" [:= 123 :this.id]]}
          (search.spec/search-models-to-update (t2/instance :model/Database {:id 123 :name "databass"}))))
-  (is (= #{["segment" [:= 321 :this.table_id]]
+  (is (= #{["measure" [:= 321 :this.table_id]]
+           ["segment" [:= 321 :this.table_id]]
            ["table" [:= 321 :this.id]]}
          (search.spec/search-models-to-update (t2/instance :model/Table {:id 321 :name "turn-tables"})))))
 

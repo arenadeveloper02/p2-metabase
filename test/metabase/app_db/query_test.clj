@@ -1,12 +1,13 @@
 (ns metabase.app-db.query-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.app-db.query-test]}}}}}}
   (:require
    [clojure.set :as set]
    [clojure.string :as str]
    [clojure.test :refer :all]
    [metabase.app-db.format :as app-db.format]
    [metabase.app-db.query :as mdb.query]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]
    [metabase.util :as u]
    [toucan2.core :as t2])

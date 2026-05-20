@@ -5,13 +5,12 @@ import { jt, t } from "ttag";
 import _ from "underscore";
 
 import { useSearchQuery } from "metabase/api";
-import EmptyState from "metabase/common/components/EmptyState";
+import { EmptyState } from "metabase/common/components/EmptyState";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PaginationControls } from "metabase/common/components/PaginationControls";
 import { NoObjectError } from "metabase/common/components/errors/NoObjectError";
-import { Search } from "metabase/entities/search";
 import { usePageTitle } from "metabase/hooks/use-page-title";
-import { useDispatch } from "metabase/lib/redux";
+import { useDispatch } from "metabase/redux";
 import { SearchSidebar } from "metabase/search/components/SearchSidebar";
 import {
   SearchContextTypes,
@@ -89,9 +88,7 @@ function SearchApp({ location }) {
   };
 
   const { data, error, isFetching, requestId } = useSearchQuery(query);
-  const list = useMemo(() => {
-    return data?.data?.map((item) => Search.wrapEntity(item, dispatch)) ?? [];
-  }, [data, dispatch]);
+  const list = useMemo(() => data?.data ?? [], [data?.data]);
 
   return (
     <SearchMain direction="column" gap="2rem" m="auto" data-testid="search-app">
@@ -151,4 +148,5 @@ SearchApp.propTypes = {
   location: PropTypes.object,
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default SearchApp;

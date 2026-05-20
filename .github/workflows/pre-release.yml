@@ -25,17 +25,21 @@ on:
 
 jobs:
   test-mode-config:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.DEFAULT_RUNNER_KEY }}
     timeout-minutes: 5
     outputs:
       run_mode: ${{ fromJson(steps.config.outputs.result).runMode }}
       dev_server: ${{ fromJson(steps.config.outputs.result).metastoreDevServer }}
+      package_manager: ${{ fromJson(steps.config.outputs.result).packageManager }}
+      cypress_grep_flag: ${{ fromJson(steps.config.outputs.result).cypressGrepFlag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          sparse-checkout: release
-      - name: Prepare build scripts
-        run: cd ${{ github.workspace }}/release && yarn && yarn build
+          sparse-checkout: |
+            release
+            .github
+      - name: Prepare release scripts
+        uses: ./.github/actions/prepare-release-scripts
       # note: this block can be removed after we stop needing to be able to test versions before v55
       - name: Get test mode config
         id: config
@@ -48,17 +52,26 @@ jobs:
             // with v55 and later we use enterprise tokens that mirror actual Metabase plans
             const MULTIPLE_TEST_TOKEN_THRESHOLD = 55;
 
+            // Versions before v59 used yarn, v59 and later use bun
+            const BUN_PACKAGE_MANAGER_THRESHOLD = 59;
+
+            // Versions v60 and earlier ship with an older Cypress that only knows --env;
+            // v61 and later use --expose. (See CYPRESS_GREP_FLAG in run-sanity-check.)
+            const CYPRESS_EXPOSE_FLAG_THRESHOLD = 61;
+
             const version = '${{ inputs.version }}';
             const majorVersion = Number(getMajorVersion(version));
             const oldTestToken = majorVersion < MULTIPLE_TEST_TOKEN_THRESHOLD;
 
             return ({
               runMode: oldTestToken ? 'prod' : 'e2e',
-              metastoreDevServer: oldTestToken ? '' : '${{ vars.METASTORE_DEV_SERVER_URL }}'
+              metastoreDevServer: oldTestToken ? '' : '${{ vars.METASTORE_DEV_SERVER_URL }}',
+              packageManager: majorVersion < BUN_PACKAGE_MANAGER_THRESHOLD ? 'yarn' : 'bun',
+              cypressGrepFlag: majorVersion < CYPRESS_EXPOSE_FLAG_THRESHOLD ? '--env' : '--expose',
             });
 
   release-artifact:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.DEFAULT_RUNNER_KEY }}
     timeout-minutes: 10
     strategy:
       matrix:
@@ -68,13 +81,15 @@ jobs:
       oss_version: ${{ steps.version-properties.outputs.oss_version }}
       commit: ${{ steps.version-properties.outputs.commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: .github
-      - name: Retrieve test build uberjar artifact for ${{ matrix.edition }}
+      - name: Retrieve release uberjar artifact for ${{ matrix.edition }}
         uses: ./.github/actions/fetch-artifact
         with:
-          name: metabase-release-${{ matrix.edition }}-${{ inputs.commit }}-uberjar
+          commit: ${{ inputs.commit }}
+          edition: ${{ matrix.edition }}
+          release: "true"
 
       - name: Extract version number from  version.properties
         id: version-properties
@@ -101,7 +116,7 @@ jobs:
 
   check-uberjar-health:
     needs: [release-artifact]
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.DEFAULT_RUNNER_KEY }}
     name: Is ${{ matrix.edition }} (java ${{ matrix.java-version }}) healthy?
     timeout-minutes: 10
     strategy:
@@ -127,7 +142,7 @@ jobs:
         run: while ! curl -s 'http://localhost:3000/api/health' | grep '{"status":"ok"}'; do sleep 1; done
 
   run-sanity-check:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.DEFAULT_RUNNER_KEY }}
     timeout-minutes: 30
     needs: [test-mode-config, release-artifact]
     strategy:
@@ -138,6 +153,11 @@ jobs:
       DISPLAY: ""
       MB_RUN_MODE: ${{ needs.test-mode-config.outputs.run_mode }}
       METASTORE_DEV_SERVER_URL: ${{ needs.test-mode-config.outputs.dev_server }}
+      # v60 and earlier ship with an older Cypress that only knows --env;
+      # v61 and later use --expose. This workflow always runs from master but
+      # checks out the release branch's e2e code, so we have to pick the flag
+      # the older Cypress understands.
+      CYPRESS_GREP_FLAG: ${{ needs.test-mode-config.outputs.cypress_grep_flag }}
       CYPRESS_MB_ALL_FEATURES_TOKEN: ${{ secrets.STAGING_MB_ALL_FEATURES_TOKEN }}
       CYPRESS_MB_STARTER_CLOUD_TOKEN: ${{ secrets.STAGING_MB_STARTER_CLOUD_TOKEN }}
       CYPRESS_MB_PRO_CLOUD_TOKEN: ${{ secrets.STAGING_MB_PRO_CLOUD_TOKEN }}
@@ -154,7 +174,7 @@ jobs:
       TERM: xterm
     steps:
       - name: Check out the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.release-artifact.outputs.commit }}
       - name: Prepare Docker containers
@@ -168,6 +188,8 @@ jobs:
         uses: ./.github/actions/prepare-frontend
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
+      - name: Compile CLJS
+        run: ${{ needs.test-mode-config.outputs.package_manager }} run build-pure:cljs
       - name: Prepare Cypress environment
         id: cypress-prep
         uses: ./.github/actions/prepare-cypress
@@ -201,7 +223,7 @@ jobs:
           CYPRESS_BROWSER: ${{ steps.cypress-prep.outputs.chrome-path }}
         run: |
           node e2e/runner/run_cypress_ci.js e2e \
-            --env grepTags="@smoke+-@EE" \
+            $CYPRESS_GREP_FLAG grepTags="@prerelease+-@EE" \
             --spec './e2e/test/scenarios/**/*.cy.spec.(js|ts)'
 
       - name: Run a few important EE Cypress tests as sanity check
@@ -210,7 +232,7 @@ jobs:
           CYPRESS_BROWSER: ${{ steps.cypress-prep.outputs.chrome-path }}
         run: |
           node e2e/runner/run_cypress_ci.js e2e \
-            --env grepTags="@smoke+-@OSS" \
+            $CYPRESS_GREP_FLAG grepTags="@prerelease+-@OSS" \
             --spec './e2e/test/scenarios/**/*.cy.spec.(js|ts)'
 
       - name: Upload Cypress Artifacts upon failure
@@ -228,32 +250,42 @@ jobs:
     uses: ./.github/workflows/containerize-jar.yml
     secrets: inherit
     with:
-      artifact-name: metabase-release-oss-${{ inputs.commit }}-uberjar
+      edition: oss
       commit: ${{ inputs.commit }}
       repo: ${{ vars.DOCKERHUB_OWNER }}/${{ vars.DOCKERHUB_STAGING_REPO }}
       tag: ${{ needs.release-artifact.outputs.oss_version }}-${{ inputs.commit }}
+      release: "true"
 
   containerize-ee:
     needs: release-artifact
     uses: ./.github/workflows/containerize-jar.yml
     secrets: inherit
     with:
-      artifact-name: metabase-release-ee-${{ inputs.commit }}-uberjar
+      edition: ee
       commit: ${{ inputs.commit }}
       repo: ${{ vars.DOCKERHUB_OWNER }}/${{ vars.DOCKERHUB_STAGING_REPO }}
       tag: ${{ needs.release-artifact.outputs.ee_version }}-${{ inputs.commit }}
+      release: "true"
 
   tests-complete-message:
     if: always()
-    runs-on: ubuntu-22.04
-    needs: [run-sanity-check, check-uberjar-health, containerize-ee, containerize-oss]
+    runs-on: ${{ vars.DEFAULT_RUNNER_KEY }}
+    needs:
+      [
+        run-sanity-check,
+        check-uberjar-health,
+        containerize-ee,
+        containerize-oss,
+      ]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          sparse-checkout: release
-      - name: Prepare build scripts
-        run: cd ${{ github.workspace }}/release && yarn && yarn build
+          sparse-checkout: |
+            release
+            .github
+      - name: Prepare release scripts
+        uses: ./.github/actions/prepare-release-scripts
       - name: Send tests complete message
         uses: actions/github-script@v7
         env:

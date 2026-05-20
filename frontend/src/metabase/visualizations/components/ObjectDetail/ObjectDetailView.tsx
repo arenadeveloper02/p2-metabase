@@ -4,16 +4,16 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import { ActionExecuteModal } from "metabase/actions/containers/ActionExecuteModal";
-import { skipToken, useListActionsQuery } from "metabase/api";
+import { datasetApi, skipToken, useListActionsQuery } from "metabase/api";
 import { NotFound } from "metabase/common/components/ErrorPages";
-import LoadingSpinner from "metabase/common/components/LoadingSpinner";
+import { LoadingSpinner } from "metabase/common/components/LoadingSpinner";
 import { useDatabaseListQuery } from "metabase/common/hooks";
-import { useDispatch } from "metabase/lib/redux";
+import { entityCompatibleQuery } from "metabase/entities/utils";
 import { runQuestionQuery } from "metabase/query_builder/actions";
-import { ActionsApi, MetabaseApi } from "metabase/services";
+import { useDispatch } from "metabase/redux";
+import { ActionsApi } from "metabase/services";
 import { Modal } from "metabase/ui";
 import * as Lib from "metabase-lib";
-import type ForeignKey from "metabase-lib/v1/metadata/ForeignKey";
 import { isVirtualCardId } from "metabase-lib/v1/metadata/utils/saved-questions";
 import { isPK } from "metabase-lib/v1/types/utils/isa";
 import type {
@@ -74,7 +74,6 @@ export function ObjectDetailView({
   zoomedRow: passedZoomedRow,
   zoomedRowID,
   tableForeignKeys,
-  tableForeignKeyReferences,
   settings,
   canZoom,
   canZoomPreviousRow,
@@ -86,12 +85,13 @@ export function ObjectDetailView({
   visualizationIsClickable,
   fetchTableFks,
   loadObjectDetailFKReferences,
-  followForeignKey,
   viewPreviousObjectDetail,
   viewNextObjectDetail,
   closeObjectDetail,
   className,
+  isDashboard,
 }: ObjectDetailProps): JSX.Element | null {
+  const dispatch = useDispatch();
   const [hasNotFoundError, setHasNotFoundError] = useState(false);
   const [maybeLoading, setMaybeLoading] = useState(false);
   const prevZoomedRowId = usePrevious(zoomedRowID);
@@ -201,7 +201,11 @@ export function ObjectDetailView({
         ? Lib.toJsQuery(filterByPk(query, pkField, zoomedRowID))
         : undefined;
 
-      MetabaseApi.dataset(datasetQuery)
+      entityCompatibleQuery(
+        datasetQuery,
+        dispatch,
+        datasetApi.endpoints.getAdhocQuery,
+      )
         .then((result) => {
           if (result?.data?.rows?.length > 0) {
             const newRow = result.data.rows[0];
@@ -219,7 +223,7 @@ export function ObjectDetailView({
           setMaybeLoading(false);
         });
     }
-  }, [maybeLoading, passedData, question, zoomedRowID, pkIndex]);
+  }, [dispatch, maybeLoading, passedData, question, zoomedRowID, pkIndex]);
 
   useEffect(() => {
     const hadPrevZoomedRow = prevZoomedRowId != null;
@@ -247,20 +251,11 @@ export function ObjectDetailView({
     }
   }, [hasFks, data, prevData, prevTableForeignKeys, loadFKReferences]);
 
-  const onFollowForeignKey = useCallback(
-    (fk: ForeignKey) => {
-      zoomedRowID !== undefined
-        ? followForeignKey({ objectId: zoomedRowID, fk })
-        : _.noop();
-    },
-    [zoomedRowID, followForeignKey],
-  );
-
   const areImplicitActionsEnabled = Boolean(
     question &&
-      question.canWrite() &&
-      question.type() === "model" &&
-      question.supportsImplicitActions(),
+    question.canWrite() &&
+    question.type() === "model" &&
+    question.supportsImplicitActions(),
   );
 
   const modelId = question?.type() === "model" ? question.id() : undefined;
@@ -299,8 +294,6 @@ export function ObjectDetailView({
     () => ({ id: zoomedRowID ?? null }),
     [zoomedRowID],
   );
-
-  const dispatch = useDispatch();
 
   const handleActionSuccess = useCallback(() => {
     dispatch(runQuestionQuery());
@@ -363,15 +356,11 @@ export function ObjectDetailView({
             )}
             <ObjectDetailBody
               columns={passedData.cols}
-              objectName={objectName}
               zoomedRow={zoomedRow ?? []}
               settings={settings}
-              hasRelationships={hasRelationships}
               onVisualizationClick={onVisualizationClick}
               visualizationIsClickable={visualizationIsClickable}
-              tableForeignKeys={tableForeignKeys}
-              tableForeignKeyReferences={tableForeignKeyReferences}
-              followForeignKey={onFollowForeignKey}
+              isDashboard={isDashboard}
             />
           </ObjectDetailWrapperDiv>
         )}

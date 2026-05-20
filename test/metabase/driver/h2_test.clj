@@ -1,4 +1,5 @@
 (ns metabase.driver.h2-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.h2-test]}}}}}}
   (:require
    [clojure.java.jdbc :as jdbc]
    [clojure.string :as str]
@@ -17,14 +18,37 @@
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.core :as lib]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.query-processor.preprocess :as qp.preprocess]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]
+   [metabase.test.data.datasets :as mtd]
+   [metabase.test.data.env :as tx.env]
+   [metabase.test.data.interface :as tx]
    [metabase.util.honey-sql-2 :as h2x]
    [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
+
+;; temporary hack to run all tests against both the old :h2 and new mbql5 :h2
+;; remove this once :h2 does mbql5 by default!
+(defn- test-driver [driver thunk]
+  (when (contains? (tx.env/test-drivers) driver)
+    (testing (str "\n" driver "\n")
+      (driver/with-driver (tx/the-driver-with-test-extensions driver)
+        (thunk))
+      ;; the above is the original definition of test-driver, but we add in
+      ;; this clause to avoid having to rewrite all the tests below twice:
+      (when (= driver :h2)
+        (driver/with-driver (tx/the-driver-with-test-extensions :h2-mbql5)
+          (thunk))))))
+
+(use-fixtures :each (fn [f]
+                      ;; NB: because of test parallelism, this *will* affect other non-h2
+                      ;; tests, but the check above in the test-driver function will
+                      ;; prevent it from actually doing anything different in those tests.
+                      (with-redefs [mtd/-test-driver test-driver]
+                        (f))))
 
 (deftest ^:parallel parse-connection-string-test
   (testing "Check that the functions for exploding a connection string's options work as expected"
@@ -90,17 +114,17 @@
                    (catch Exception e e)))]
       (testing "connection-uri"
         (let [result (f {:connection-uri conn})]
-          (is (= "Cannot specify subname, protocol, or connection-uri in details map"
+          (is (= "Cannot specify connection-uri in details map"
                  (ex-message result)))
           (is (= {:invalid-keys #{"connection-uri"}} (ex-data result)))))
       (testing "subprotocol"
         (let [result (f {:db conn, :subprotocol "h2"})]
-          (is (= "Cannot specify subname, protocol, or connection-uri in details map"
+          (is (= "Cannot specify subprotocol in details map"
                  (ex-message result)))
           (is (= {:invalid-keys #{"subprotocol"}} (ex-data result)))))
-      (testing "subprotocol"
+      (testing "classname"
         (let [result (f {:db conn, :classname "org.h2.Driver"})]
-          (is (= "Cannot specify subname, protocol, or connection-uri in details map"
+          (is (= "Cannot specify classname in details map"
                  (ex-message result)))
           (is (= {:invalid-keys #{"classname"}} (ex-data result))))))))
 
@@ -111,21 +135,22 @@
                t/zone-id
                .normalized)))))
 
-(deftest ^:parallel disallow-admin-accounts-test
+(deftest disallow-admin-accounts-test
   (testing "Check that we're not allowed to run SQL against an H2 database with a non-admin account"
     (mt/with-temp [:model/Database db {:name "Fake-H2-DB", :engine "h2", :details {:db "mem:fake-h2-db"}}]
-      (doseq [[query-type query] {"legacy MBQL query"
-                                  {:database (:id db)
-                                   :type     :native
-                                   :native   {:query "SELECT 1"}}
+      (with-redefs [config/is-prod? true]
+        (doseq [[query-type query] {"legacy MBQL query"
+                                    {:database (:id db)
+                                     :type     :native
+                                     :native   {:query "SELECT 1"}}
 
-                                  "MBQL 5 query"
-                                  (lib/native-query (lib-be/application-database-metadata-provider (:id db)) "SELECT 1")}]
-        (testing query-type
-          (is (thrown-with-msg?
-               clojure.lang.ExceptionInfo
-               #"Running SQL queries against H2 databases using the default \(admin\) database user is forbidden\.$"
-               (qp/process-query query))))))))
+                                    "MBQL 5 query"
+                                    (lib/native-query (lib-be/application-database-metadata-provider (:id db)) "SELECT 1")}]
+          (testing query-type
+            (is (thrown-with-msg?
+                 clojure.lang.ExceptionInfo
+                 #"Running SQL queries against H2 databases using the default \(admin\) database user is forbidden\.$"
+                 (qp/process-query query)))))))))
 
 (deftest ^:parallel add-interval-honeysql-form-test
   (testing "Should convert fractional seconds to milliseconds"
@@ -391,8 +416,8 @@
     (is (= {:type :metabase.actions.error/violate-unique-constraint,
             :message "Ranking already exists.",
             :errors {"RANKING" "This Ranking value already exists."}}
-           (with-redefs [h2.actions/constraint->column-names (fn [& _args]
-                                                               ["RANKING"])]
+           (mt/with-dynamic-fn-redefs [h2.actions/constraint->column-names (fn [& _args]
+                                                                             ["RANKING"])]
              (sql-jdbc.actions/maybe-parse-sql-error
               :h2 actions.error/violate-unique-constraint nil nil
               "Unique index or primary key violation: \"PUBLIC.CONSTRAINT_INDEX_4 ON PUBLIC.\"\"GROUP\"\"(RANKING NULLS FIRST) VALUES ( /* 1 */ 1 )\"; SQL statement:\nINSERT INTO \"PUBLIC\".\"GROUP\" (\"NAME\", \"RANKING\") VALUES (CAST(? AS VARCHAR), CAST(? AS INTEGER)) [23505-214]"))))))

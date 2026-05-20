@@ -1,4 +1,6 @@
 (ns ^:mb/driver-tests metabase.driver.mongo.query-processor-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.mongo.query-processor-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.driver.mongo.query-processor-test]}}}}}}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
@@ -9,11 +11,11 @@
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.test-util :as lib.tu]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.alternative-date-test :as qp.alternative-date-test]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.query-processor.date-time-zone-functions-test :as qp.datetime-test]
    [metabase.query-processor.pivot :as qp.pivot]
+   [metabase.query-processor.test :as qp]
    [metabase.query-processor.timezone :as qp.timezone]
    [metabase.test :as mt]
    [metabase.util.json :as json]))
@@ -761,7 +763,6 @@
                     :base_type                :type/Float
                     :effective_type           :type/Float}
                    {:lib/desired-column-alias "pivot-grouping"
-                    :field_ref                [:expression "pivot-grouping"]
                     :base_type                :type/Integer
                     :effective_type           :type/Integer}
                    {:lib/desired-column-alias "count"

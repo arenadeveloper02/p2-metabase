@@ -1,13 +1,15 @@
 (ns metabase.collections-rest.api-test
   "Tests for /api/collection endpoints."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.collections-rest.api-test]}}}}}}
   (:require
    [clojure.set :as set]
    [clojure.string :as str]
    [clojure.test :refer :all]
    [metabase.collections-rest.api :as api.collection]
+   [metabase.collections-rest.settings :as collections-rest.settings]
    [metabase.collections.models.collection :as collection]
    [metabase.collections.models.collection-test :as collection-test]
-   [metabase.collections.test-helpers :refer [without-library]]
+   [metabase.collections.test-utils :refer [with-library-not-synced without-library]]
    [metabase.notification.api.notification-test :as api.notification-test]
    [metabase.notification.test-util :as notification.tu]
    [metabase.permissions.core :as perms]
@@ -286,7 +288,7 @@
           (is (= expected-lucky-tree
                  (collection-tree-view ids response-lucky))))
         (testing "Mocking having one user still returns a correct result"
-          (with-redefs [t2/select-fn-set (constantly nil)]
+          (mt/with-dynamic-fn-redefs [t2/select-fn-set (constantly nil)]
             (let [response (mt/user-http-request :lucky :get 200 "collection/tree" :exclude-other-user-collections true)]
               (is (= expected-lucky-tree
                      (collection-tree-view ids response))))))))))
@@ -594,6 +596,78 @@
            (is (some #{collection/library-collection-type} all-types))
            (is (some #{collection/library-metrics-collection-type} all-types))
            (is (some #{collection/library-data-collection-type} all-types))))))))
+
+(defn- flatten-tree
+  "Flatten a tree of collections into a flat sequence."
+  [collections]
+  (mapcat (fn [collection]
+            (cons collection
+                  (when-let [children (:children collection)]
+                    (flatten-tree children))))
+          collections))
+
+(deftest is-library-root-on-collection-tree-test
+  (testing "GET /api/collection/tree with include-library"
+    (without-library
+     (mt/with-model-cleanup [:model/Collection]
+       (collection/create-library-collection!)
+       (with-library-not-synced
+         (let [data-coll    (t2/select-one :model/Collection :entity_id @#'collection/library-data-entity-id)
+               _subcoll     (mt/user-http-request :crowberto :post 200 "collection"
+                                                  {:name "My Data Subcollection" :parent_id (:id data-coll)})
+               response     (mt/user-http-request :crowberto :get 200 "collection/tree" :include-library true)
+               all-colls    (flatten-tree response)
+               by-type      (group-by :type all-colls)]
+           (testing "System library collections have is_library_root true"
+             (doseq [coll (concat (get by-type collection/library-collection-type)
+                                  (get by-type collection/library-data-collection-type)
+                                  (get by-type collection/library-metrics-collection-type))]
+               (when (contains? @#'collection/library-entity-id? (:entity_id coll))
+                 (is (true? (:is_library_root coll))
+                     (str "System library collection " (:name coll) " should have is_library_root true")))))
+           (testing "User-created subcollections do NOT have is_library_root true"
+             (let [subcoll (first (filter #(= "My Data Subcollection" (:name %)) all-colls))]
+               (is (some? subcoll) "Subcollection should appear in the tree")
+               (is (not (:is_library_root subcoll))
+                   "User-created subcollection should not have is_library_root")))))))))
+
+(deftest is-library-root-on-collection-items-test
+  (testing "GET /api/collection/:id/items"
+    (without-library
+     (mt/with-model-cleanup [:model/Collection]
+       (collection/create-library-collection!)
+       (with-library-not-synced
+         (let [library      (t2/select-one :model/Collection :type collection/library-collection-type)
+               data-coll    (t2/select-one :model/Collection :entity_id @#'collection/library-data-entity-id)
+               _subcoll     (mt/user-http-request :crowberto :post 200 "collection"
+                                                  {:name "My Metrics Subcollection" :parent_id
+                                                   (:id (t2/select-one :model/Collection
+                                                                       :entity_id @#'collection/library-metrics-entity-id))})
+               lib-items    (:data (mt/user-http-request :crowberto :get 200
+                                                         (str "collection/" (:id library) "/items")))]
+           (testing "System library children (Data, Metrics) have is_library_root true"
+             (doseq [item (filter :is_library_root lib-items)]
+               (is (contains? #{collection/library-data-collection-type
+                                collection/library-metrics-collection-type}
+                              (:type item)))))
+           (testing "Data and Metrics collections both marked as is_library_root"
+             (let [roots (filter :is_library_root lib-items)]
+               (is (= #{collection/library-data-collection-type
+                        collection/library-metrics-collection-type}
+                      (set (map :type roots))))))
+           (testing "User-created subcollections inside Data do NOT have is_library_root"
+             (let [data-items (:data (mt/user-http-request :crowberto :get 200
+                                                           (str "collection/" (:id data-coll) "/items")))
+                   subcoll    (first (filter #(= "My Metrics Subcollection" (:name %)) data-items))]
+               (is (nil? subcoll)
+                   "Subcollection created under Metrics should not appear under Data"))
+             (let [metrics-coll (t2/select-one :model/Collection :entity_id @#'collection/library-metrics-entity-id)
+                   metrics-items (:data (mt/user-http-request :crowberto :get 200
+                                                              (str "collection/" (:id metrics-coll) "/items")))
+                   subcoll       (first (filter #(= "My Metrics Subcollection" (:name %)) metrics-items))]
+               (is (some? subcoll) "Subcollection should appear under Metrics")
+               (is (not (:is_library_root subcoll))
+                   "User-created subcollection should not have is_library_root")))))))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                              GET /collection/:id                                               |
@@ -1172,6 +1246,65 @@
                   collection-item (first (filter #(= (:id %) subcoll-id) items))]
               (is (not (contains? dashboard-item :can_run_adhoc_query)))
               (is (not (contains? collection-item :can_run_adhoc_query))))))))))
+
+(deftest can-run-adhoc-query-threshold-exceeded-test
+  (testing "GET /api/collection/:id/items with include_can_run_adhoc_query=true"
+    (testing "When card count exceeds threshold, can_run_adhoc_query returns true (skips permission check)"
+      (let [card-query {:database (mt/id)
+                        :type     :query
+                        :query    {:source-table (mt/id :venues)}}]
+        (mt/with-no-data-perms-for-all-users!
+          (mt/with-temp [:model/Collection {collection-id :id} {}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}]
+            (mt/with-temporary-setting-values [collections-rest.settings/can-run-adhoc-query-check-threshold 2]
+              (let [items (:data (mt/user-http-request :rasta :get 200
+                                                       (str "collection/" collection-id "/items")
+                                                       :include_can_run_adhoc_query true))]
+                ;; With 3 cards and threshold of 2, all cards should have can_run_adhoc_query=true
+                ;; even though user doesn't have data permissions (computation was skipped)
+                (is (= 3 (count items)))
+                (is (every? #(true? (:can_run_adhoc_query %)) items))))))))))
+
+(deftest can-run-adhoc-query-threshold-not-exceeded-test
+  (testing "GET /api/collection/:id/items with include_can_run_adhoc_query=true"
+    (testing "When card count is at or below threshold, normal hydration occurs (returns false without perms)"
+      (let [card-query {:database (mt/id)
+                        :type     :query
+                        :query    {:source-table (mt/id :venues)}}]
+        (mt/with-no-data-perms-for-all-users!
+          (mt/with-temp [:model/Collection {collection-id :id} {}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}]
+            (mt/with-temporary-setting-values [collections-rest.settings/can-run-adhoc-query-check-threshold 5]
+              (let [items (:data (mt/user-http-request :rasta :get 200
+                                                       (str "collection/" collection-id "/items")
+                                                       :include_can_run_adhoc_query true))]
+                ;; With 2 cards and threshold of 5, actual permission check occurs
+                ;; User doesn't have data permissions, so all should be false
+                (is (= 2 (count items)))
+                (is (every? #(false? (:can_run_adhoc_query %)) items))))))))))
+
+(deftest can-run-adhoc-query-threshold-disabled-test
+  (testing "GET /api/collection/:id/items with include_can_run_adhoc_query=true"
+    (testing "When threshold is 0, always compute permissions regardless of card count"
+      (let [card-query {:database (mt/id)
+                        :type     :query
+                        :query    {:source-table (mt/id :venues)}}]
+        (mt/with-no-data-perms-for-all-users!
+          (mt/with-temp [:model/Collection {collection-id :id} {}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}
+                         :model/Card _ {:collection_id collection-id :dataset_query card-query}]
+            (mt/with-temporary-setting-values [collections-rest.settings/can-run-adhoc-query-check-threshold 0]
+              (let [items (:data (mt/user-http-request :rasta :get 200
+                                                       (str "collection/" collection-id "/items")
+                                                       :include_can_run_adhoc_query true))]
+                ;; With threshold of 0, hydration should always occur
+                ;; User doesn't have data permissions, so all should be false
+                (is (= 3 (count items)))
+                (is (every? #(false? (:can_run_adhoc_query %)) items))))))))))
 
 (deftest collection-items-include-datasets-test
   (testing "GET /api/collection/:id/items"
@@ -2672,6 +2805,32 @@
           (is (= "snippets" (:namespace root-collection-with-ns))
               "Root collection should use explicitly provided namespace"))))))
 
+(deftest create-child-collection-of-library-collection-test
+  (testing "POST /api/collection"
+    (testing "Child collection of library collection should inherit the :type"
+      (mt/with-model-cleanup [:model/Collection]
+        (collection/create-library-collection!)
+        (with-library-not-synced
+          (doseq [[entity-id collection-type] [[@#'collection/library-data-entity-id    "library-data"]
+                                               [@#'collection/library-metrics-entity-id "library-metrics"]]]
+            (let [;; Create a parent collection with snippets namespace
+                  lib-root         (t2/select-one :model/Collection :entity_id entity-id)
+                  child-collection (mt/user-http-request :crowberto :post 200 "collection"
+                                                       ;; Deliberately not setting `:type` here - it's automatic.
+                                                         {:name      "Child Collection"
+                                                          :parent_id (u/the-id lib-root)})
+                  child-id         (:id child-collection)]
+              (is (= collection-type (:type child-collection))
+                  "Children of the Library's magic collections inherit their :type")
+              (is (=? {:id   number?
+                       :name "Grandchild Collection"
+                       :type collection-type}
+                      (mt/user-http-request :crowberto :post 200 "collection"
+                                          ;; Likewise, deliberately no `:type`.
+                                            {:name      "Grandchild Collection"
+                                             :parent_id child-id}))
+                  "Grandchild collection should also inherit the :type of their non-magic parent"))))))))
+
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                            PUT /api/collection/:id                                             |
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -2749,6 +2908,23 @@
                    (mt/user-http-request :rasta :put 403 (str "collection/" (u/the-id collection-a))
                                          {:archived true})))))))))
 
+(deftest archive-collection-with-archived-descendants-test
+  (testing "PUT /api/collection/:id"
+    (testing "I should be allowed to archive a collection if I have perms on it and all non-archived descendants"
+      ;; Create hierarchy A > B > C where C is already archived
+      ;; Grant perms for A and B only
+      ;; User should be able to archive A because C (which they don't have perms on) is archived
+      (mt/with-non-admin-groups-no-root-collection-perms
+        (mt/with-temp [:model/Collection collection-a {}
+                       :model/Collection collection-b {:location (collection/children-location collection-a)}
+                       :model/Collection _collection-c {:location (collection/children-location collection-b)
+                                                        :archived true}]
+          (doseq [collection [collection-a collection-b]]
+            (perms/grant-collection-readwrite-permissions! (perms/all-users-group) collection))
+          ;; This should succeed because C is archived and excluded from permission checks
+          (is (some? (mt/user-http-request :rasta :put 200 (str "collection/" (u/the-id collection-a))
+                                           {:archived true}))))))))
+
 (deftest move-collection-test
   (testing "PUT /api/collection/:id"
     (testing "Can I *change* the `location` of a Collection? (i.e. move it into a different parent Collection)"
@@ -2817,6 +2993,24 @@
                 (is (= "You don't have permissions to do that."
                        (mt/user-http-request :rasta :put 403 (str "collection/" (u/the-id collection-a))
                                              {:parent_id (u/the-id collection-c)})))))))))))
+
+(deftest move-collection-with-archived-descendants-test
+  (testing "PUT /api/collection/:id"
+    (testing "I should be allowed to move a collection if I have perms on it and all non-archived descendants"
+      ;; Create hierarchy A > B > C, plus destination D, where C is already archived
+      ;; Grant perms for A, B, and D only
+      ;; User should be able to move A into D because C (which they don't have perms on) is archived
+      (mt/with-non-admin-groups-no-root-collection-perms
+        (mt/with-temp [:model/Collection collection-a {}
+                       :model/Collection collection-b {:location (collection/children-location collection-a)}
+                       :model/Collection _collection-c {:location (collection/children-location collection-b)
+                                                        :archived true}
+                       :model/Collection collection-d {}]
+          (doseq [collection [collection-a collection-b collection-d]]
+            (perms/grant-collection-readwrite-permissions! (perms/all-users-group) collection))
+          ;; This should succeed because C is archived and excluded from permission checks
+          (is (some? (mt/user-http-request :rasta :put 200 (str "collection/" (u/the-id collection-a))
+                                           {:parent_id (u/the-id collection-d)}))))))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                            GET /api/collection/graph and PUT /api/collection/graph                             |
@@ -3061,6 +3255,30 @@
       (mt/user-http-request :crowberto :put 403 (str "card/" (u/the-id card)) {:collection_id (collection/trash-collection-id)})
       (is (not (t2/exists? :model/Card :collection_id (collection/trash-collection-id)))))))
 
+(deftest trashed-items-respect-collection-permissions-test
+  (testing "GET /api/collection/<trash-id>/items does not show trashed items from collections the user can't access"
+    (doseq [[model model-name attrs] [[:model/Card      "card"      {:name "Secret Card" :dataset_query (mt/native-query {:query "select 1"})}]
+                                      [:model/Dashboard "dashboard" {:name "Secret Dashboard"}]
+                                      [:model/Document  "document"  {:name "Secret Document"}]]]
+      (testing (str model-name)
+        (mt/with-temp [:model/Collection {coll-id :id} {:name "Restricted Collection"}
+                       model {item-id :id} (merge {:collection_id     coll-id
+                                                   :archived          true
+                                                   :archived_directly true}
+                                                  attrs)]
+          (perms/revoke-collection-permissions! (perms/all-users-group) coll-id)
+          (testing "User without collection access does NOT see the trashed item"
+            (let [items (mt/user-http-request :rasta :get 200
+                                              (format "collection/%d/items" (collection/trash-collection-id)))
+                  ids   (set (map :id (filter #(= model-name (:model %)) (:data items))))]
+              (is (not (contains? ids item-id)))))
+          (testing "User WITH collection access DOES see the trashed item"
+            (perms/grant-collection-readwrite-permissions! (perms/all-users-group) coll-id)
+            (let [items (mt/user-http-request :rasta :get 200
+                                              (format "collection/%d/items" (collection/trash-collection-id)))
+                  ids   (set (map :id (filter #(= model-name (:model %)) (:data items))))]
+              (is (contains? ids item-id)))))))))
+
 (deftest skip-graph-skips-graph-on-graph-PUT
   (is (malli= [:map [:revision :int] [:groups :map]]
               (mt/user-http-request :crowberto
@@ -3290,7 +3508,7 @@
            (mt/user-http-request :rasta :delete 403 (str "/collection/" a-id))))))
 
 (deftest published-tables-not-in-collection-items-oss-test
-  (testing "In OSS (without :data-studio feature), published tables should NOT appear in collection items"
+  (testing "In OSS (without :library feature), published tables should NOT appear in collection items"
     (mt/with-premium-features #{}
       (mt/with-temp [:model/Collection {coll-id :id} {:name "Test Collection"}
                      :model/Card {card-id :id} {:collection_id coll-id :name "Test Card"}
@@ -3303,13 +3521,46 @@
             (is (some #(= card-id (:id %)) items)
                 "Card should be in collection items"))
           (testing "Published table should NOT appear"
-            (is (not (some #(= table-id (:id %)) items))
+            (is (not (some #(and (= "table" (:model %)) (= table-id (:id %))) items))
                 "Published table should NOT be in collection items in OSS"))))))
-  (testing "In OSS (without :data-studio feature), published tables should NOT appear in root collection items"
+  (testing "In OSS (without :library feature), published tables should NOT appear in root collection items"
     (mt/with-premium-features #{}
       (mt/with-temp [:model/Table {table-id :id} {:collection_id nil
                                                   :is_published  true
                                                   :name          "Root Published Table"}]
         (let [items (:data (mt/user-http-request :crowberto :get 200 "collection/root/items"))]
-          (is (not (some #(= table-id (:id %)) items))
+          (is (not (some #(and (= "table" (:model %)) (= table-id (:id %))) items))
               "Published table should NOT be in root collection items in OSS"))))))
+
+(deftest unarchive-collection-requires-curate-perms-on-destination-test
+  (testing "PUT /api/collection/:id"
+    (testing "Unarchiving a collection to a specific destination collection requires curate permissions on the destination"
+      (mt/with-non-admin-groups-no-root-collection-perms
+        (mt/with-temp [:model/Collection archived-collection {:name "Archived"}
+                       :model/Collection destination {:name "Destination"}]
+          ;; Give user curate permissions on the archived collection
+          (perms/grant-collection-readwrite-permissions! (perms/all-users-group) archived-collection)
+          ;; Revoke all permissions on the destination
+          (perms/revoke-collection-permissions! (perms/all-users-group) destination)
+          ;; Archive the collection first (as admin)
+          (mt/user-http-request :crowberto :put 200 (str "collection/" (u/the-id archived-collection))
+                                {:archived true})
+          ;; Attempt to unarchive to destination without curate perms - should fail
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :put 403 (str "collection/" (u/the-id archived-collection))
+                                       {:archived false :parent_id (u/the-id destination)}))))))))
+
+(deftest unarchive-collection-requires-curate-permissions-on-children-test
+  (testing "PUT /api/collection/:id"
+    (testing "Unarchiving a collection requires curate permissions on its children"
+      (mt/with-non-admin-groups-no-root-collection-perms
+        (mt/with-temp [:model/Collection archived-collection {:name "Archived"}
+                       :model/Collection child-collection {:name "Archived Child" :location (collection/children-location archived-collection)}
+                       :model/Collection dest-collection {}]
+          (perms/grant-collection-readwrite-permissions! (perms/all-users-group) dest-collection)
+          (perms/grant-collection-readwrite-permissions! (perms/all-users-group) archived-collection)
+          (perms/revoke-collection-permissions! (perms/all-users-group) child-collection)
+          (mt/user-http-request :crowberto :put 200 (str "collection/" (u/the-id archived-collection)) {:archived true})
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :put 403 (str "collection/" (u/the-id archived-collection))
+                                       {:archived false :parent_id (u/the-id dest-collection)}))))))))

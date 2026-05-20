@@ -1,11 +1,12 @@
 (ns ^:mb/driver-tests metabase.driver.druid.client-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.druid.client-test]}}}}}}
   (:require
    [clojure.core.async :as a]
    [clojure.test :refer :all]
    [metabase.driver.druid.client :as druid.client]
    [metabase.driver.settings :as driver.settings]
    [metabase.driver.util :as driver.u]
-   [metabase.query-processor :as qp]
+   [metabase.query-processor.test :as qp]
    [metabase.query-processor.timeseries-test.util :as tqpt]
    [metabase.test :as mt]))
 

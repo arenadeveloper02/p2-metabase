@@ -1,5 +1,7 @@
 (ns metabase.query-processor.middleware.binning-test
   "There are more 'e2e' tests related to binning in [[metabase.query-processor.breakout-test]]."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.middleware.binning-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.query-processor.middleware.binning-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [medley.core :as m]
@@ -13,10 +15,10 @@
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
    [metabase.lib.test-util.macros :as lib.tu.macros]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.binning :as binning]
    [metabase.query-processor.preprocess :as qp.preprocess]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]))
 
 (deftest ^:parallel filter->field-map-test
@@ -268,11 +270,11 @@
               query))
       (testing `lib/returned-columns
         (letfn [(returned-columns [stage-number]
-                  (map #(select-keys % [:lib/desired-column-alias :metabase.lib.field/binning :lib/original-binning])
+                  (map #(select-keys % [:lib/desired-column-alias :lib/binning :lib/original-binning])
                        (lib/returned-columns query stage-number)))]
           (testing "first stage"
             (is (= [{:lib/desired-column-alias   "TOTAL"
-                     :metabase.lib.field/binning {:strategy :num-bins, :min-value 0.0, :max-value 160.0, :num-bins 8, :bin-width 20.0}
+                     :lib/binning {:strategy :num-bins, :min-value 0.0, :max-value 160.0, :num-bins 8, :bin-width 20.0}
                      :lib/original-binning       {:strategy :num-bins, :min-value 0.0, :max-value 160.0, :num-bins 8, :bin-width 20.0}}
                     {:lib/desired-column-alias "count"}]
                    (returned-columns 0))))

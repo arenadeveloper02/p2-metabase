@@ -1,12 +1,16 @@
-import type { IconData, ObjectWithModel } from "metabase/lib/icon";
-import { getIconBase } from "metabase/lib/icon";
-import type { ItemWithCollection } from "metabase/plugins";
+import { useCallback } from "react";
+
+import type {
+  CollectionAuthorityLevelConfig,
+  CollectionInstanceAnaltyicsConfig,
+} from "metabase/collections/types";
+import type { IconData, ObjectWithModel } from "metabase/common/utils/icon";
+import { useGetIconBase } from "metabase/hooks/use-icon";
+import { type ItemWithCollection, PLUGIN_LIBRARY } from "metabase/plugins";
 import type {
   Bookmark,
   Collection,
-  CollectionAuthorityLevelConfig,
   CollectionId,
-  CollectionInstanceAnaltyicsConfig,
   CollectionType,
 } from "metabase-types/api";
 
@@ -54,43 +58,56 @@ export function isSyncedCollection(
   return collection.is_remote_synced === true;
 }
 
-export const getIcon = (
-  item: ObjectWithModel,
-  { isTenantUser = false }: { isTenantUser?: boolean } = {},
-): IconData => {
-  const collectionType = getCollectionType({
-    type: (item.type as CollectionType) || item.collection_type,
-  }).type;
-  if (collectionType === "instance-analytics") {
-    return {
-      name: INSTANCE_ANALYTICS_COLLECTION.icon,
-    };
-  }
+export const useGetIcon = () => {
+  const getIconBase = useGetIconBase();
 
-  if (item.model === "collection") {
-    // tenant users see the normal icon, they don't know what a synced collection is
-    if (item.is_remote_synced && !isTenantUser) {
-      return {
-        name: REMOTE_SYNC_COLLECTION.icon,
-      };
-    }
+  return useCallback(
+    (
+      item: ObjectWithModel,
+      { isTenantUser = false }: { isTenantUser?: boolean } = {},
+    ): IconData => {
+      const collectionType = getCollectionType({
+        type: (item.type as CollectionType) || item.collection_type,
+      }).type;
+      if (collectionType === "instance-analytics") {
+        return {
+          name: INSTANCE_ANALYTICS_COLLECTION.icon,
+        };
+      }
 
-    if (
-      item.authority_level === "official" ||
-      item.collection_authority_level === "official"
-    ) {
-      return {
-        name: OFFICIAL_COLLECTION.icon,
-        color: OFFICIAL_COLLECTION.color,
-      };
-    }
-  }
+      if (item.model === "collection") {
+        // Library collections keep their special icon regardless of sync status
+        if (PLUGIN_LIBRARY.isLibraryCollectionType(item.type)) {
+          return getIconBase(item);
+        }
 
-  if (item.model === "dataset" && item.moderated_status === "verified") {
-    return { name: "model_with_badge" };
-  }
+        // tenant users see the normal icon, they don't know what a synced collection is
+        if (item.is_remote_synced && !isTenantUser) {
+          return {
+            name: REMOTE_SYNC_COLLECTION.icon,
+          };
+        }
 
-  return getIconBase(item);
+        if (
+          item.authority_level === "official" ||
+          item.collection_authority_level === "official"
+        ) {
+          return {
+            name: OFFICIAL_COLLECTION.icon,
+            color: OFFICIAL_COLLECTION.color,
+            tooltip: OFFICIAL_COLLECTION.tooltips?.default,
+          };
+        }
+      }
+
+      if (item.model === "dataset" && item.moderated_status === "verified") {
+        return { name: "model_with_badge" };
+      }
+
+      return getIconBase(item);
+    },
+    [getIconBase],
+  );
 };
 
 /** Removes items from the array that belong to the instance analytics collection or one of its children */

@@ -1,6 +1,7 @@
 import type { Tag } from "./types";
 import {
   filterOutNonSupportedPrereleaseIdentifier,
+  findNextMinorVersion,
   findNextPatchVersion,
   getBuildRequirements,
   getDotXs,
@@ -664,6 +665,33 @@ describe("version-helpers", () => {
     });
   });
 
+  describe("findNextMinorVersion", () => {
+    it.each([
+      ["v1.50.0", "v0.50.1"],
+      ["v0.50.0", "v0.50.1"],
+      ["v1.50.1", "v0.50.2"],
+      ["v0.50.9", "v0.50.10"],
+      ["v1.50.99", "v0.50.100"],
+      ["v1.23.0", "v0.23.1"],
+    ])("%s -> %s", (input, expected) => {
+      expect(findNextMinorVersion(input)).toBe(expected);
+    });
+
+    it("should throw an error for invalid versions", () => {
+      expect(() => findNextMinorVersion("foo")).toThrow();
+      expect(() => findNextMinorVersion("v2.75")).toThrow();
+      expect(() => findNextMinorVersion("v0.75.0-gamma")).toThrow();
+      expect(() => findNextMinorVersion("v0.75")).toThrow();
+      expect(() => findNextMinorVersion("v0.75.f")).toThrow();
+    });
+
+    it("should throw for pre-release versions (auto-minor only runs post-gold)", () => {
+      expect(() => findNextMinorVersion("v0.50.1-beta")).toThrow();
+      expect(() => findNextMinorVersion("v1.50.0-RC")).toThrow();
+      expect(() => findNextMinorVersion("v0.50.2-alpha")).toThrow();
+    });
+  });
+
   describe("getMajorVersionNumberFromReleaseBranch", () => {
     it("should resolve major version from a common release branch", () => {
       expect(getMajorVersionNumberFromReleaseBranch("release-x.51.x")).toEqual(
@@ -801,6 +829,70 @@ describe("version-helpers", () => {
         "v0.75.1.x",
         "v1.75.1.x",
       ]);
+    });
+
+    it("should add latest tag when version major matches latestMajorVersion", () => {
+      expect(
+        getExtraTagsForVersion({ version: "v0.58.1", latestMajorVersion: "58" }),
+      ).toEqual(["v0.58.x", "v1.58.x", "v0.58.1.x", "v1.58.1.x", "latest"]);
+
+      expect(
+        getExtraTagsForVersion({ version: "v1.58.2", latestMajorVersion: "58" }),
+      ).toEqual(["v0.58.x", "v1.58.x", "v0.58.2.x", "v1.58.2.x", "latest"]);
+    });
+
+    it("should add latest tag for major versions when major matches latestMajorVersion", () => {
+      expect(
+        getExtraTagsForVersion({ version: "v0.58.0", latestMajorVersion: "58" }),
+      ).toEqual(["v0.58.x", "v1.58.x", "latest"]);
+    });
+
+    it("should add latest tag for patch versions when major matches latestMajorVersion", () => {
+      expect(
+        getExtraTagsForVersion({
+          version: "v0.58.1.3",
+          latestMajorVersion: "58",
+        }),
+      ).toEqual(["v0.58.x", "v1.58.x", "v0.58.1.x", "v1.58.1.x", "latest"]);
+    });
+
+    it("should NOT add latest tag when version major does not match latestMajorVersion", () => {
+      expect(
+        getExtraTagsForVersion({ version: "v0.57.5", latestMajorVersion: "58" }),
+      ).toEqual(["v0.57.x", "v1.57.x", "v0.57.5.x", "v1.57.5.x"]);
+
+      expect(
+        getExtraTagsForVersion({ version: "v0.59.0", latestMajorVersion: "58" }),
+      ).toEqual(["v0.59.x", "v1.59.x"]);
+    });
+
+    it("should add latest tag for pre-release versions when major matches", () => {
+      expect(
+        getExtraTagsForVersion({
+          version: "v0.58.1-rc1",
+          latestMajorVersion: "58",
+        }),
+      ).toEqual(["v0.58.x", "v1.58.x", "v0.58.1.x", "v1.58.1.x", "latest"]);
+
+      expect(
+        getExtraTagsForVersion({
+          version: "v0.58.0-beta",
+          latestMajorVersion: "58",
+        }),
+      ).toEqual(["v0.58.x", "v1.58.x", "latest"]);
+    });
+
+    it("should NOT add latest tag when latestMajorVersion is not provided", () => {
+      expect(getExtraTagsForVersion({ version: "v0.58.1" })).toEqual([
+        "v0.58.x",
+        "v1.58.x",
+        "v0.58.1.x",
+        "v1.58.1.x",
+      ]);
+
+      expect(
+        getExtraTagsForVersion({ version: "v0.58.1", latestMajorVersion: "" }),
+      ).toEqual(["v0.58.x", "v1.58.x", "v0.58.1.x", "v1.58.1.x"]);
     });
   });
 

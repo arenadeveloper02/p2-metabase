@@ -1,5 +1,3 @@
-import _ from "underscore";
-
 import { getIsGuestEmbed } from "embedding-sdk-bundle/store/selectors";
 import type {
   SdkDispatch,
@@ -12,7 +10,8 @@ import type {
 import { resolveCards } from "metabase/query_builder/actions";
 import { getParameterValuesForQuestion } from "metabase/query_builder/actions/core/parameterUtils";
 import { loadMetadataForCard } from "metabase/questions/actions";
-import { addFields } from "metabase/redux/metadata";
+import { updateMetadata } from "metabase/redux/metadata";
+import { FieldSchema } from "metabase/schema";
 import { getMetadata } from "metabase/selectors/metadata";
 import Question from "metabase-lib/v1/Question";
 import type { EntityToken } from "metabase-types/api/entity";
@@ -39,7 +38,9 @@ export const loadQuestionSdk =
   > => {
     const isGuestEmbed = getIsGuestEmbed(getState());
 
-    const isNewQuestion = initQuestionId === "new";
+    const isNewQuestion =
+      initQuestionId === "new" || initQuestionId === "new-native";
+    const isNativeQuestion = initQuestionId === "new-native";
     const questionId = isNewQuestion ? undefined : initQuestionId;
 
     const { card: resolvedCard, originalCard } = await resolveCards({
@@ -49,6 +50,7 @@ export const loadQuestionSdk =
       dispatch,
       getState,
       deserializedCard,
+      questionType: isNativeQuestion ? "native" : "gui",
     });
 
     const card = isNewQuestion
@@ -62,8 +64,9 @@ export const loadQuestionSdk =
 
     const metadata = getMetadata(getState());
 
-    const originalQuestion =
-      originalCard && new Question(originalCard, metadata);
+    const originalQuestion = originalCard
+      ? new Question(originalCard, metadata)
+      : undefined;
 
     let question = new Question(card, metadata);
     if (targetDashboardId) {
@@ -76,14 +79,10 @@ export const loadQuestionSdk =
       question = question.applyTemplateTagParameters();
     }
 
-    const queryParams = initialSqlParameters
-      ? _.mapObject(initialSqlParameters, String)
-      : {};
-
     const parameterValues = getParameterValuesForQuestion({
       card,
       metadata,
-      queryParams,
+      queryParams: initialSqlParameters,
     });
 
     if (parameterValues) {
@@ -93,7 +92,9 @@ export const loadQuestionSdk =
     if ("param_fields" in card && card.param_fields) {
       // This is needed to make some parameter widget populate the dropdown list
       // otherwise they will use a normal text input
-      dispatch(addFields(Object.values(card.param_fields).flat()));
+      dispatch(
+        updateMetadata(Object.values(card.param_fields).flat(), [FieldSchema]),
+      );
     }
 
     return { question, originalQuestion, parameterValues };

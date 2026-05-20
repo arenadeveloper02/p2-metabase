@@ -402,17 +402,21 @@
    :skip      [;; those stats are inherently local state
                :view_count :last_viewed_at
                ;; this is deprecated
-               :cache_ttl
-               :dependency_analysis_version]
+               :cache_ttl]
    :transform {:created_at             (serdes/date)
                :initially_published_at (serdes/date)
                :collection_id          (serdes/fk :model/Collection)
                :creator_id             (serdes/fk :model/User)
                :made_public_by_id      (serdes/fk :model/User)
                :parameters             {:export serdes/export-parameters :import serdes/import-parameters}
-               :tabs                   (serdes/nested :model/DashboardTab :dashboard_id opts)
-               :dashcards              (serdes/nested :model/DashboardCard :dashboard_id opts)}
-   :coerce {:parameters [:maybe [:sequential ::parameters.schema/parameter]]}})
+               :tabs                   (serdes/nested :model/DashboardTab :dashboard_id (merge {:sort-by (juxt :position :created_at)} opts))
+               :dashcards              (serdes/nested :model/DashboardCard :dashboard_id (merge {:sort-by (juxt :dashboard_tab_id :row :col)} opts))}
+   :coerce    {:parameters [:maybe [:sequential ::parameters.schema/parameter]]}
+   :defaults  {:archived                false
+               :archived_directly       false
+               :auto_apply_filters      true
+               :enable_embedding        false
+               :show_in_getting_started false}})
 
 (defn- serdes-deps-dashcard
   [{:keys [action_id card_id parameter_mappings visualization_settings series]}]
@@ -478,14 +482,16 @@
                   :verified       [:= "verified" :mr.status]
                   :view-count     true
                   :created-at     true
-                  :updated-at     true}
+                  :updated-at     true
+                  :collection-type :collection.type
+                  :collection-location :collection.location
+                  :root-collection-type {:fn collection/root-collection-type}}
    :search-terms [:name :description]
    :render-terms {:archived-directly          true
                   :collection-authority_level :collection.authority_level
                   :collection-name            :collection.name
                   ;; This is used for legacy ranking, in future it will be replaced by :pinned
                   :collection-position        true
-                  :collection-type            :collection.type
                   :moderated-status           :mr.status}
    :where        []
    :bookmark     [:model/DashboardBookmark [:and

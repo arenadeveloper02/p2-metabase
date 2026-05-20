@@ -1,6 +1,7 @@
 (ns metabase-enterprise.data-studio.permissions.query-test
   "Tests for published table query permissions.
   Published tables can be queried via collection permissions instead of data permissions."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase-enterprise.data-studio.permissions.query-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [metabase.api.common :refer [*current-user-id* *current-user-permissions-set* *is-superuser?*]]
@@ -14,8 +15,8 @@
 (use-fixtures :once (fixtures/initialize :db))
 
 (deftest published-table-test
-  (testing "Published tables grant query access via collection permissions only with data-studio enabled\n"
-    (doseq [features             [#{} #{:data-studio}]
+  (testing "Published tables grant query access via collection permissions only with library enabled\n"
+    (doseq [features             [#{} #{:library}]
             collection-readable? [false true]
             table-is-published?  [false true]
             view-data            [:unrestricted :blocked]]
@@ -28,7 +29,7 @@
                 (mt/with-temp [:model/PermissionsGroup {group-id :id} {}
                                :model/User {user-id :id} {}
                                :model/PermissionsGroupMembership _ {:user_id user-id :group_id group-id}
-                               :model/Collection {collection-id :id} {}]
+                               :model/Collection {collection-id :id} {:type "library-data"}]
                   ;; Ensure All Users group has no create-queries permission and matching view-data
                   ;; (user is automatically in this group)
                   (perms/set-database-permission! (perms/all-users-group) (mt/id)         :perms/view-data      view-data)
@@ -50,21 +51,21 @@
                                                                     #{(perms/collection-read-path collection-id)}
                                                                     #{}))]
                     (perms/disable-perms-cache
-                      ;; Query is only runnable when: data-studio enabled AND collection readable AND table published AND view-data unrestricted
-                      (is (= (and (contains? features :data-studio)
+                      ;; Query is only runnable when: library enabled AND collection readable AND table published AND view-data unrestricted
+                      (is (= (and (contains? features :library)
                                   collection-readable?
                                   table-is-published?
                                   (not= view-data :blocked))
                              (query-perms/can-run-query? mbql-query))))))))))))))
 
 (deftest published-table-does-not-grant-view-data-test
-  (mt/with-premium-features #{:data-studio}
+  (mt/with-premium-features #{:library}
     (testing "Published tables with collection permissions should NOT grant view-data permissions"
       (mt/with-restored-data-perms-for-group! (u/the-id (perms/all-users-group))
         (t2/with-transaction [_conn nil {:rollback-only true}]
           ;; Create a test user that only belongs to all-users group (no extra permissions)
           (mt/with-temp [:model/User       {user-id :id} {:email "view-data-test@example.com"}
-                         :model/Collection collection {}]
+                         :model/Collection collection    {:type "library-data"}]
             ;; Publish the venues table into this collection
             (t2/update! :model/Table (mt/id :venues) {:is_published true :collection_id (u/the-id collection)})
             (let [all-users (perms/all-users-group)]
@@ -92,11 +93,11 @@
 
 (deftest published-table-grants-database-access-test
   (mt/with-restored-data-perms-for-group! (u/the-id (perms/all-users-group))
-    (mt/with-premium-features #{:data-studio}
+    (mt/with-premium-features #{:library}
       (testing "POST /api/dataset in EE: published table access GRANTS database access"
         (t2/with-transaction [_conn nil {:rollback-only true}]
           (mt/with-temp [:model/User       {user-id :id} {:email "ee-db-access-test@example.com"}
-                         :model/Collection collection {}]
+                         :model/Collection collection    {:type "library-data"}]
             ;; Publish the venues table into this collection
             (t2/update! :model/Table (mt/id :venues) {:is_published true :collection_id (u/the-id collection)})
             (let [all-users (perms/all-users-group)]
@@ -118,7 +119,7 @@
       (testing "POST /api/dataset in EE: without collection permission, published table does NOT grant access"
         (t2/with-transaction [_conn nil {:rollback-only true}]
           (mt/with-temp [:model/User       {user-id :id} {:email "ee-db-access-test2@example.com"}
-                         :model/Collection collection {}]
+                         :model/Collection collection    {:type "library-data"}]
             ;; Publish the venues table into this collection
             (t2/update! :model/Table (mt/id :venues) {:is_published true :collection_id (u/the-id collection)})
             (let [all-users (perms/all-users-group)]
@@ -132,7 +133,8 @@
               (perms/set-table-permission! all-users (mt/id :venues) :perms/create-queries :no)
               ;; Without collection permission, query should fail at database check (403)
               (testing "Query should fail because user has no collection permission on published table"
-                (is (= "You don't have permissions to do that."
-                       (mt/with-current-user user-id
-                         (mt/user-http-request user-id :post 403 "dataset"
-                                               (mt/mbql-query venues {:limit 1})))))))))))))
+                (is (=? {:status "failed"
+                         :error  "You do not have permissions to run this query."}
+                        (mt/with-current-user user-id
+                          (mt/user-http-request user-id :post 403 "dataset"
+                                                (mt/mbql-query venues {:limit 1})))))))))))))

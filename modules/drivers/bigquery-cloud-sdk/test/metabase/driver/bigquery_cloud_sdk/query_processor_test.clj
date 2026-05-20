@@ -1,4 +1,6 @@
 (ns ^:mb/driver-tests metabase.driver.bigquery-cloud-sdk.query-processor-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.bigquery-cloud-sdk.query-processor-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.driver.bigquery-cloud-sdk.query-processor-test]}}}}}}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
@@ -14,10 +16,10 @@
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.query-processor.preprocess :as qp.preprocess]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor.test :as qp]
    [metabase.query-processor.util.add-alias-info :as add]
    [metabase.sync.core :as sync]
    [metabase.test :as mt]
@@ -179,7 +181,13 @@
                        "  COUNT(*) AS `count`"
                        "FROM"
                        "  `v4_test_data.venues`"
-                       "  LEFT JOIN `v4_test_data.categories` AS `categories__via__category_id` ON `v4_test_data.venues`.`category_id` = `categories__via__category_id`.`id`"
+                       "  LEFT JOIN ("
+                       "    SELECT"
+                       "      `v4_test_data.categories`.`id` AS `id`,"
+                       "      `v4_test_data.categories`.`name` AS `name`"
+                       "    FROM"
+                       "      `v4_test_data.categories`"
+                       "  ) AS `categories__via__category_id` ON `v4_test_data.venues`.`category_id` = `categories__via__category_id`.`id`"
                        "GROUP BY"
                        "  `categories__via__category_id__name`"
                        "ORDER BY"
@@ -487,7 +495,7 @@
     (mt/with-driver :bigquery-cloud-sdk
       (qp.store/with-metadata-provider (mt/id)
         (mt/with-temporary-setting-values [start-of-week :sunday]
-          (is (= ["DATE_TRUNC(`source`.`date`, week(sunday))"]
+          (is (= ["DATE_TRUNC(`__mb_source`.`date`, week(sunday))"]
                  (sql.qp/format-honeysql
                   :bigquery-cloud-sdk
                   (sql.qp/->honeysql
@@ -1047,7 +1055,17 @@
                                  "  `Organizacao__via__venue_id`.`name` AS `Organizacao__via__venue_id__name`"
                                  "FROM"
                                  "  `v4_test_data.checkins`"
-                                 "  LEFT JOIN `v4_test_data.Organização` AS `Organizacao__via__venue_id` ON `v4_test_data.checkins`.`venue_id` = `Organizacao__via__venue_id`.`id`"
+                                 "  LEFT JOIN ("
+                                 "    SELECT"
+                                 "      `v4_test_data.Organização`.`id` AS `id`,"
+                                 "      `v4_test_data.Organização`.`name` AS `name`,"
+                                 "      `v4_test_data.Organização`.`category_id` AS `category_id`,"
+                                 "      `v4_test_data.Organização`.`latitude` AS `latitude`,"
+                                 "      `v4_test_data.Organização`.`longitude` AS `longitude`,"
+                                 "      `v4_test_data.Organização`.`price` AS `price`"
+                                 "    FROM"
+                                 "      `v4_test_data.Organização`"
+                                 "  ) AS `Organizacao__via__venue_id` ON `v4_test_data.checkins`.`venue_id` = `Organizacao__via__venue_id`.`id`"
                                  "LIMIT"
                                  "  1"]
                     :params     nil
@@ -1097,7 +1115,7 @@
         (mt/with-native-query-testing-context query
           (is (= (with-test-db-name
                    {:query      ["SELECT"
-                                 "  `source`.`count` AS `count`,"
+                                 "  `__mb_source`.`count` AS `count`,"
                                  "  COUNT(*) AS `count_2`"
                                  "FROM"
                                  "  ("
@@ -1114,7 +1132,7 @@
                                  "      `date`"
                                  "    ORDER BY"
                                  "      `date` ASC"
-                                 "  ) AS `source`"
+                                 "  ) AS `__mb_source`"
                                  "GROUP BY"
                                  "  `count`"
                                  "ORDER BY"
@@ -1122,7 +1140,7 @@
                                  "LIMIT"
                                  "  2"]
                     :params     nil
-                    :table-name "source"
+                    :table-name "__mb_source"
                     :mbql?      true})
                  (-> (qp.compile/compile query)
                      (update :query #(str/split-lines (driver/prettify-native-form :bigquery-cloud-sdk %))))))
@@ -1163,20 +1181,20 @@
                      :breakout     [[:field "source" {:base-type :type/Text}]]
                      :source-query {:native "select 1 as `val`, '2' as `source`"}})]
         (is (= {:query      ["SELECT"
-                             "  `source`.`source` AS `source`,"
+                             "  `__mb_source`.`source` AS `source`,"
                              "  COUNT(*) AS `count`"
                              "FROM"
                              "  ("
                              "    select"
                              "      1 as `val`,"
                              "      '2' as `source`"
-                             "  ) AS `source`"
+                             "  ) AS `__mb_source`"
                              "GROUP BY"
                              "  `source`"
                              "ORDER BY"
                              "  `source` ASC"]
                 :params     nil
-                :table-name "source"
+                :table-name "__mb_source"
                 :mbql?      true}
                (-> (qp.compile/compile query)
                    (update :query #(str/split-lines (driver/prettify-native-form :bigquery-cloud-sdk %))))))
@@ -1247,16 +1265,16 @@
                                 (lib/aggregate (lib/sum orders-total))
                                 (lib/limit 3))]
       (is (= ["SELECT"
-              "  `source`.`created_at` AS `created_at`,"
+              "  `__mb_source`.`created_at` AS `created_at`,"
               "  SUM(COUNT(*)) OVER ("
               "    ORDER BY"
-              "      `source`.`created_at` ASC ROWS UNBOUNDED PRECEDING"
+              "      `__mb_source`.`created_at` ASC ROWS UNBOUNDED PRECEDING"
               "  ) AS `count`,"
-              "  SUM(SUM(`source`.`total`)) OVER ("
+              "  SUM(SUM(`__mb_source`.`total`)) OVER ("
               "    ORDER BY"
-              "      `source`.`created_at` ASC ROWS UNBOUNDED PRECEDING"
+              "      `__mb_source`.`created_at` ASC ROWS UNBOUNDED PRECEDING"
               "  ) AS `sum`,"
-              "  SUM(`source`.`total`) AS `sum_2`"
+              "  SUM(`__mb_source`.`total`) AS `sum_2`"
               "FROM"
               "  ("
               "    SELECT"
@@ -1267,7 +1285,7 @@
               "      `test_data.orders`.`total` AS `total`"
               "    FROM"
               "      `test_data.orders`"
-              "  ) AS `source`"
+              "  ) AS `__mb_source`"
               "GROUP BY"
               "  `created_at`"
               "ORDER BY"

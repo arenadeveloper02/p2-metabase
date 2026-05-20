@@ -1,9 +1,9 @@
 import { getGuestEmbedFilteredParameters } from "embedding-sdk-bundle/lib/get-guest-embed-filtered-parameters";
 import type { SdkQuestionState } from "embedding-sdk-bundle/types/question";
-import type { Deferred } from "metabase/lib/promise";
+import type { Dispatch } from "metabase/redux/store";
 import { runQuestionQuery } from "metabase/services";
+import type { Deferred } from "metabase/utils/promise";
 import { getSensibleDisplays } from "metabase/visualizations";
-import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
 import type { ParameterValuesMap } from "metabase-types/api";
 import type { EntityToken } from "metabase-types/api/entity";
@@ -15,6 +15,7 @@ interface RunQuestionQueryParams {
   originalQuestion?: Question;
   parameterValues?: ParameterValuesMap;
   cancelDeferred?: Deferred;
+  dispatch: Dispatch;
 }
 
 export async function runQuestionQuerySdk(
@@ -27,6 +28,7 @@ export async function runQuestionQuerySdk(
     originalQuestion,
     parameterValues,
     cancelDeferred,
+    dispatch,
   } = params;
 
   if (question.isSaved()) {
@@ -50,6 +52,7 @@ export async function runQuestionQuerySdk(
     );
 
     queryResults = await runQuestionQuery(question, {
+      dispatch,
       cancelDeferred,
       ignoreCache: false,
       isDirty: isQueryDirty,
@@ -69,11 +72,6 @@ export async function runQuestionQuerySdk(
     question = question.maybeResetDisplay(data, sensibleDisplays, undefined);
   }
 
-  // FIXME: this removes "You can also get an alert when there are some results." feature for question
-  if (question) {
-    question.alertType = () => null;
-  }
-
   return { question, queryResults };
 }
 
@@ -90,8 +88,5 @@ export function shouldRunCardQuery({
     return true;
   }
 
-  const query = question.query();
-  const { isNative } = Lib.queryDisplayInfo(query);
-
-  return question.canRun() && (question.isSaved() || !isNative);
+  return question.canRun();
 }

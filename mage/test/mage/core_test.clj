@@ -6,8 +6,14 @@
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [mage.alias-test]
+   [mage.bot.autobot-test]
+   [mage.bot.dev-env-core-test]
+   [mage.bot.env-test]
+   [mage.bot.prompt-test]
    [mage.doctor-test]
+   [mage.fix-unused-requires-test]
    [mage.merge-yaml-migrations-test :as merge-yaml-migrations-test]
+   [mage.modules-test]
    [mage.token-scan-test]
    [mage.util :as u]
    [mage.util-test]))
@@ -15,7 +21,9 @@
 (comment
   ;; Load test namespaces to ensure code coverage
   mage.doctor-test/keep-me
+  mage.fix-unused-requires-test/keep-me
   mage.util-test/keep-me
+  mage.modules-test/keep-me
   merge-yaml-migrations-test/keep-me
   token-scan-test/keep-me)
 

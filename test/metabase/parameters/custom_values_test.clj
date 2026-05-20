@@ -1,4 +1,5 @@
 (ns metabase.parameters.custom-values-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.parameters.custom-values-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [metabase.parameters.custom-values :as custom-values]
@@ -193,6 +194,21 @@
                (custom-values/values-from-card
                 card
                 [:expression {:lib/uuid "00000000-0000-0000-0000-000000000000", :base-type :type/Float} "unit price"]
+                {:stage-number 0})))))))
+
+(deftest ^:parallel with-mbql-card-test-7-dangling-value-field
+  (binding [custom-values/*max-rows* 3]
+    (testing ":value_field references MBQL model which no longer returns that column, but has outdated :field_ref that matches it (#71164)"
+      (mt/with-temp
+        [:model/Card card (-> (mt/card-with-source-metadata-for-query
+                               (mt/mbql-query people))
+                              (assoc :type :question)
+                              (assoc-in [:result_metadata 3 :field_ref] [:field 99999 nil]))]
+        (is (= {:values          []
+                :has_more_values false}
+               (custom-values/values-from-card
+                card
+                [:field {:lib/uuid "00000000-0000-0000-0000-000000000000", :base-type :type/Text} 99999]
                 {:stage-number 0})))))))
 
 (deftest ^:parallel with-native-card-test

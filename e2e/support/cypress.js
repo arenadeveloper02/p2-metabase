@@ -1,6 +1,5 @@
-import registerCypressGrep from "@bahmutov/cy-grep/src/support"; // eslint-disable-line import/order
+import { register as registerCypressGrep } from "@cypress/grep";
 registerCypressGrep();
-
 import "@cypress/skip-test/support";
 import "@testing-library/cypress/add-commands";
 import { configure } from "@testing-library/cypress";
@@ -8,8 +7,9 @@ import "cypress-real-events/support";
 import addContext from "mochawesome/addContext";
 import "./commands";
 
-const isCI = Cypress.env("CI");
-const isNetworkThrottlingEnabled = Cypress.env("ENABLE_NETWORK_THROTTLING");
+const isCI = Cypress.expose("CI");
+const isNetworkThrottlingEnabled = Cypress.expose("ENABLE_NETWORK_THROTTLING");
+const isFailFastEnabled = Cypress.expose("FAIL_FAST");
 
 // remove default html output on test failure
 configure({
@@ -31,7 +31,7 @@ Cypress.on("uncaught:exception", (err, runnable) => false);
 
 Cypress.on("test:before:run", () => {
   // Check wether FE is running in dev mode
-  const feHealthcheck = Cypress.env().feHealthcheck;
+  const feHealthcheck = Cypress.expose("feHealthcheck");
   if (feHealthcheck?.enabled) {
     fetch(feHealthcheck.url).catch(() =>
       alert(
@@ -123,19 +123,6 @@ if (isCI) {
     );
   });
 
-  // Fast failure notifications
-  afterEach(() => {
-    const testInfo = Cypress.mocha.getRunner().suite.ctx.currentTest;
-    const isLastRetry = testInfo.currentRetry() === testInfo.retries();
-
-    if (testInfo.state === "failed" && isLastRetry) {
-      cy.task("reportCIFailure", {
-        spec: Cypress.spec,
-        test: Cypress.currentTest,
-      });
-    }
-  });
-
   const options = {
     collectTypes: [
       "cons:log",
@@ -157,10 +144,16 @@ if (isCI) {
   require("cypress-terminal-report/src/installLogsCollector")(options);
 }
 
+afterEach(function () {
+  if (isFailFastEnabled && this.currentTest.state === "failed") {
+    Cypress.runner.stop();
+  }
+});
+
 beforeEach(function () {
   const isCurrentTesOss =
     this.currentTest._testConfig.unverifiedTestConfig.tags === "@OSS";
-  const isBuildOss = Cypress.env("MB_EDITION") === "oss";
+  const isBuildOss = Cypress.expose("MB_EDITION") === "oss";
   const testName = this.currentTest.title;
   if (Cypress.config("isInteractive") && isCurrentTesOss && !isBuildOss) {
     console.log(

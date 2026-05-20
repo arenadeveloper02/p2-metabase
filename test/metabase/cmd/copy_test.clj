@@ -25,14 +25,26 @@
 
 (def ^:private models-to-exclude
   "Models that should *not* be migrated in `load-from-h2`."
-  #{:model/ApiKey
+  #{:model/AiUsageLog
+    :model/AnalysisFinding
+    :model/AnalysisFindingError
+    :model/ApiKey
     :model/CacheConfig
     :model/CardFavorite
     :model/CloudMigration
     :model/ContentTranslation
     :model/DashboardFavorite
+    :model/DataComplexityScore
     :model/DatabaseRouter
     :model/Dependency
+    :model/DependencyStatus
+    :model/McpQueryHandle
+    :model/MetabotConversation
+    :model/MetabotGroupLimit
+    :model/MetabotInstanceLimit
+    :model/MetabotMessage
+    :model/MetabotPermissions
+    :model/PremiumFeaturesCache
     :model/PythonLibrary
     :model/Query
     :model/QueryCache
@@ -41,10 +53,13 @@
     :model/QueryTable
     :model/RemoteSyncObject
     :model/RemoteSyncTask
+    :model/ReplacementRun
     :model/SearchIndexMetadata
+    :model/SecurityAdvisory
     :model/SemanticSearchTokenTracking
     :model/SupportAccessGrantLog
     :model/TaskHistory
+    :model/TaskRun
     ;; TODO we should remove these models from here once serialization is supported
     :model/Transform
     :model/TransformRun

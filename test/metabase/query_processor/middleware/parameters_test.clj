@@ -1,6 +1,7 @@
 (ns metabase.query-processor.middleware.parameters-test
   "Testings to make sure the parameter substitution middleware works as expected. Even though the below tests are
   SQL-specific, they still confirm that the middleware itself is working correctly."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.middleware.parameters-test]}}}}}}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
@@ -489,7 +490,7 @@
                                                 :effective-type                                    :type/Integer
                                                 :lib/expression-name                               "Quantity_2"
                                                 :lib/uuid                                          "a9212400-3b5f-4034-b7a0-f8848579af30"
-                                                :metabase.lib.query/transformation-added-base-type true}
+                                                :lib/transformation-added-base-type true}
                                                (meta/id :orders :quantity)]]}]
                :parameters   [{:id     "c77842b9"
                                :target [:dimension

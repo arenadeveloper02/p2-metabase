@@ -4,23 +4,26 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import {
+  getGroupNameLocalized,
+  getGroupSortOrder,
+  getSpecialGroupType,
+  isDefaultGroup,
+} from "metabase/admin/utils/groups";
+import { collectionApi } from "metabase/api";
+import { ROOT_COLLECTION } from "metabase/collections/constants";
+import {
+  getCollectionIcon,
   isInstanceAnalyticsCollection,
   isLibraryCollection,
   nonPersonalOrArchivedCollection,
 } from "metabase/collections/utils";
-import {
-  Collections,
-  ROOT_COLLECTION,
-  getCollectionIcon,
-} from "metabase/entities/collections";
-import { Groups } from "metabase/entities/groups";
-import { SnippetCollections } from "metabase/entities/snippet-collections";
-import {
-  getGroupNameLocalized,
-  isAdminGroup,
-  isDefaultGroup,
-} from "metabase/lib/groups";
 import { PLUGIN_COLLECTIONS, PLUGIN_TENANTS } from "metabase/plugins";
+import type {
+  CollectionTreeItem,
+  ExpandedCollection,
+  State,
+} from "metabase/redux/store";
+import { isNotNull } from "metabase/utils/types";
 import type {
   Collection,
   CollectionId,
@@ -28,24 +31,25 @@ import type {
   CollectionPermissions,
   Group as GroupType,
 } from "metabase-types/api";
-import type {
-  CollectionTreeItem,
-  ExpandedCollection,
-  State,
-} from "metabase-types/store";
 
 import { COLLECTION_OPTIONS } from "../constants/collections-permissions";
 import { Messages } from "../constants/messages";
-import type { DataPermissionValue } from "../types";
+import {
+  DataPermission,
+  DataPermissionType,
+  type DataPermissionValue,
+  type PermissionEditorType,
+  type SpecialGroupType,
+} from "../types";
 
 import { getPermissionWarningModal } from "./confirmations";
+import { selectGroupList } from "./data-permissions/groups";
 
 export const collectionsQuery = {
-  tree: true,
   "exclude-other-user-collections": true,
   "exclude-archived": true,
   "include-library": true,
-};
+} as const;
 
 export const getIsDirty = createSelector(
   (state: State) => state.admin.permissions.collectionPermissions,
@@ -83,12 +87,11 @@ const getRootCollectionTreeItem = () => {
   };
 };
 
-const getCollections = (state: State) =>
-  (
-    Collections.selectors.getList(state, {
-      entityQuery: collectionsQuery,
-    }) ?? []
-  ).filter(nonPersonalOrArchivedCollection);
+const getCollections = (state: State) => {
+  const queryState =
+    collectionApi.endpoints.listCollectionsTree.select(collectionsQuery)(state);
+  return (queryState?.data ?? []).filter(nonPersonalOrArchivedCollection);
+};
 
 const getCollectionsTree = createSelector([getCollections], (collections) => {
   const libraryCollections = collections.filter(isLibraryCollection);
@@ -168,7 +171,7 @@ const findCollection = (
 
 const getCollection = createSelector(
   [getCurrentCollectionId, getCollections],
-  (collectionId, collections) => {
+  (collectionId, collections): Collection | null => {
     if (collectionId == null) {
       return null;
     }
@@ -176,6 +179,11 @@ const getCollection = createSelector(
     if (collectionId === ROOT_COLLECTION.id) {
       return {
         ...ROOT_COLLECTION,
+        description: null,
+        can_write: true,
+        can_restore: false,
+        can_delete: false,
+        namespace: null,
         children: collections,
       };
     }
@@ -186,15 +194,20 @@ const getCollection = createSelector(
 
 const getFolder = (state: State, props: CollectionIdProps) => {
   const folderId = getCurrentCollectionId(state, props);
-  const folders = SnippetCollections.selectors.getList(state);
+  const folders = collectionApi.endpoints.listCollections.select({
+    namespace: "snippets",
+  })(state).data;
 
-  return folders.find((folder: Collection) => folder.id === folderId);
+  return folders?.find((folder: Collection) => folder.id === folderId);
 };
 
-export const getCollectionEntity = (state: State, props: CollectionIdProps) => {
+export const getCollectionEntity = (
+  state: State,
+  props: CollectionIdProps,
+): Collection | undefined => {
   return props.namespace === "snippets"
     ? getFolder(state, props)
-    : getCollection(state, props);
+    : (getCollection(state, props) ?? undefined);
 };
 
 const getCollectionPermission = (
@@ -211,56 +224,64 @@ const getToggleLabel = (namespace?: CollectionNamespace) =>
     ? t`Also change sub-folders`
     : t`Also change sub-collections`;
 
-export type CollectionPermissionEditorType = null | {
-  title: string;
-  filterPlaceholder: string;
-  columns: [{ name: string }, { name: string }];
-  entities: {
-    id: number;
-    name: string;
-    permissions: {
-      toggleLabel: string;
-      hasChildren: boolean;
-      isDisabled: boolean;
-      disabledTooltip: string | null;
-      value: string;
-      warning: string | null;
-      confirmations: (newValue: string) => string[];
-      options: string[];
-    }[];
-  }[];
+const getCollectionDisabledTooltip = (
+  groupType: SpecialGroupType,
+  isLibrary: boolean,
+  isIACollection: boolean,
+): string | null => {
+  if (groupType === "admin" && isIACollection) {
+    return PLUGIN_COLLECTIONS.INSTANCE_ANALYTICS_ADMIN_READONLY_MESSAGE;
+  }
+  if (groupType === "analyst" && isLibrary) {
+    return Messages.UNABLE_TO_CHANGE_DATA_ANALYST_LIBRARY_PERMISSIONS;
+  }
+  switch (groupType) {
+    case "admin":
+      return Messages.UNABLE_TO_CHANGE_ADMIN_PERMISSIONS;
+    case "external":
+      return Messages.EXTERNAL_USERS_NO_ACCESS_COLLECTION;
+    default:
+      return null;
+  }
 };
 
 export const getCollectionsPermissionEditor = createSelector(
   getCollectionsPermissions,
   getCollectionEntity,
-  Groups.selectors.getList,
+  selectGroupList,
   getNamespace,
-  (
-    permissions,
-    collection,
-    groups,
-    namespace,
-  ): CollectionPermissionEditorType => {
+  (permissions, collection, groups, namespace): PermissionEditorType | null => {
     if (!permissions || collection == null) {
       return null;
     }
 
-    const hasChildren = collection.children?.length > 0;
+    const hasChildren = (collection.children?.length ?? 0) > 0;
     const toggleLabel = hasChildren ? getToggleLabel(namespace) : null;
     const isTenantCollection = PLUGIN_TENANTS.isTenantCollection(collection);
 
-    const entities = groups
+    const sortedGroups = [...groups].sort(
+      (a, b) => getGroupSortOrder(a) - getGroupSortOrder(b),
+    );
+
+    const entities = sortedGroups
       .map((group: GroupType) => {
-        const isAdmin = isAdminGroup(group);
-        const isExternal = PLUGIN_TENANTS.isExternalUsersGroup(group);
+        const isExternalUsersGroup = PLUGIN_TENANTS.isExternalUsersGroup(group);
         const isTenantGroup = PLUGIN_TENANTS.isTenantGroup(group);
+        const isExternal = isExternalUsersGroup || isTenantGroup;
+        const groupType = getSpecialGroupType(group, isExternal);
+        const isLibrary = isLibraryCollection(collection);
         const defaultGroup = _.find(
           groups,
-          isExternal ? PLUGIN_TENANTS.isExternalUsersGroup : isDefaultGroup,
+          isExternalUsersGroup
+            ? PLUGIN_TENANTS.isExternalUsersGroup
+            : isDefaultGroup,
         );
 
         if (isTenantGroup && !isTenantCollection) {
+          return null;
+        }
+
+        if (!defaultGroup) {
           return null;
         }
 
@@ -283,8 +304,7 @@ export const getCollectionsPermissionEditor = createSelector(
         const isIACollection = isInstanceAnalyticsCollection(collection);
 
         const options =
-          isIACollection ||
-          (isTenantCollection && (isTenantGroup || isExternal))
+          isIACollection || (isTenantCollection && isExternal)
             ? [COLLECTION_OPTIONS.read, COLLECTION_OPTIONS.none]
             : [
                 COLLECTION_OPTIONS.write,
@@ -292,14 +312,14 @@ export const getCollectionsPermissionEditor = createSelector(
                 COLLECTION_OPTIONS.none,
               ];
 
-        const disabledTooltip = isIACollection
-          ? PLUGIN_COLLECTIONS.INSTANCE_ANALYTICS_ADMIN_READONLY_MESSAGE
-          : isTenantGroup || isExternal
-            ? Messages.EXTERNAL_USERS_NO_ACCESS_COLLECTION
-            : Messages.UNABLE_TO_CHANGE_ADMIN_PERMISSIONS;
+        const disabledTooltip = getCollectionDisabledTooltip(
+          groupType,
+          isLibrary,
+          isIACollection,
+        );
 
-        const disabled =
-          (!isTenantCollection && (isTenantGroup || isExternal)) || isAdmin;
+        const isDisabled =
+          (!isTenantCollection && isExternal) || disabledTooltip !== null;
 
         return {
           id: group.id,
@@ -309,23 +329,29 @@ export const getCollectionsPermissionEditor = createSelector(
           ) : undefined,
           permissions: [
             {
+              permission: DataPermission.COLLECTIONS,
+              type: DataPermissionType.COLLECTIONS,
               toggleLabel,
               hasChildren,
-              isDisabled: disabled,
-              disabledTooltip: isAdmin || isExternal ? disabledTooltip : null,
+              isDisabled,
+              disabledTooltip,
               value: getCollectionPermission(
                 permissions,
                 group.id,
                 collection.id,
               ),
-              warning: getCollectionWarning(group.id, collection, permissions),
+              warning: getCollectionWarning(
+                group.id,
+                collection as ExpandedCollection,
+                permissions,
+              ),
               confirmations,
               options,
             },
           ],
         };
       })
-      .filter(Boolean);
+      .filter(isNotNull);
 
     return {
       title: t`Permissions for ${collection.name}`,
@@ -364,7 +390,7 @@ function getCollectionWarning(
   permissions: CollectionPermissions,
 ) {
   if (!collection) {
-    return;
+    return null;
   }
   const collectionPerm = getCollectionPermission(
     permissions,
@@ -385,4 +411,6 @@ function getCollectionWarning(
   } else if (collectionPerm === "read" && descendentPerms.has("write")) {
     return t`This group has permission to edit at least one subcollection of this collection.`;
   }
+
+  return null;
 }

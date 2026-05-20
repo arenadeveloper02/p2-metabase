@@ -10,13 +10,13 @@ import {
   useState,
 } from "react";
 
-import ExplicitSize from "metabase/common/components/ExplicitSize";
+import { ExplicitSize } from "metabase/common/components/ExplicitSize";
 import DashboardS from "metabase/css/dashboard.module.css";
 import type { HoveredObject } from "metabase/visualizations/types";
 
 import styles from "./ChartWithLegend.module.css";
-import LegendHorizontal from "./LegendHorizontal";
-import LegendVertical from "./LegendVertical";
+import { LegendHorizontal } from "./LegendHorizontal";
+import { LegendVertical } from "./LegendVertical";
 
 const GRID_ASPECT_RATIO = 4 / 3;
 const PADDING = 14;
@@ -52,6 +52,7 @@ type ChartWithLegendProps = {
   showLegend?: boolean;
   isDashboard?: boolean;
   isDocument?: boolean;
+  isMetricsViewer?: boolean;
   onToggleSeriesVisibility?: (event: MouseEvent, index: number) => void;
   legendPosition?: "top" | "bottom" | "left" | "right";
   forwardedRef?: Ref<HTMLDivElement>;
@@ -74,6 +75,7 @@ const ChartWithLegendInner = ({
   showLegend = true,
   isDashboard,
   isDocument,
+  isMetricsViewer,
   onToggleSeriesVisibility = () => {},
   legendPosition,
   forwardedRef,
@@ -206,7 +208,7 @@ const ChartWithLegendInner = ({
         titles={layout.processedLegendTitles}
         hiddenIndices={legendHiddenIndices}
         colors={legendColors}
-        dotSize={isDashboard ? "8px" : "12px"}
+        dotSize={isDashboard || isMetricsViewer ? "8px" : "12px"}
         hovered={hovered}
         onHoverChange={onHoverChange}
         onToggleSeriesVisibility={onToggleSeriesVisibility}
@@ -232,6 +234,7 @@ const ChartWithLegendInner = ({
         justifyContent: 'center',
         columnGap: 32,
       }}
+      data-testid="chart-with-legend"
       ref={forwardedRef}
     >
       {legend && (
@@ -255,7 +258,19 @@ const ChartWithLegendInner = ({
       >
         {layout.hasDimensions && children}
       </div>
-
+      {/* spacer div to balance legend */}
+      {legend && (
+        <div
+          className={cx(styles.LegendSpacer)}
+          // don't center the chart on dashboards
+          style={
+            isDashboard || isDocument || isMetricsViewer ? { flexBasis: 0 } : {}
+          }
+          data-testid="chart-legend-spacer"
+        >
+          {legend}
+        </div>
+      )}
     </div>
   );
 };

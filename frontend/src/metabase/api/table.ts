@@ -1,10 +1,16 @@
-import { updateMetadata } from "metabase/lib/redux/metadata";
+import { updateMetadata } from "metabase/redux/metadata";
 import { ForeignKeySchema, TableSchema } from "metabase/schema";
 import type {
+  BulkTableRequest,
+  BulkTableSelectionInfo,
+  DiscardTablesValuesRequest,
+  EditTablesRequest,
   ForeignKey,
   GetTableDataRequest,
   GetTableQueryMetadataRequest,
   GetTableRequest,
+  RescanTablesValuesRequest,
+  SyncTablesSchemaRequest,
   Table,
   TableData,
   TableId,
@@ -19,6 +25,7 @@ import {
   idTag,
   invalidateTags,
   listTag,
+  provideBulkTableSelectionInfoTags,
   provideTableListTags,
   provideTableTags,
   tag,
@@ -155,6 +162,101 @@ export const tableApi = Api.injectEndpoints({
       invalidatesTags: (_, error) =>
         invalidateTags(error, [tag("field-values"), tag("parameter-values")]),
     }),
+    appendTableCsv: builder.mutation<
+      void,
+      { tableId: TableId; formData: FormData }
+    >({
+      query: ({ tableId, formData }) => ({
+        method: "POST",
+        url: `/api/table/${tableId}/append-csv`,
+        body: { formData },
+        formData: true,
+        fetch: true,
+      }),
+      invalidatesTags: (_, error, { tableId }) =>
+        invalidateTags(error, [
+          idTag("table", tableId),
+          listTag("field"),
+          listTag("field-values"),
+        ]),
+    }),
+    replaceTableCsv: builder.mutation<
+      void,
+      { tableId: TableId; formData: FormData }
+    >({
+      query: ({ tableId, formData }) => ({
+        method: "POST",
+        url: `/api/table/${tableId}/replace-csv`,
+        body: { formData },
+        formData: true,
+        fetch: true,
+      }),
+      invalidatesTags: (_, error, { tableId }) =>
+        invalidateTags(error, [
+          idTag("table", tableId),
+          listTag("field"),
+          listTag("field-values"),
+        ]),
+    }),
+
+    /// DATA STUDIO
+    getTableSelectionInfo: builder.query<
+      BulkTableSelectionInfo,
+      BulkTableRequest
+    >({
+      query: (body) => ({
+        method: "POST",
+        url: "/api/data-studio/table/selection",
+        body,
+      }),
+      providesTags: (response) =>
+        response ? provideBulkTableSelectionInfoTags(response) : [],
+    }),
+    editTables: builder.mutation<Record<string, never>, EditTablesRequest>({
+      query: (body) => ({
+        method: "POST",
+        url: "/api/data-studio/table/edit",
+        body,
+      }),
+      invalidatesTags: (_, error) =>
+        invalidateTags(error, [tag("table"), tag("database"), tag("card")]),
+    }),
+    rescanTablesFieldValues: builder.mutation<void, RescanTablesValuesRequest>({
+      query: (body) => ({
+        method: "POST",
+        url: `/api/data-studio/table/rescan-values`,
+        body,
+      }),
+      invalidatesTags: (_, error) =>
+        invalidateTags(error, [tag("field-values"), tag("parameter-values")]),
+    }),
+    syncTablesSchemas: builder.mutation<void, SyncTablesSchemaRequest>({
+      query: (body) => ({
+        method: "POST",
+        url: `/api/data-studio/table/sync-schema`,
+        body,
+      }),
+      invalidatesTags: (_, error) =>
+        invalidateTags(error, [
+          tag("table"),
+          listTag("field"),
+          listTag("field-values"),
+          listTag("parameter-values"),
+          tag("card"),
+        ]),
+    }),
+    discardTablesFieldValues: builder.mutation<
+      void,
+      DiscardTablesValuesRequest
+    >({
+      query: (body) => ({
+        method: "POST",
+        url: `/api/data-studio/table/discard-values`,
+        body,
+      }),
+      invalidatesTags: (_, error) =>
+        invalidateTags(error, [tag("field-values"), tag("parameter-values")]),
+    }),
   }),
 });
 
@@ -172,6 +274,15 @@ export const {
   useRescanTableFieldValuesMutation,
   useSyncTableSchemaMutation,
   useDiscardTableFieldValuesMutation,
+  useAppendTableCsvMutation,
+  useReplaceTableCsvMutation,
+
+  useGetTableSelectionInfoQuery,
+  useLazyGetTableSelectionInfoQuery,
+  useEditTablesMutation,
+  useRescanTablesFieldValuesMutation,
+  useSyncTablesSchemasMutation,
+  useDiscardTablesFieldValuesMutation,
 } = tableApi;
 
 /**

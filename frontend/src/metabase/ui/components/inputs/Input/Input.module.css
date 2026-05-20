@@ -10,15 +10,15 @@
   display: block;
   color: var(--mb-color-text-primary);
   border-radius: var(--mantine-radius-xs);
-  background-color: var(--mb-color-background);
+  background-color: var(--mb-color-background-primary);
 
   &::placeholder {
-    color: var(--mb-color-text-light);
+    color: var(--mb-color-text-tertiary);
   }
 
   &:disabled {
     background-color: var(--mb-color-background-disabled);
-    color: var(--mb-color-text-disabled);
+    color: var(--mb-color-text-tertiary);
   }
 
   &[data-size="xs"] {
@@ -33,6 +33,10 @@
 
   &[data-variant="default"] {
     border-color: var(--mb-color-border);
+
+    &:hover:not(:disabled) {
+      border-color: var(--mb-color-brand);
+    }
 
     &:focus {
       border-color: var(--mb-color-brand);
@@ -54,11 +58,11 @@
 }
 
 .section {
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
 }
 
 .label {
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
   font-size: var(--mantine-font-size-md);
   font-weight: bold;
   line-height: var(--mantine-line-height-md);
@@ -66,7 +70,7 @@
 }
 
 .description {
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
   font-size: var(--mantine-font-size-sm);
   line-height: var(--mantine-line-height-sm);
   margin-bottom: var(--mantine-spacing-sm);

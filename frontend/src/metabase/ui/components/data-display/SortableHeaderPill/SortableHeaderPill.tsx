@@ -10,6 +10,8 @@ import {
 import resizeObserver from "metabase/lib/resize-observer";
 import { Icon, Text } from "metabase/ui";
 
+import { Icon } from "metabase/ui";
+import { Ellipsified } from "metabase/ui/components/data-display/Ellipsified";
 
 import S from "./SortableHeaderPill.module.css";
 

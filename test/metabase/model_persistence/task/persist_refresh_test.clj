@@ -127,12 +127,12 @@
                                (refresh! [_ _database _definition _card]
                                  {:state :success})
                                (unpersist! [_ _database _persisted-info]))
-              original-update! t2/update!]
+              original-update! (mt/original-fn #'t2/update!)]
           (testing "If saving the `persisted` (or `error`) state fails..."
-            (with-redefs [t2/update! (fn [model id update]
-                                       (when (= "persisted" (:state update))
-                                         (throw (ex-info "simulated error" {})))
-                                       (original-update! model id update))]
+            (mt/with-dynamic-fn-redefs [t2/update! (fn [model id update]
+                                                     (when (= "persisted" (:state update))
+                                                       (throw (ex-info "simulated error" {})))
+                                                     (original-update! model id update))]
               (is (thrown-with-msg? clojure.lang.ExceptionInfo #"simulated error"
                                     (#'task.persist-refresh/refresh-tables! (u/the-id db) test-refresher))))
             (testing "the PersistedInfo is left in the `refreshing` state"
@@ -205,7 +205,7 @@
                                  (is false "refresh! called on a model that should not be refreshed"))
                                (unpersist! [_ _database persisted-info]
                                  (swap! called-on conj (u/the-id persisted-info))))]
-          (testing "Query finds deletabable, archived, and unmodeled persisted infos"
+          (testing "Query finds deletable, archived, and unmodeled persisted infos"
             (let [queued-for-deletion (into #{} (map :id) (#'task.persist-refresh/deletable-models))]
               (doseq [deletable-persisted [deletable punmodeled parchived]]
                 (is (contains? queued-for-deletion (u/the-id deletable-persisted))))))
@@ -259,8 +259,8 @@
     (testing "send an email if persist-refresh fails"
       (let [email-sent (atom false)]
         ;; TODO -- a real test that actually made sure this function worked instead of swapping it out would be nice.
-        (with-redefs [task.persist-refresh/publish-refresh-error-event! (fn [& _args]
-                                                                          (reset! email-sent true))]
+        (mt/with-dynamic-fn-redefs [task.persist-refresh/publish-refresh-error-event! (fn [& _args]
+                                                                                        (reset! email-sent true))]
           (#'task.persist-refresh/save-task-history! "persist-refresh" (mt/id)
                                                      (fn []
                                                        {:error-details ["some-error"]}))

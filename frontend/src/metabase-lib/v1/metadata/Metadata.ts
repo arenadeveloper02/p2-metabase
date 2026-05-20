@@ -1,13 +1,17 @@
 import _ from "underscore";
 
+import { MetadataSymbol } from "metabase-lib";
 import type {
   CardId,
   DatabaseId,
   FieldId,
   FieldReference,
+  Measure,
+  MeasureId,
+  Metric,
   NativeQuerySnippet,
   SchemaId,
-  SegmentId,
+  Segment,
   SettingKey,
   Settings,
   TableId,
@@ -18,7 +22,6 @@ import type Question from "../Question";
 import type Database from "./Database";
 import type Field from "./Field";
 import type Schema from "./Schema";
-import type Segment from "./Segment";
 import type Table from "./Table";
 import { getUniqueFieldId } from "./utils/fields";
 import { SAVED_QUESTIONS_VIRTUAL_DB_ID } from "./utils/saved-questions";
@@ -29,6 +32,7 @@ interface MetadataOpts {
   tables?: Record<string, Table>;
   fields?: Record<string, Field>;
   segments?: Record<string, Segment>;
+  measures?: Record<string, Measure>;
   questions?: Record<string, Question>;
   settings?: Settings;
 }
@@ -40,11 +44,17 @@ interface MetadataOpts {
  *   Do not rely on data being implicitly loaded in some other place.
  */
 class Metadata {
+  // We brand this type with the MetadataSymbol to
+  // to mark it as a Metadata instance.
+
+  readonly [MetadataSymbol]?: void;
   databases: Record<string, Database> = {};
   schemas: Record<string, Schema> = {};
   tables: Record<string, Table> = {};
   fields: Record<string, Field> = {};
   segments: Record<string, Segment> = {};
+  measures: Record<string, Measure> = {};
+  metrics: Record<string, Metric> = {};
   questions: Record<string, Question> = {};
   snippets: Record<string, NativeQuerySnippet> = {};
   settings?: Settings;
@@ -79,17 +89,17 @@ class Metadata {
   }
 
   /**
-   * @deprecated load data via RTK Query - useListSegmentsQuery
+   * @deprecated load data via RTK Query - useListMeasuresQuery
    */
-  segmentsList(): Segment[] {
-    return Object.values(this.segments);
+  measuresList(): Measure[] {
+    return Object.values(this.measures);
   }
 
   /**
-   * @deprecated load data via RTK Query - useGetSegmentQuery
+   * @deprecated load data via RTK Query - useGetMeasureQuery
    */
-  segment(segmentId: SegmentId | undefined | null): Segment | null {
-    return (segmentId != null && this.segments[segmentId]) || null;
+  measure(measureId: MeasureId | undefined | null): Measure | null {
+    return (measureId != null && this.measures[measureId]) || null;
   }
 
   /**

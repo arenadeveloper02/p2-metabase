@@ -8,20 +8,21 @@ import {
   SettingsPageWrapper,
   SettingsSection,
 } from "metabase/admin/components/SettingsSection";
-import { useListPersistedInfoQuery } from "metabase/api";
-import DateTime from "metabase/common/components/DateTime";
-import EmptyState from "metabase/common/components/EmptyState";
-import Link from "metabase/common/components/Link";
+import {
+  useListPersistedInfoQuery,
+  useRefreshModelCacheMutation,
+} from "metabase/api";
+import { DateTime } from "metabase/common/components/DateTime";
+import { EmptyState } from "metabase/common/components/EmptyState";
+import { Link } from "metabase/common/components/Link";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PaginationControls } from "metabase/common/components/PaginationControls";
 import { usePagination } from "metabase/common/hooks/use-pagination";
 import AdminS from "metabase/css/admin.module.css";
 import CS from "metabase/css/core/index.css";
-import { PersistedModels } from "metabase/entities/persisted-models";
-import { capitalize } from "metabase/lib/formatting";
-import { connect } from "metabase/lib/redux";
-import * as Urls from "metabase/lib/urls";
 import { Icon, Tooltip } from "metabase/ui";
+import * as Urls from "metabase/urls";
+import { capitalize } from "metabase/utils/formatting";
 import { checkCanRefreshModelCache } from "metabase-lib/v1/metadata/utils/models";
 import type { ModelCacheRefreshStatus } from "metabase-types/api";
 
@@ -103,16 +104,8 @@ function JobTableItem({ job, onRefresh }: JobTableItemProps) {
 
 const PAGE_SIZE = 20;
 
-type Props = {
-  onRefresh: (job: ModelCacheRefreshStatus) => void;
-};
-
-const mapDispatchToProps = {
-  onRefresh: (job: ModelCacheRefreshStatus) =>
-    PersistedModels.objectActions.refreshCache(job),
-};
-
-function _ModelCacheRefreshJobs({ onRefresh }: Props) {
+export function ModelCacheRefreshJobs() {
+  const [refreshModelCache] = useRefreshModelCacheMutation();
   const { page, handleNextPage, handlePreviousPage } = usePagination();
   const { data, error, isFetching } = useListPersistedInfoQuery({
     limit: PAGE_SIZE,
@@ -163,7 +156,7 @@ function _ModelCacheRefreshJobs({ onRefresh }: Props) {
             <JobTableItem
               key={job.id}
               job={job}
-              onRefresh={() => onRefresh(job)}
+              onRefresh={() => refreshModelCache(job.card_id)}
             />
           ))}
         </tbody>
@@ -184,11 +177,6 @@ function _ModelCacheRefreshJobs({ onRefresh }: Props) {
     </div>
   );
 }
-
-export const ModelCacheRefreshJobs = connect(
-  null,
-  mapDispatchToProps,
-)(_ModelCacheRefreshJobs);
 
 export function ModelCachePage({ children }: { children?: React.ReactNode }) {
   return (

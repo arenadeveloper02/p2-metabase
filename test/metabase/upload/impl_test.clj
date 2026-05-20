@@ -8,9 +8,10 @@
    [clojure.string :as str]
    [clojure.test :refer :all]
    [flatland.ordered.map :as ordered-map]
-   [metabase.analytics.core :as analytics]
+   [metabase.analytics-interface.core :as analytics]
    [metabase.analytics.snowplow-test :as snowplow-test]
    [metabase.driver :as driver]
+   [metabase.driver.connection :as driver.conn]
    [metabase.driver.ddl.interface :as ddl.i]
    [metabase.driver.mysql :as mysql]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
@@ -20,13 +21,15 @@
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.schema.id :as lib.schema.id]
    [metabase.models.interface :as mi]
+   [metabase.permissions.core :as perms]
    [metabase.permissions.models.data-permissions :as data-perms]
    [metabase.permissions.models.permissions-group :as perms-group]
-   [metabase.query-processor :as qp]
+   [metabase.query-processor.test :as qp]
    [metabase.sync.sync-metadata.tables :as sync-tables]
    [metabase.test :as mt]
    [metabase.test.data.impl :as data.impl]
    [metabase.test.data.sql :as sql.tx]
+   [metabase.upload.db :as upload.db]
    [metabase.upload.impl :as upload]
    [metabase.upload.parsing :as upload-parsing]
    [metabase.upload.types :as upload-types]
@@ -446,7 +449,7 @@
                  (test-names-match table "Some File Prefix"))))))
         (testing "Unicode characters are preserved in the display name, even when the table name is slugified"
           (let [csv-file-prefix "出色的"]
-            (with-redefs [upload/strictly-monotonic-now (constantly #t "2024-06-28T00:00:00")]
+            (mt/with-dynamic-fn-redefs [upload/strictly-monotonic-now (constantly #t "2024-06-28T00:00:00")]
               (do-with-uploaded-example-csv!
                {:csv-file-prefix csv-file-prefix}
                (fn [model]
@@ -489,12 +492,12 @@
                     (testing "both tables have the same display name"
                       (is (= "Some File Prefix"
                              (:display_name table-1)
-                             (:display_name table-2))
-                          (testing "tables are different between the two uploads"
-                            (is (some? (:id table-1)))
-                            (is (some? (:id table-2)))
-                            (is (not= (:id table-1)
-                                      (:id table-2)))))))))))))))))
+                             (:display_name table-2))))
+                    (testing "tables are different between the two uploads"
+                      (is (some? (:id table-1)))
+                      (is (some? (:id table-2)))
+                      (is (not= (:id table-1)
+                                (:id table-2)))))))))))))))
 
 (defn- query [db-id source-table]
   (qp/process-query {:database db-id
@@ -718,29 +721,30 @@
     (mt/test-drivers (mt/normal-drivers-with-feature :uploads)
       (when (driver/upload-type->database-type driver/*driver* :metabase.upload/offset-datetime)
         (with-mysql-local-infile-on-and-off
-          (with-redefs [driver/db-default-timezone (constantly "Z")
-                        upload/current-database    (constantly (mt/db))]
-            (let [transpose  (fn [m] (apply mapv vector m))
-                  [csv-strs expected] (transpose [["2022-01-01T12:00:00-07"    "2022-01-01T19:00:00Z"]
-                                                  ["2022-01-01T12:00:00-07:00" "2022-01-01T19:00:00Z"]
-                                                  ["2022-01-01T12:00:00-07:30" "2022-01-01T19:30:00Z"]
-                                                  ["2022-01-01T12:00:00Z"      "2022-01-01T12:00:00Z"]
-                                                  ["2022-01-01T12:00:00-00:00" "2022-01-01T12:00:00Z"]
-                                                  ["2022-01-01T12:00:00+07"    "2022-01-01T05:00:00Z"]
-                                                  ["2022-01-01T12:00:00+07:00" "2022-01-01T05:00:00Z"]
-                                                  ["2022-01-01T12:00:00+07:30" "2022-01-01T04:30:00Z"]
-                                                  ["2022-01-01T12:00:00+0730"  "2022-01-01T04:30:00Z"]])]
-              (testing "Fields exists after sync"
-                (with-upload-table!
-                  [table (create-from-csv-and-sync-with-defaults!
-                          :file (csv-file-with (into ["offset_datetime"] csv-strs)))]
-                  (testing "Check the offset datetime column the correct base_type"
-                    (is (=? :type/DateTimeWithLocalTZ
-                            (t2/select-one-fn :base_type :model/Field :%lower.name "offset_datetime" :table_id (:id table)))))
-                  (let [position (column-position table "offset_datetime")
-                        values   (map #(nth % position) (rows-for-table table))]
-                    (is (= expected
-                           values))))))))))))
+          ;; driver/db-default-timezone is a multimethod, so it needs with-redefs
+          (with-redefs [driver/db-default-timezone (constantly "Z")]
+            (mt/with-dynamic-fn-redefs [upload.db/current-database (constantly (mt/db))]
+              (let [transpose  (fn [m] (apply mapv vector m))
+                    [csv-strs expected] (transpose [["2022-01-01T12:00:00-07"    "2022-01-01T19:00:00Z"]
+                                                    ["2022-01-01T12:00:00-07:00" "2022-01-01T19:00:00Z"]
+                                                    ["2022-01-01T12:00:00-07:30" "2022-01-01T19:30:00Z"]
+                                                    ["2022-01-01T12:00:00Z"      "2022-01-01T12:00:00Z"]
+                                                    ["2022-01-01T12:00:00-00:00" "2022-01-01T12:00:00Z"]
+                                                    ["2022-01-01T12:00:00+07"    "2022-01-01T05:00:00Z"]
+                                                    ["2022-01-01T12:00:00+07:00" "2022-01-01T05:00:00Z"]
+                                                    ["2022-01-01T12:00:00+07:30" "2022-01-01T04:30:00Z"]
+                                                    ["2022-01-01T12:00:00+0730"  "2022-01-01T04:30:00Z"]])]
+                (testing "Fields exists after sync"
+                  (with-upload-table!
+                    [table (create-from-csv-and-sync-with-defaults!
+                            :file (csv-file-with (into ["offset_datetime"] csv-strs)))]
+                    (testing "Check the offset datetime column the correct base_type"
+                      (is (=? :type/DateTimeWithLocalTZ
+                              (t2/select-one-fn :base_type :model/Field :%lower.name "offset_datetime" :table_id (:id table)))))
+                    (let [position (column-position table "offset_datetime")
+                          values   (map #(nth % position) (rows-for-table table))]
+                      (is (= expected
+                             values)))))))))))))
 
 (deftest create-from-csv-boolean-test
   (testing "Upload a CSV file"
@@ -960,11 +964,11 @@
   (mt/test-drivers (mt/normal-drivers-with-feature :uploads)
     ;; There aren't any officially supported databases yet that don't support `:upload-with-auto-pk`
     ;; So we'll fake it here to test it for 3rd party drivers
-    (let [original-supports?-fn driver.u/supports?]
-      (with-redefs [driver.u/supports? (fn [driver feature db]
-                                         (if (= feature :upload-with-auto-pk)
-                                           false
-                                           (original-supports?-fn driver feature db)))]
+    (let [original-supports?-fn (mt/original-fn #'driver.u/supports?)]
+      (mt/with-dynamic-fn-redefs [driver.u/supports? (fn [driver feature db]
+                                                       (if (= feature :upload-with-auto-pk)
+                                                         false
+                                                         (original-supports?-fn driver feature db)))]
         (with-mysql-local-infile-on-and-off
           (testing "Upload a CSV file with column names that are reserved by the DB, NOT ignoring them"
             (testing "A single column whose name normalizes to _mb_row_id"
@@ -1617,30 +1621,31 @@
         (with-mysql-local-infile-on-and-off
           (mt/with-report-timezone-id! "UTC"
             (testing "Append should succeed for all possible CSV column types"
-              (mt/with-dynamic-fn-redefs [driver/db-default-timezone (constantly "Z")
-                                          upload/current-database    (constantly (mt/db))]
-                (with-upload-table!
-                  [table (create-upload-table!
-                          {:col->upload-type (columns-with-auto-pk
-                                              (ordered-map/ordered-map
-                                               :biginteger      int-type
-                                               :float           float-type
-                                               :text            vchar-type
-                                               :boolean         bool-type
-                                               :date            date-type
-                                               :datetime        datetime-type))
-                           :rows [[1000000,1.0,"some_text",false,#t "2020-01-01",#t "2020-01-01T00:00:00"]]})]
-                  (let [csv-rows ["biginteger,float,text,boolean,date,datetime"
-                                  "2000000,2.0,some_text,true,2020-02-02,2020-02-02T02:02:02"]
-                        file  (csv-file-with csv-rows)]
-                    (is (some? (update-csv! action {:file file, :table-id (:id table)})))
-                    (testing "Check the data was uploaded into the table correctly"
-                      (is (= (set (updated-contents
-                                   action
-                                   [[1000000 1.0 "some_text" false "2020-01-01T00:00:00Z" "2020-01-01T00:00:00Z"]]
-                                   [[2000000 2.0 "some_text" true "2020-02-02T00:00:00Z" "2020-02-02T02:02:02Z"]]))
-                             (set (rows-for-table table)))))
-                    (io/delete-file file)))))))))))
+              ;; driver/db-default-timezone is a multimethod, so it needs with-redefs
+              (with-redefs [driver/db-default-timezone (constantly "Z")]
+                (mt/with-dynamic-fn-redefs [upload.db/current-database (constantly (mt/db))]
+                  (with-upload-table!
+                    [table (create-upload-table!
+                            {:col->upload-type (columns-with-auto-pk
+                                                (ordered-map/ordered-map
+                                                 :biginteger      int-type
+                                                 :float           float-type
+                                                 :text            vchar-type
+                                                 :boolean         bool-type
+                                                 :date            date-type
+                                                 :datetime        datetime-type))
+                             :rows [[1000000,1.0,"some_text",false,#t "2020-01-01",#t "2020-01-01T00:00:00"]]})]
+                    (let [csv-rows ["biginteger,float,text,boolean,date,datetime"
+                                    "2000000,2.0,some_text,true,2020-02-02,2020-02-02T02:02:02"]
+                          file  (csv-file-with csv-rows)]
+                      (is (some? (update-csv! action {:file file, :table-id (:id table)})))
+                      (testing "Check the data was uploaded into the table correctly"
+                        (is (= (set (updated-contents
+                                     action
+                                     [[1000000 1.0 "some_text" false "2020-01-01T00:00:00Z" "2020-01-01T00:00:00Z"]]
+                                     [[2000000 2.0 "some_text" true "2020-02-02T00:00:00Z" "2020-02-02T02:02:02Z"]]))
+                               (set (rows-for-table table)))))
+                      (io/delete-file file))))))))))))
 
 (deftest update-offset-datetime-test
   (mt/test-drivers (mt/normal-drivers-with-feature :uploads)
@@ -1649,26 +1654,27 @@
         (with-mysql-local-infile-on-and-off
           (mt/with-report-timezone-id! "UTC"
             (testing "Append should succeed for offset datetime columns"
-              (with-redefs [driver/db-default-timezone (constantly "Z")
-                            upload/current-database    (constantly (mt/db))]
-                (with-upload-table!
-                  [table (create-upload-table!
-                          {:col->upload-type (columns-with-auto-pk
-                                              (ordered-map/ordered-map :offset_datetime offset-dt-type))
-                           :rows []})]
-                  (let [csv-rows ["offset_datetime"
-                                  "2020-02-02T02:02:02+02:00"]
-                        file  (csv-file-with csv-rows (mt/random-name))]
-                    (is (some? (update-csv! action {:file file, :table-id (:id table)})))
-                    (testing "Check the data was uploaded into the table correctly"
-                      (is (= (set (updated-contents
-                                   action
-                                   []
-                                   [[(if (driver/upload-type->database-type driver/*driver* :metabase.upload/offset-datetime)
-                                       "2020-02-02T00:02:02Z"
-                                       "2020-02-02T02:02:02+02:00")]]))
-                             (set (rows-for-table table)))))
-                    (io/delete-file file)))))))))))
+              ;; driver/db-default-timezone is a multimethod, so it needs with-redefs
+              (with-redefs [driver/db-default-timezone (constantly "Z")]
+                (mt/with-dynamic-fn-redefs [upload.db/current-database (constantly (mt/db))]
+                  (with-upload-table!
+                    [table (create-upload-table!
+                            {:col->upload-type (columns-with-auto-pk
+                                                (ordered-map/ordered-map :offset_datetime offset-dt-type))
+                             :rows []})]
+                    (let [csv-rows ["offset_datetime"
+                                    "2020-02-02T02:02:02+02:00"]
+                          file  (csv-file-with csv-rows (mt/random-name))]
+                      (is (some? (update-csv! action {:file file, :table-id (:id table)})))
+                      (testing "Check the data was uploaded into the table correctly"
+                        (is (= (set (updated-contents
+                                     action
+                                     []
+                                     [[(if (driver/upload-type->database-type driver/*driver* :metabase.upload/offset-datetime)
+                                         "2020-02-02T00:02:02Z"
+                                         "2020-02-02T02:02:02+02:00")]]))
+                               (set (rows-for-table table)))))
+                      (io/delete-file file))))))))))))
 
 (deftest update-no-rows-test
   (mt/test-drivers (mt/normal-drivers-with-feature :uploads)
@@ -2587,7 +2593,7 @@
         expected [:%ce%b1bcd      :%_a2ba0330      :%ce%b1bc_2        :%ce%b1bc_3]
         displays ["αbcdεf"        "αbcdεfg"        "αbc 2 etc"        "αbc 3 xyz"]]
     (is (= expected (#'upload/derive-column-names ::short-column-test-driver original)))
-    (mt/with-dynamic-fn-redefs [upload/max-bytes (constantly 10)]
+    (with-redefs [upload/max-bytes (constantly 10)]
       (is (= displays
              ;; The whitespace linter rejects capital greek characters that look like their roman equivalents.
              ;; This is the easiest way to work around the capitalization of alpha.
@@ -2602,3 +2608,69 @@
       ;; This test ensure drivers always meet any transitive expectations users might have.
       (let [allow-list (driver/allowed-promotions driver/*driver*)]
         (is (= allow-list (or (mt/transitive allow-list) {})))))))
+
+(deftest can-create-upload-with-blocked-table-in-different-schema-test
+  (testing "A user with unrestricted access to the upload schema can upload even if blocked on a table in a different schema"
+    (mt/with-no-data-perms-for-all-users!
+      (mt/with-temp [:model/Database         {db-id :id}             {:engine "h2"  :uploads_enabled true}
+                     :model/Table            {upload-table :id}      {:db_id db-id :schema "upload_schema" :name "UploadTable"}
+                     :model/Table            {blocked-table :id}     {:db_id db-id :schema "other_schema"  :name "BlockedTable"}
+                     :model/PermissionsGroup pg                      {}]
+        (perms/add-user-to-group! (mt/user->id :rasta) pg)
+        (t2/delete! :model/DataPermissions :db_id db-id)
+        ;; Set database-level defaults to blocked
+        (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+        (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+        ;; Grant unrestricted access to the upload schema table
+        (data-perms/set-table-permission! pg upload-table :perms/view-data :unrestricted)
+        (data-perms/set-table-permission! pg upload-table :perms/create-queries :query-builder)
+        ;; Block access to the table in the other schema
+        (data-perms/set-table-permission! pg blocked-table :perms/view-data :blocked)
+        (data-perms/set-table-permission! pg blocked-table :perms/create-queries :no)
+        (let [db (t2/select-one :model/Database db-id)]
+          (mt/with-current-user (mt/user->id :rasta)
+            (testing "can upload to the upload schema"
+              (is (true? (upload/can-create-upload? db "upload_schema"))))
+            (testing "cannot upload to the blocked schema"
+              (is (false? (upload/can-create-upload? db "other_schema"))))))))))
+
+(deftest upload-create-creates-write-pool-test
+  (mt/test-drivers (mt/normal-driver-select {:+parent :sql-jdbc, :+features [:uploads]})
+    (with-uploads-enabled!
+      (let [db-id           (mt/id)
+            write-cache-key [db-id :write-data]]
+        (mt/with-dynamic-fn-redefs [driver.conn/effective-connection-type
+                                    (fn [_database]
+                                      (if (= driver.conn/*connection-type* :write-data)
+                                        :write-data
+                                        :default))]
+          (try
+            (sql-jdbc.conn/invalidate-pool-for-db! (mt/db))
+            (testing "write pool does not exist before upload create"
+              (is (not (contains? @@#'sql-jdbc.conn/pool-cache-key->connection-pool write-cache-key))))
+            (with-upload-table! [_table (create-from-csv-and-sync-with-defaults!)]
+              (testing "write pool is created during upload create"
+                (is (contains? @@#'sql-jdbc.conn/pool-cache-key->connection-pool write-cache-key))))
+            (finally
+              (sql-jdbc.conn/invalidate-pool-for-db! (mt/db)))))))))
+
+(deftest upload-delete-creates-write-pool-test
+  (mt/test-drivers (mt/normal-driver-select {:+parent :sql-jdbc, :+features [:uploads]})
+    (with-uploads-enabled!
+      (let [db-id           (mt/id)
+            write-cache-key [db-id :write-data]]
+        (mt/with-dynamic-fn-redefs [driver.conn/effective-connection-type
+                                    (fn [_database]
+                                      (if (= driver.conn/*connection-type* :write-data)
+                                        :write-data
+                                        :default))]
+          (try
+            (let [table (create-upload-table!)]
+              (sql-jdbc.conn/invalidate-pool-for-db! (mt/db))
+              (testing "write pool does not exist before upload delete"
+                (is (not (contains? @@#'sql-jdbc.conn/pool-cache-key->connection-pool write-cache-key))))
+              (upload/delete-upload! table)
+              (testing "write pool is created during upload delete"
+                (is (contains? @@#'sql-jdbc.conn/pool-cache-key->connection-pool write-cache-key))))
+            (finally
+              (sql-jdbc.conn/invalidate-pool-for-db! (mt/db)))))))))

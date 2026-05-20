@@ -1,8 +1,12 @@
 import fetchMock from "fetch-mock";
 
+import { getStore } from "__support__/entities-store";
 import { createMockEntitiesState } from "__support__/store";
-import { defer } from "metabase/lib/promise";
+import { Api } from "metabase/api";
+import { mainReducers } from "metabase/reducers-main";
+import { createMockState } from "metabase/redux/store/mocks";
 import { getMetadata } from "metabase/selectors/metadata";
+import { defer } from "metabase/utils/promise";
 import Question from "metabase-lib/v1/Question";
 import type {
   Card,
@@ -21,7 +25,6 @@ import {
   SAMPLE_DB_ID,
   createSampleDatabase,
 } from "metabase-types/api/mocks/presets";
-import { createMockState } from "metabase-types/store/mocks";
 
 import { runQuestionQuery } from "./services";
 
@@ -83,10 +86,21 @@ function getQueryEndpointPath(question: Question) {
     : `path:/api/card/${question.id()}/query`;
 }
 
+function getRtkStore() {
+  return getStore(
+    { ...mainReducers, [Api.reducerPath]: Api.reducer },
+    createMockState(),
+    [Api.middleware],
+  );
+}
+
 async function setupRunQuestionQuery(question: Question) {
   const mockResult = createMockDataset();
   fetchMock.post(getQueryEndpointPath(question), mockResult);
-  const result = await runQuestionQuery(question, { cancelDeferred: defer() });
+  const result = await runQuestionQuery(question, {
+    dispatch: getRtkStore().dispatch,
+    cancelDeferred: defer(),
+  });
   return { result, mockResult };
 }
 
@@ -198,6 +212,115 @@ describe("metabase/services > runQuestionQuery", () => {
       const question = createMockAdHocQuestion();
       const { result, mockResult } = await setupRunQuestionQuery(question);
       expect(result).toEqual([mockResult]);
+    });
+  });
+
+  describe("error handling", () => {
+    it("should convert 4xx errors to successful responses with error data (saved question)", async () => {
+      const question = createMockSavedQuestion();
+      const errorData = {
+        error: "Query failed",
+        error_type: "client-error",
+        status: "failed",
+      };
+
+      fetchMock.post(getQueryEndpointPath(question), {
+        status: 400,
+        body: errorData,
+      });
+
+      const result = await runQuestionQuery(question, {
+        dispatch: getRtkStore().dispatch,
+        cancelDeferred: defer(),
+      });
+
+      // 4xx errors should be returned as successful responses with error data
+      expect(result).toEqual([errorData]);
+    });
+
+    it("should convert 4xx errors to successful responses with error data (ad-hoc question)", async () => {
+      const question = createMockAdHocQuestion();
+      const errorData = {
+        error: "Permission denied",
+        error_type: "permission-error",
+        status: "failed",
+      };
+
+      fetchMock.post(getQueryEndpointPath(question), {
+        status: 403,
+        body: errorData,
+      });
+
+      const result = await runQuestionQuery(question, {
+        dispatch: getRtkStore().dispatch,
+        cancelDeferred: defer(),
+      });
+
+      // 4xx errors should be returned as successful responses with error data
+      expect(result).toEqual([errorData]);
+    });
+
+    it("should throw on 5xx server errors", async () => {
+      const question = createMockSavedQuestion();
+
+      fetchMock.post(getQueryEndpointPath(question), {
+        status: 500,
+        body: { error: "Internal server error" },
+      });
+
+      // 5xx errors should still throw
+      await expect(
+        runQuestionQuery(question, {
+          dispatch: getRtkStore().dispatch,
+          cancelDeferred: defer(),
+        }),
+      ).rejects.toMatchObject({
+        status: 500,
+      });
+    });
+
+    it("rejects with { isCancelled: true } when cancelDeferred resolves (ad-hoc question)", async () => {
+      // Guards the RTK Query cancellation path: resolving `cancelDeferred`
+      // must abort the underlying `/api/dataset` request and reject with
+      // the legacy `{ isCancelled: true }` shape that `queryErrored` and
+      // other callers rely on.
+      const question = createMockAdHocQuestion();
+      fetchMock.post(
+        getQueryEndpointPath(question),
+        new Promise(() => undefined),
+      );
+
+      const cancelDeferred = defer();
+      const runPromise = runQuestionQuery(question, {
+        dispatch: getRtkStore().dispatch,
+        cancelDeferred,
+      });
+
+      cancelDeferred.resolve();
+
+      await expect(runPromise).rejects.toEqual({ isCancelled: true });
+    });
+
+    it("normalizes plain-text 4xx error bodies into a structured error result (EMB-1659)", async () => {
+      // Embed API checks (e.g. `/api/embed/card/:token/query`) reject with a
+      // plain-text body when a locked param is missing from the JWT. Without
+      // normalization the result reaches the visualization as a bare string,
+      // so `result?.error` is undefined and the UI falls through to an empty
+      // state instead of showing the message.
+      const question = createMockSavedQuestion();
+      const errorMessage = "You must specify a value for category in the JWT.";
+
+      fetchMock.post(getQueryEndpointPath(question), {
+        status: 400,
+        body: errorMessage,
+      });
+
+      const result = await runQuestionQuery(question, {
+        dispatch: getRtkStore().dispatch,
+        cancelDeferred: defer(),
+      });
+
+      expect(result).toEqual([{ error: errorMessage, status: 400 }]);
     });
   });
 });

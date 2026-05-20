@@ -1,12 +1,14 @@
 (ns ^:mb/driver-tests metabase.driver.mongo.execute-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.mongo.execute-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.driver.mongo.execute-test]}}}}}}
   (:require
    [clojure.core.async :as a]
    [clojure.test :refer :all]
    [metabase.driver.mongo.conversion :as mongo.conversion]
    [metabase.driver.mongo.execute :as mongo.execute]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.cache.impl :as middleware.cache.impl]
    [metabase.query-processor.pipeline :as qp.pipeline]
+   [metabase.query-processor.test :as qp]
    [metabase.server.streaming-response :as streaming-response]
    [metabase.test :as mt])
   (:import

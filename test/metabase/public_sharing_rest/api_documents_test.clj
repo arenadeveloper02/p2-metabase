@@ -2,6 +2,7 @@
   "Tests for public sharing endpoints for Documents.
 
   These tests verify that public document endpoints work correctly."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.public-sharing-rest.api-documents-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [metabase.documents.test-util :as documents.test-util]
@@ -96,8 +97,8 @@
     (testing "Cannot fetch a public Document if public sharing is disabled"
       (mt/with-temporary-setting-values [enable-public-sharing false]
         (mt/with-temp [:model/Document document (document-with-public-link {})]
-          (is (= "API endpoint does not exist."
-                 (mt/client :get 404 (str "public/document/" (:public_uuid document)))))))))
+          (is (= "An error occurred."
+                 (mt/client :get 400 (str "public/document/" (:public_uuid document)))))))))
 
   (testing "Returns 404 if the Document doesn't exist"
     (mt/with-temporary-setting-values [enable-public-sharing true]

@@ -9,11 +9,11 @@ import {
   node,
   python,
   ruby,
-} from "metabase/public/lib/code-templates";
+} from "metabase/embedding/lib/code-templates";
 import type {
   CodeSampleParameters,
   ServerCodeSampleConfig,
-} from "metabase/public/lib/types";
+} from "metabase/embedding/types";
 
 const getEmbedServerCodeExampleOptions = (
   codeSampleParameters: Omit<CodeSampleParameters, "displayOptions">,
@@ -76,7 +76,7 @@ export function useSdkIframeEmbedServerSnippet() {
             resourceType,
             resourceId: resource.id,
             params: previewParameterValuesBySlug,
-            // We don't need an iframe snippet, because we use EmbedJS snippet for frontent snippet
+            // We don't need an iframe snippet, because we use EmbedJS snippet for frontend snippet
             withIframeSnippet: false,
           })
         : [],

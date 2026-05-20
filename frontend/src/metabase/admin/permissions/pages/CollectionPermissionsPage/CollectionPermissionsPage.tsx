@@ -5,16 +5,10 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import { CollectionPermissionsHelp } from "metabase/admin/permissions/components/CollectionPermissionsHelp";
-import { Collections } from "metabase/entities/collections";
-import { Groups } from "metabase/entities/groups";
-import { connect, useSelector } from "metabase/lib/redux";
-import type {
-  Collection,
-  CollectionId,
-  CollectionPermissions,
-  GroupId,
-} from "metabase-types/api";
-import type { State } from "metabase-types/store";
+import { useListCollectionsTreeQuery } from "metabase/api";
+import { connect, useSelector } from "metabase/redux";
+import type { State } from "metabase/redux/store";
+import type { Collection, CollectionId } from "metabase-types/api";
 
 import {
   PermissionsEditor,
@@ -23,6 +17,7 @@ import {
 import { PermissionsPageLayout } from "../../components/PermissionsPageLayout";
 import { PermissionsSidebar } from "../../components/PermissionsSidebar";
 import {
+  type UpdateCollectionPermissionParams,
   initializeCollectionPermissions,
   loadCollectionPermissions,
   saveCollectionPermissions,
@@ -30,7 +25,6 @@ import {
 } from "../../permissions";
 import type {
   CollectionIdProps,
-  CollectionPermissionEditorType,
   CollectionSidebarType,
 } from "../../selectors/collection-permissions";
 import {
@@ -40,6 +34,8 @@ import {
   getCollectionsSidebar,
   getIsDirty,
 } from "../../selectors/collection-permissions";
+import type { PermissionEditorEntity, PermissionEditorType } from "../../types";
+import { assertNumericId } from "../../types";
 
 const mapDispatchToProps = {
   initialize: initializeCollectionPermissions,
@@ -59,30 +55,17 @@ const mapStateToProps = (state: State, props: CollectionIdProps) => {
   };
 };
 
-type UpdateCollectionPermissionParams = {
-  groupId: GroupId;
-  collection: Collection;
-  value: unknown;
-  shouldPropagate: boolean | null;
-  originalPermissionsState: CollectionPermissions;
-};
-
 type CollectionPermissionsPageProps = {
   params: CollectionIdProps["params"];
   sidebar: CollectionSidebarType;
-  permissionEditor: CollectionPermissionEditorType;
-  collection: Collection;
+  permissionEditor: PermissionEditorType | null;
+  collection: Collection | undefined;
   navigateToItem: (item: any) => void;
-  updateCollectionPermission: ({
-    groupId,
-    collection,
-    value,
-    shouldPropagate,
-  }: UpdateCollectionPermissionParams) => void;
+  updateCollectionPermission: (params: UpdateCollectionPermissionParams) => any;
   isDirty: boolean;
-  savePermissions: () => void;
-  loadPermissions: () => void;
-  initialize: () => void;
+  savePermissions: (...args: any[]) => any;
+  loadPermissions: (...args: any[]) => any;
+  initialize: (...args: any[]) => any;
   route: Route;
 };
 
@@ -98,6 +81,8 @@ function CollectionsPermissionsPageView({
   initialize,
   route,
 }: CollectionPermissionsPageProps) {
+  useListCollectionsTreeQuery(collectionsQuery);
+
   const originalPermissionsState = useSelector(
     ({ admin }) => admin.permissions.originalCollectionPermissions,
   );
@@ -108,16 +93,19 @@ function CollectionsPermissionsPageView({
 
   const handlePermissionChange = useCallback(
     (
-      item: { id: GroupId },
+      item: PermissionEditorEntity,
       _permission: unknown,
       value: unknown,
       toggleState: boolean | null,
     ) => {
+      if (!collection) {
+        return;
+      }
       updateCollectionPermission({
-        groupId: item.id,
+        groupId: assertNumericId(item.id),
         collection,
         value,
-        shouldPropagate: toggleState,
+        shouldPropagateToChildren: toggleState,
         originalPermissionsState,
       });
     },
@@ -156,9 +144,5 @@ function CollectionsPermissionsPageView({
 }
 
 export const CollectionPermissionsPage = _.compose(
-  Collections.loadList({
-    entityQuery: collectionsQuery,
-  }),
-  Groups.loadList(),
   connect(mapStateToProps, mapDispatchToProps),
 )(CollectionsPermissionsPageView);

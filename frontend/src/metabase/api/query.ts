@@ -1,6 +1,6 @@
 import type { BaseQueryFn } from "@reduxjs/toolkit/query/react";
 
-import api from "metabase/lib/api";
+import api from "metabase/api/legacy-client";
 
 type AllowedHTTPMethods = "GET" | "POST" | "PUT" | "DELETE";
 const allowedHTTPMethods = new Set<AllowedHTTPMethods>([
@@ -14,10 +14,10 @@ const isAllowedHTTPMethod = (method: any): method is AllowedHTTPMethods => {
 };
 
 // custom fetcher that wraps our Api client
-export const apiQuery: BaseQueryFn = async (args, ctx) => {
+export const apiQuery: BaseQueryFn = async (args, ctx, extraOptions) => {
   const method = typeof args === "string" ? "GET" : (args?.method ?? "GET");
   const url = typeof args === "string" ? args : args.url;
-  const { bodyParamName, noEvent, formData, fetch } = args;
+  const { bodyParamName, noEvent, formData, fetch, transformResponse } = args;
 
   if (!isAllowedHTTPMethod(method)) {
     return { error: "Invalid HTTP method" };
@@ -34,6 +34,8 @@ export const apiQuery: BaseQueryFn = async (args, ctx) => {
         noEvent,
         formData,
         fetch,
+        transformResponse,
+        ...extraOptions,
       },
     );
     return { data: response };

@@ -1,6 +1,5 @@
-import { updateMetadata } from "metabase/lib/redux/metadata";
 import { PLUGIN_API } from "metabase/plugins";
-import { QueryMetadataSchema } from "metabase/schema";
+import { DashboardSchema, QueryMetadataSchema } from "metabase/schema";
 import type {
   CopyDashboardRequest,
   CreateDashboardRequest,
@@ -36,13 +35,15 @@ import {
   provideValidDashboardFilterFieldTags,
   tag,
 } from "./tags";
-import { handleQueryFulfilled } from "./utils/lifecycle";
+import { hydrateLegacyEntities } from "./utils/hydrate-legacy-entities";
 
 export const dashboardApi = Api.injectEndpoints({
   endpoints: (builder) => {
     const updateDashboardPropertiesMutation = <
       Key extends keyof UpdateDashboardRequest,
-    >() =>
+    >(
+      additionalTags: ReturnType<typeof listTag>[] = [],
+    ) =>
       builder.mutation<Dashboard, UpdateDashboardPropertyRequest<Key>>({
         query: ({ id, ...body }) => ({
           method: "PUT",
@@ -50,7 +51,11 @@ export const dashboardApi = Api.injectEndpoints({
           body,
         }),
         invalidatesTags: (_, error, { id }) =>
-          invalidateTags(error, [listTag("dashboard"), idTag("dashboard", id)]),
+          invalidateTags(error, [
+            listTag("dashboard"),
+            idTag("dashboard", id),
+            ...additionalTags,
+          ]),
       });
 
     return {
@@ -65,6 +70,7 @@ export const dashboardApi = Api.injectEndpoints({
         }),
         providesTags: (dashboards) =>
           dashboards ? provideDashboardListTags(dashboards) : [],
+        onQueryStarted: hydrateLegacyEntities([DashboardSchema]),
       }),
       getDashboard: builder.query<Dashboard, GetDashboardRequest>({
         query: ({ id, ignore_error }) => ({
@@ -74,6 +80,7 @@ export const dashboardApi = Api.injectEndpoints({
         }),
         providesTags: (dashboard) =>
           dashboard ? provideDashboardTags(dashboard) : [],
+        onQueryStarted: hydrateLegacyEntities(DashboardSchema),
       }),
       getDashboardQueryMetadata: builder.query<
         DashboardQueryMetadata,
@@ -86,10 +93,7 @@ export const dashboardApi = Api.injectEndpoints({
         }),
         providesTags: (metadata) =>
           metadata ? provideDashboardQueryMetadataTags(metadata) : [],
-        onQueryStarted: (_, { queryFulfilled, dispatch }) =>
-          handleQueryFulfilled(queryFulfilled, (data) =>
-            dispatch(updateMetadata(data, QueryMetadataSchema)),
-          ),
+        onQueryStarted: hydrateLegacyEntities(QueryMetadataSchema),
       }),
       getRemappedDashboardParameterValue: builder.query<
         FieldValue,
@@ -203,7 +207,7 @@ export const dashboardApi = Api.injectEndpoints({
       }),
       updateDashboardEnableEmbedding: updateDashboardPropertiesMutation<
         "enable_embedding" | "embedding_type"
-      >(),
+      >([listTag("embedding-hub-checklist")]),
       updateDashboardEmbeddingParams: updateDashboardPropertiesMutation<
         "embedding_params" | "embedding_type"
       >(),
@@ -276,6 +280,7 @@ export const {
     deleteDashboardPublicLink,
     createDashboard,
     createDashboardPublicLink,
+    updateDashboard,
     updateDashboardEnableEmbedding,
     updateDashboardEmbeddingParams,
   },

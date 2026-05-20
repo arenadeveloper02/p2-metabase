@@ -1,4 +1,5 @@
 (ns metabase-enterprise.advanced-permissions.models.permissions.block-permissions-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase-enterprise.advanced-permissions.models.permissions.block-permissions-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [medley.core :as m]
@@ -10,8 +11,8 @@
    [metabase.permissions.core :as perms]
    [metabase.permissions.models.data-permissions :as data-perms]
    [metabase.permissions.models.permissions-group :as perms-group]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.permissions :as qp.perms]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]
    [metabase.util :as u]
    [toucan2.core :as t2])

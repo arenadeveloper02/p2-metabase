@@ -53,7 +53,7 @@
       (testing "Valid LDAP settings can still be saved if port is a integer (#18936)"
         (mt/user-http-request :crowberto :put 200 "ldap/settings"
                               (assoc (ldap-test-details)
-                                     :ldap-port (Integer. (ldap.test/get-ldap-port)))))
+                                     :ldap-port (int (ldap.test/get-ldap-port)))))
 
       (testing "Passing ldap-enabled=false will disable LDAP"
         (mt/user-http-request :crowberto :put 200 "ldap/settings" (ldap-test-details false))
@@ -63,7 +63,7 @@
         (mt/user-http-request :crowberto :put 500 "ldap/settings"
                               (assoc (ldap-test-details false) :ldap-password "wrong-password")))
 
-      (with-redefs [ldap/test-ldap-connection (constantly {:status :SUCCESS})]
+      (mt/with-dynamic-fn-redefs [ldap/test-ldap-connection (constantly {:status :SUCCESS})]
         (testing "LDAP port is saved as default value if passed as an empty string (#18936)"
           (is (true?
                (mt/user-http-request :crowberto :put 200 "ldap/settings"

@@ -23,6 +23,7 @@
    [metabase.lib.core :as lib]
    [metabase.permissions-rest.data-permissions.graph :as data-perms.graph]
    [metabase.permissions.core :as perms]
+   [metabase.permissions.models.permissions-group-membership :as pgm]
    [metabase.permissions.test-util :as perms.test-util]
    [metabase.premium-features.test-util :as premium-features.test-util]
    [metabase.query-processor.util :as qp.util]
@@ -36,6 +37,7 @@
    [metabase.test.data :as data]
    [metabase.test.fixtures :as fixtures]
    [metabase.test.initialize :as initialize]
+   [metabase.test.util.dynamic-redefs :as dynamic-redefs]
    [metabase.test.util.log]
    [metabase.timeline.models.timeline-event :as timeline-event]
    [metabase.util :as u]
@@ -209,6 +211,31 @@
             :ip_address "0:0:0:0:0:0:0:1"
             :timestamp (t/zoned-date-time)})
 
+   :model/Measure
+   (fn [_] (default-timestamped
+            {:creator_id (rasta-id)
+             :definition {}
+             :name "Mock Measure"
+             :table_id (data/id :checkins)}))
+
+   :model/MetabotConversation
+   (fn [_] {:id      (str (random-uuid))
+            :user_id (rasta-id)})
+
+   :model/MetabotMessage
+   ;; `:conversation_id` is required and has no sensible default — callers must provide one.
+   (fn [_] {:role         "assistant"
+            :profile_id   "gpt-5"
+            :total_tokens 0
+            :data         []})
+
+   :model/AiUsageLog
+   (fn [_] {:source            "test"
+            :model             "test/model"
+            :prompt_tokens     0
+            :completion_tokens 0
+            :total_tokens      0})
+
    :model/NativeQuerySnippet
    (fn [_] (default-timestamped
             {:creator_id (user-id :crowberto)
@@ -333,7 +360,8 @@
       :source {:type  "query"
                :query (lib/native-query (data/metadata-provider) "SELECT 1 as num")}
       :target {:type "table"
-               :name (str "test_table_" (u/generate-nano-id))}})
+               :name (str "test_table_" (str/replace (u/generate-nano-id) "-" "_"))
+               :database (data/id)}})
 
    :model/TransformJob
    (fn [_]
@@ -366,6 +394,13 @@
             :password (u.random/random-name)
             :date_joined (t/zoned-date-time)
             :updated_at (t/zoned-date-time)})})
+
+;; `with-temp` cleanup calls `t2/delete!` directly, which would hit our before-delete guard.
+;; Bind `*allow-direct-deletion*` so with-temp cleanup works.
+(methodical/defmethod t2.with-temp/do-with-temp* :around :model/PermissionsGroupMembership
+  [model explicit-attributes f]
+  (binding [pgm/*allow-direct-deletion* true]
+    (next-method model explicit-attributes f)))
 
 (defn- set-with-temp-defaults! []
   (doseq [[model defaults-fn] with-temp-defaults-fns]
@@ -468,9 +503,12 @@
 
 (defn- upsert-raw-setting!
   [original-value setting-k value]
-  (if original-value
-    (t2/update! :model/Setting setting-k {:value value})
-    (t2/insert! :model/Setting :key setting-k :value value))
+  (if (some? value)
+    (if original-value
+      (t2/update! :model/Setting setting-k {:value value})
+      (t2/insert! :model/Setting :key setting-k :value value))
+    (when original-value
+      (t2/delete! :model/Setting :key setting-k)))
   (setting.cache/restore-cache!))
 
 (defn- restore-raw-setting!
@@ -515,7 +553,7 @@
             (if raw-setting?
               (upsert-raw-setting! original-value setting-k value)
               ;; bypass the feature check when setting up mock data
-              (with-redefs [metabase.settings.models.setting/has-feature? (constantly true)]
+              (dynamic-redefs/with-dynamic-fn-redefs [metabase.settings.models.setting/has-feature? (constantly true)]
                 (setting/set! setting-k value :bypass-read-only? true)))
             (catch Throwable e
               (throw (ex-info (str "Error in with-temporary-setting-values: " (ex-message e))
@@ -530,7 +568,7 @@
               (if raw-setting?
                 (restore-raw-setting! original-value setting-k)
                 ;; bypass the feature check when reset settings to the original value
-                (with-redefs [metabase.settings.models.setting/has-feature? (constantly true)]
+                (dynamic-redefs/with-dynamic-fn-redefs [metabase.settings.models.setting/has-feature? (constantly true)]
                   (setting/set! setting-k original-value :bypass-read-only? true)))
               (catch Throwable e
                 (throw (ex-info (str "Error restoring original Setting value: " (ex-message e))
@@ -581,8 +619,8 @@
   ((reduce
     (fn [thunk setting-k]
       (fn []
-        (let [value (setting/read-setting setting-k)]
-          (do-with-temporary-setting-value! setting-k value thunk :skip-init? true))))
+        (let [value (setting/get setting-k)]
+          (do-with-temporary-setting-value! setting-k value thunk))))
     thunk
     settings)))
 
@@ -735,10 +773,10 @@
         (assert (not (qs/started? temp-scheduler))
                 "temp in-memory scheduler already started: did you use it elsewhere without shutting it down?")
         (binding [task.impl/*quartz-scheduler* (atom temp-scheduler)]
-          (with-redefs [qs/initialize (constantly temp-scheduler)
-                        ;; prevent shutting down scheduler during thunk because some custom migration shutdown scheduler
-                        ;; after it's done, but we need the scheduler for testing
-                        qs/shutdown (constantly nil)]
+          (dynamic-redefs/with-dynamic-fn-redefs [qs/initialize (constantly temp-scheduler)
+                                                  ;; prevent shutting down scheduler during thunk because some custom migration shutdown scheduler
+                                                  ;; after it's done, but we need the scheduler for testing
+                                                  qs/shutdown (constantly nil)]
             (thunk)))
         (finally
           (qs/shutdown temp-scheduler))))))
@@ -864,16 +902,18 @@
                 ;; might not have an old max ID if this is the first time the macro is used in this test run.
                 :let [old-max-id (get model->old-max-id model)
                       max-id-condition (if old-max-id [:> pk old-max-id] true)
-                      additional-conditions (with-model-cleanup-additional-conditions model)]]
+                      additional-conditions (with-model-cleanup-additional-conditions model)
+                      where-clause [:and max-id-condition additional-conditions]]]
           (t2/query-one
            {:delete-from (t2/table-name model)
-            :where [:and max-id-condition additional-conditions]}))
+            :where where-clause}))
         ;; TODO we don't (currently) have index update hooks on deletes, so we need this to ensure rollback happens.
         (search/reindex! {:in-place? true :async? false})))))
 
 (defmacro with-model-cleanup
-  "Execute `body`, then delete any *new* rows created for each model in `models`. Calls `delete!`, so if the model has
-  defined any `pre-delete` behavior, that will be preserved.
+  "Execute `body`, then delete any *new* rows created for each model in `models`.
+
+   Uses raw SQL DELETE for performance. Does not trigger `before-delete`/`after-delete` hooks.
 
   It's preferable to use `with-temp` instead, but you can use this macro if `with-temp` wouldn't work in your
   situation (e.g. when creating objects via the API).
@@ -982,6 +1022,7 @@
         called-query? (promise)
         pause-query (promise)
         query-thunk (fn []
+                      #_{:clj-kondo/ignore [:deprecated-var]}
                       (data/run-mbql-query checkins
                         {:aggregation [[:count]]}))
         ;; When the query is ran via the datasets endpoint, it will run in a future. That future can be canceled,
@@ -1278,6 +1319,7 @@
          (= (first x) 'values-of))
     (let [[_ table+field] x
           [table field] (str/split (str table+field) #"\.")]
+      #_{:clj-kondo/ignore [:deprecated-var]}
       `(into {} (get-in (data/run-mbql-query ~(symbol table)
                           {:fields [~'$id ~(symbol (str \$ field))]})
                         [:data :rows])))

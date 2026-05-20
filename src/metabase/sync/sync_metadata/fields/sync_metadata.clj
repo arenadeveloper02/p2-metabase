@@ -15,9 +15,18 @@
    [metabase.warehouse-schema.models.field-user-settings :as schema.field-user-settings]
    [toucan2.core :as t2]))
 
+(defn- normalize-nfc-path
+  "Normalize a `nfc-path` to a vector of strings so a driver emitting keywords doesn't churn against the
+  JSON-stringified values stored in the application DB."
+  [path]
+  (some->> path (mapv name)))
+
+(defn- crufty-field? [db field-metadata]
+  (crufty/name? (:name field-metadata)
+                (some-> db :settings :auto-cruft-columns)))
+
 (defn- compute-new-visibility-type [db field-metadata]
-  (if (crufty/name? (:name field-metadata)
-                    (some-> db :settings :auto-cruft-columns))
+  (if (crufty-field? db field-metadata)
     :details-only
     ;; n.b. if it was auto-crufted in the past, removing it from auto-cruft will NOT make it visible because old
     ;; visibility-type will be :details-only. This only changes things to be hidden. If you want to make it visible
@@ -33,6 +42,8 @@
    metabase-field :- common/TableMetadataFieldWithID]
   (let [{old-database-type              :database-type
          old-base-type                  :base-type
+         old-effective-type             :effective-type
+         old-coercion-strategy          :coercion-strategy
          old-field-comment              :field-comment
          old-semantic-type              :semantic-type
          old-database-position          :database-position
@@ -45,7 +56,9 @@
          old-database-is-nullable       :database-is-nullable
          old-db-partitioned             :database-partitioned
          old-db-required                :database-required
-         old-visibility-type            :visibility-type} metabase-field
+         old-visibility-type            :visibility-type
+         old-preview-display            :preview-display
+         old-nfc-path                   :nfc-path} metabase-field
         {new-database-type              :database-type
          new-base-type                  :base-type
          new-field-comment              :field-comment
@@ -57,7 +70,8 @@
          new-database-is-generated      :database-is-generated
          new-database-is-nullable       :database-is-nullable
          new-db-partitioned             :database-partitioned
-         new-db-required                :database-required} field-metadata
+         new-db-required                :database-required
+         new-nfc-path                   :nfc-path} field-metadata
         new-visibility-type             (compute-new-visibility-type database field-metadata)
         new-database-is-auto-increment  (boolean new-database-is-auto-increment)
         new-db-required                 (boolean new-db-required)
@@ -92,8 +106,13 @@
         new-db-generated?        (not= old-database-is-generated new-database-is-generated)
         new-db-nullable?         (not= old-database-is-nullable new-database-is-nullable)
         new-db-partitioned?      (not= new-db-partitioned old-db-partitioned)
-        new-db-required?         (not= old-db-required new-db-required)
-        new-visibility-type?     (not= old-visibility-type new-visibility-type)
+        new-db-required?           (not= old-db-required new-db-required)
+        new-visibility-type?       (not= old-visibility-type new-visibility-type)
+        new-nfc-path?              (not= (normalize-nfc-path old-nfc-path)
+                                         (normalize-nfc-path new-nfc-path))
+        ;; set preview_display=false for crufty fields (prevents FieldValues from being created)
+        is-crufty?                 (crufty-field? database field-metadata)
+        set-preview-display-false? (and is-crufty? old-preview-display)
 
         ;; calculate combined updates
         updates
@@ -120,6 +139,22 @@
              :semantic_type       nil}
              ;; we must override user-set values
              (->> (schema.field-user-settings/upsert-user-settings metabase-field))))
+         ;; GHY-3388 self-heal: a Field with no coercion_strategy must have effective_type=base_type.
+         ;; We've observed customer instances where these drifted apart (likely from older Metabase
+         ;; versions). When base_type didn't change at this sync but the row is in the broken state,
+         ;; repair it. Wipe user-settings's stale effective_type too so sync-user-settings's merge-back
+         ;; doesn't re-introduce drift on the next field update.
+         (when (and (not new-base-type?)
+                    (nil? old-coercion-strategy)
+                    (some? old-effective-type)
+                    (not= old-effective-type new-base-type))
+           (log/warnf "Healing %s: effective_type %s ≠ base_type %s with no coercion_strategy. Resetting effective_type to match base_type."
+                      (common/field-metadata-name-for-logging table metabase-field)
+                      old-effective-type
+                      new-base-type)
+           (let [et {:effective_type new-base-type}]
+             (schema.field-user-settings/upsert-user-settings metabase-field et)
+             et))
          (when new-semantic-type?
            (log/infof "Semantic type of %s has changed from '%s' to '%s'."
                       (common/field-metadata-name-for-logging table metabase-field)
@@ -153,7 +188,7 @@
            ;; this guard avoids spamming logs with pk changes when people first upgrade to support database_is_pk
            (when (or ;; if we have any value for the old database_is_pk we have upgraded already, and can log regardless
                   (some? old-pk)
-                     ;; otherwise, log only if logical pk status has changed
+                  ;; otherwise, log only if logical pk status has changed
                   (not= new-pk (= old-semantic-type :type/PK)))
              (log/infof "Database pk of %s has changed from '%s' to '%s'"
                         (common/field-metadata-name-for-logging table metabase-field)
@@ -197,7 +232,15 @@
                       new-db-required)
            {:database_required new-db-required})
          (when new-visibility-type?
-           {:visibility_type new-visibility-type}))]
+           {:visibility_type new-visibility-type})
+         (when new-nfc-path?
+           (log/infof "NFC path of %s has changed from '%s' to '%s'."
+                      (common/field-metadata-name-for-logging table metabase-field)
+                      old-nfc-path
+                      new-nfc-path)
+           {:nfc_path new-nfc-path})
+         (when set-preview-display-false?
+           {:preview_display false}))]
     ;; if any updates need to be done, do them and return 1 (because 1 Field was updated), otherwise return 0
     (if (and (seq updates)
              (pos? (t2/update! :model/Field (u/the-id metabase-field) updates)))

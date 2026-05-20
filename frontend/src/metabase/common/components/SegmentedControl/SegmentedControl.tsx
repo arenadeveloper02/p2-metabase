@@ -1,8 +1,7 @@
-import type * as React from "react";
 import { useMemo } from "react";
 import _ from "underscore";
 
-import type { IconName } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import {
   ItemIcon,
@@ -44,7 +43,7 @@ export function SegmentedControl<Value extends SegmentedControlValue = number>({
   options,
   onChange,
   fullWidth = false,
-  inactiveColor = "text-dark",
+  inactiveColor = "text-primary",
   variant = "fill-background",
   ...props
 }: SegmentedControlProps<Value>) {

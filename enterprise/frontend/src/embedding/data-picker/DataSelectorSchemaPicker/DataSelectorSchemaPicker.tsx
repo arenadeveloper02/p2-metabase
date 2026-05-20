@@ -1,7 +1,9 @@
 import { AccordionList } from "metabase/common/components/AccordionList";
 import CS from "metabase/css/core/index.css";
+import { useTranslateContent } from "metabase/i18n/hooks";
 import { Box, Icon } from "metabase/ui";
 import type Schema from "metabase-lib/v1/metadata/Schema";
+import { getSchemaDisplayName } from "metabase-lib/v1/metadata/utils/schema";
 import type { SchemaId } from "metabase-types/api";
 
 import { CONTAINER_WIDTH } from "../constants";
@@ -26,10 +28,11 @@ const DataSelectorSchemaPicker = ({
   hasFiltering,
   hasInitialFocus,
 }: DataSelectorSchemaPickerProps) => {
+  const tc = useTranslateContent();
   const sections = [
     {
       items: schemas.map((schema) => ({
-        name: schema.displayName(),
+        name: tc(getSchemaDisplayName(schema.name)),
         schema: schema,
       })),
     },

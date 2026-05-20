@@ -1,7 +1,10 @@
 const { H } = cy;
 import { SAMPLE_DB_ID, WRITABLE_DB_ID } from "e2e/support/cypress_data";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import { ADMIN_USER_ID } from "e2e/support/cypress_sample_instance_data";
+import {
+  ADMIN_USER_ID,
+  ORDERS_QUESTION_ID,
+} from "e2e/support/cypress_sample_instance_data";
 
 const { ORDERS, ORDERS_ID, PEOPLE, PEOPLE_ID, PRODUCTS, PRODUCTS_ID } =
   SAMPLE_DATABASE;
@@ -12,11 +15,38 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     cy.signInAsAdmin();
   });
 
+  it("keeps the notebook editor mounted when opening the question info sidebar (UXW-224)", () => {
+    H.activateToken("pro-self-hosted");
+    H.visitQuestion(ORDERS_QUESTION_ID);
+    H.openNotebook();
+
+    // The Visualize button only renders while the notebook editor is mounted.
+    cy.location("pathname").should("include", "/notebook");
+    cy.button("Visualize").should("be.visible");
+
+    // Open the question info sidesheet — the notebook should stay mounted behind it.
+    H.questionInfoButton().click();
+    H.sidesheet().should("be.visible");
+    cy.button("Visualize").should("be.visible");
+
+    // Closing the sidesheet should leave us in notebook mode with the editor intact.
+    H.sidesheet().findByLabelText("Close").click();
+    cy.location("pathname").should("include", "/notebook");
+    cy.button("Visualize").should("be.visible");
+
+    // Open Edit settings from the actions menu — same expectation.
+    // ("Edit settings" only appears with granular caching enabled, so this
+    // step requires EE.)
+    H.openQuestionActions("Edit settings");
+    H.sidesheet().should("be.visible");
+    cy.location("pathname").should("include", "/notebook");
+    cy.button("Visualize").should("be.visible");
+  });
+
   it("shouldn't offer to save the question when there were no changes (metabase#13470)", () => {
     H.openOrdersTable();
     // save question initially
     H.saveQuestion(undefined, undefined, {
-      tab: "Browse",
       path: ["Our analytics"],
     });
 
@@ -26,7 +56,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     cy.button("Visualize").click();
 
     // there were no changes to the question, so we shouldn't have the option to "Save"
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").should("not.exist");
   });
 
@@ -39,12 +69,12 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     cy.findByRole("button", { name: "Summarize" }).click();
 
     // count orders by user id, filter to the one user with 46 orders
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Pick a function or metric").click();
     H.popover().within(() => {
       cy.findByText("Count of rows").click();
     });
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Pick a column to group by").click();
     H.popover().within(() => {
       cy.contains("User ID").click();
@@ -61,9 +91,9 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
     H.visualize();
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("2372"); // user's id in the table
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Showing 1 row"); // ensure only one user was returned
   });
 
@@ -97,14 +127,14 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
       display: "table",
     });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("ID is between 96 and 97").click();
     H.popover().findByText("Between").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Is not");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Greater than");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Less than");
   });
 
@@ -113,7 +143,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     cy.intercept("POST", "/api/dataset").as("dataset");
     H.openProductsTable({ mode: "notebook" });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Custom column").click();
     addSimpleCustomColumn("EXPR");
 
@@ -135,11 +165,11 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
     H.visualize();
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("EXPR");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("EXPR (1)");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("EXPR (2)");
   });
 
@@ -167,22 +197,22 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
     H.createQuestion(questionDetails, { visitQuestion: true });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Showing 98 rows");
 
     cy.findByTestId("filters-visibility-control").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Product ID is 2").click();
 
     H.popover().within(() => {
       cy.findByLabelText("Filter value").focus().type("3").blur();
       cy.button("Update filter").click();
     });
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Product ID is 2 selections");
 
     cy.wait("@dataset");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Showing 175 rows");
   });
 
@@ -210,10 +240,10 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
   it("should show an info card filter columns in the popover", () => {
     H.openOrdersTable({ mode: "notebook" });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Filter").click();
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Add filters to narrow your answer").click();
 
     cy.findByRole("tree")
@@ -247,7 +277,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
       H.popover().isRenderedWithinViewport();
       // Click anywhere outside this popover to close it because the issue with rendering happens when popover opens for the second time
-      cy.icon("gear").click();
+      H.getProfileLink().click();
       H.getNotebookStep("filter")
         .findByText("Add filters to narrow your answer")
         .click();
@@ -259,7 +289,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
         .findByText("Pick a function or metric")
         .click();
       // Click outside to close this popover
-      cy.icon("gear").click();
+      H.getProfileLink().click();
       // Popover invoked again blocks the button making it impossible to click the button for the third time
       H.getNotebookStep("summarize")
         .findByText("Pick a function or metric")
@@ -295,29 +325,29 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
       H.visualize();
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.contains("Example");
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.contains("Big");
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.contains("Small");
     });
 
     it("should work on custom filter", () => {
       H.filter({ mode: "notebook" });
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Custom Expression").click();
 
       H.enterCustomColumnDetails({ formula: "[Subtotal] - Tax > 140" });
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.contains(/^redundant input/i).should("not.exist");
 
       cy.button("Done").should("not.be.disabled").click();
 
       H.visualize();
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.contains("Showing 97 rows");
     });
 
@@ -382,9 +412,9 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
     H.visualize();
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Tax");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("ID").should("not.exist");
   });
 
@@ -619,11 +649,13 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
   it("should be able to drag-n-drop query clauses", () => {
     function moveElement({ name, horizontal, vertical, index }) {
-      H.moveDnDKitElement(cy.findByText(name), {
+      cy.findByText(name).as("dragElement");
+      H.moveDnDKitElementByAlias("@dragElement", {
         horizontal,
         vertical,
+        useMouseEvents: true,
       });
-      // eslint-disable-next-line no-unsafe-element-filtering
+      // eslint-disable-next-line metabase/no-unsafe-element-filtering
       cy.findAllByTestId("notebook-cell-item")
         .eq(index)
         .should("have.text", name);
@@ -658,12 +690,14 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     }) {
       H.getNotebookStep(type).findByText(name).click();
       H.popover().within(() => {
-        H.moveDnDKitElement(cy.findByText("Is"), {
+        cy.findByText("Is").as("dragElement");
+        H.moveDnDKitElementByAlias("@dragElement", {
           horizontal,
           vertical,
+          useMouseEvents: true,
         });
       });
-      // eslint-disable-next-line no-unsafe-element-filtering
+      // eslint-disable-next-line metabase/no-unsafe-element-filtering
       H.getNotebookStep(type)
         .findAllByTestId("notebook-cell-item")
         .eq(index)
@@ -831,7 +865,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
               .should("eq", "Revenue");
           });
 
-        // eslint-disable-next-line no-unsafe-element-filtering
+        // eslint-disable-next-line metabase/no-unsafe-element-filtering
         cy.get("@table")
           .last()
           .as("tableBody")
@@ -1006,7 +1040,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
     H.joinTable("Reviews", "Product ID", "Product ID");
     H.addSummaryField({ metric: "Count of rows" });
     H.addSummaryGroupingField({ field: "Created At" });
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     cy.findAllByRole("button", { name: "Join data" }).last().click();
     H.joinTable("Reviews", "Created At: Month", "Created At");
     cy.button("Summarize").click();
@@ -1066,7 +1100,7 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
   it("Correctly translates aggregations", () => {
     cy.request("PUT", `/api/user/${ADMIN_USER_ID}`, {
-      locale: "de",
+      locale: "en-ZZ",
     });
 
     H.openTable({
@@ -1074,13 +1108,13 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
       mode: "notebook",
     });
 
-    cy.findByRole("button", { name: "Zusammenfassen" }).click();
+    cy.findByRole("button", { name: "[zz] Summarize" }).click();
     H.popover().within(() => {
-      cy.findByText("Durchschnitt von...").click();
+      cy.findByText("[zz] Average of ...").click();
       cy.findByText("Subtotal").click();
     });
 
-    cy.findAllByText("Durchschnitt von Subtotal").should("exist");
+    cy.findAllByText("[zz] Average of Subtotal").should("exist");
     cy.findAllByText("Average of Subtotal").should("not.exist");
 
     cy.request("PUT", `/api/user/${ADMIN_USER_ID}`, {
@@ -1097,7 +1131,16 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
     cy.get("@questionId").then((PRODUCT_QUESTION_ID) => {
       cy.findByRole("button", { name: /Editor/ }).click();
+      cy.location("pathname").should(
+        "equal",
+        `/question/${PRODUCT_QUESTION_ID}-products/notebook`,
+      );
+
       cy.findByRole("button", { name: /Visualization/ }).click();
+      cy.location("pathname").should(
+        "equal",
+        `/question/${PRODUCT_QUESTION_ID}-products`,
+      );
 
       cy.go("back");
       cy.location("pathname").should(
@@ -1117,8 +1160,8 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
         `/question/${PRODUCT_QUESTION_ID}-products/notebook`,
       );
 
+      cy.log("Turn this question into a model");
       H.openQuestionActions("Turn into a model");
-
       H.modal()
         .findByRole("button", { name: "Turn this into a model" })
         .click();
@@ -1130,8 +1173,13 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
       H.openQuestionActions("Edit metadata");
       H.waitForLoaderToBeRemoved();
-      H.datasetEditBar().findByRole("button", { name: "Cancel" }).click();
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products/columns`,
+      );
 
+      H.datasetEditBar().findByRole("button", { name: "Cancel" }).click();
+      H.datasetEditBar().should("not.exist");
       cy.location("pathname").should(
         "equal",
         `/model/${PRODUCT_QUESTION_ID}-products`,
@@ -1139,6 +1187,10 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
       H.openQuestionActions("Edit metadata");
       H.waitForLoaderToBeRemoved();
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products/columns`,
+      );
 
       cy.go("back");
       cy.location("pathname").should(
@@ -1147,66 +1199,81 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
       );
 
       cy.go("back");
-
       cy.location("pathname").should(
         "equal",
         `/model/${PRODUCT_QUESTION_ID}-products/columns`,
       );
 
       H.datasetEditBar().findByText("Query").click();
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products/query`,
+      );
 
       cy.go("back");
-
       cy.location("pathname").should(
         "equal",
         `/model/${PRODUCT_QUESTION_ID}-products/columns`,
       );
 
       cy.go("forward");
-
       cy.location("pathname").should(
         "equal",
         `/model/${PRODUCT_QUESTION_ID}-products/query`,
       );
 
       H.datasetEditBar().findByRole("button", { name: "Cancel" }).click();
+      H.datasetEditBar().should("not.exist");
 
       cy.go("back");
-
       cy.location("pathname").should(
         "equal",
         `/model/${PRODUCT_QUESTION_ID}-products/query`,
       );
 
-      cy.go("back");
-
       // This should work, but doesn't (metabase#55486)
+      // cy.go("back");
       // cy.location("pathname").should(
       //   "equal",
       //   `/model/${PRODUCT_QUESTION_ID}-products/columns`,
       // );
 
-      H.datasetEditBar().findByRole("button", { name: "Cancel" }).click();
+      H.datasetEditBar()
+        .findByRole("button", { name: "Cancel" })
+        .should("be.visible")
+        .click();
+      H.datasetEditBar().should("not.exist");
 
-      cy.findAllByTestId("row-id-cell")
+      const PRODUCT_ROW_ID = "1";
+      cy.findByTestId("table-body")
+        .find("[data-column-id='ID']")
         .first()
-        .findByRole("button", { hidden: true })
-        .click({ force: true });
+        .should("be.visible")
+        .and("have.text", PRODUCT_ROW_ID)
+        .click();
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products/${PRODUCT_ROW_ID}`,
+      );
 
-      // Cannot navigate back and forth to details modal (metabase#55487)
-      // cy.go("back");
+      cy.log("Navigate back and forth to details modal (metabase#55487)");
+      cy.go("back");
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products`,
+      );
 
-      // cy.location("pathname").should(
-      //   "equal",
-      //   `/model/${PRODUCT_QUESTION_ID}-products`,
-      // );
+      cy.go("forward");
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products/${PRODUCT_ROW_ID}`,
+      );
 
-      // cy.go("forward");
-
-      // cy.location("pathname").should(
-      //   "equal",
-      //   `/model/${PRODUCT_QUESTION_ID}-products/1`,
-      // );
+      cy.go("back");
+      cy.location("pathname").should(
+        "equal",
+        `/model/${PRODUCT_QUESTION_ID}-products`,
+      );
 
       /**
        * foreign key relation orders should work, but it consistently fails in CI
@@ -1217,13 +1284,6 @@ describe("scenarios > question > notebook", { tags: "@slow" }, () => {
 
       // cy.location("pathname").should("contain", "/question");
       // cy.findByTestId("filter-pill").should("contain.text", "Product ID is 1");
-
-      cy.go("back");
-
-      cy.location("pathname").should(
-        "equal",
-        `/model/${PRODUCT_QUESTION_ID}-products`,
-      );
 
       H.openQuestionActions("Turn back to saved question");
 

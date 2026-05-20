@@ -3,16 +3,22 @@ import { Component } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
+import { isNative } from "metabase/common/utils/card";
 import CS from "metabase/css/core/index.css";
-import * as DataGrid from "metabase/lib/data_grid";
-import { displayNameForColumn } from "metabase/lib/formatting";
-import type { OptionsType } from "metabase/lib/formatting/types";
-import { getSubpathSafeUrl } from "metabase/lib/urls";
+import { getSubpathSafeUrl } from "metabase/urls";
+import { displayNameForColumn } from "metabase/utils/formatting";
+import type { OptionsType } from "metabase/utils/formatting/types";
+import {
+  trackTableFreezeColumnsEnabled,
+  trackTableFreezeRowsEnabled,
+} from "metabase/visualizations/analytics";
 import ChartSettingLinkUrlInput from "metabase/visualizations/components/settings/ChartSettingLinkUrlInput";
+import { ChartSettingNumberInput } from "metabase/visualizations/components/settings/ChartSettingNumberInput";
 import {
   ChartSettingsTableFormatting,
   isFormattable,
 } from "metabase/visualizations/components/settings/ChartSettingsTableFormatting";
+import * as DataGrid from "metabase/visualizations/lib/data_grid";
 import {
   isPivoted as _isPivoted,
   columnSettings,
@@ -28,7 +34,6 @@ import {
 } from "metabase/visualizations/shared/utils/sizes";
 import * as Lib from "metabase-lib";
 import Question from "metabase-lib/v1/Question";
-import { isNative } from "metabase-lib/v1/queries/utils/card";
 import { findColumnIndexesForColumnSettings } from "metabase-lib/v1/queries/utils/dataset";
 import {
   isAvatarURL,
@@ -67,7 +72,7 @@ interface TableState {
   question: Question | null;
 }
 
-class Table extends Component<TableProps, TableState> {
+export class Table extends Component<TableProps, TableState> {
   static getUiName = () => t`Table`;
   static identifier = "table";
   static iconName = "table2";
@@ -91,34 +96,90 @@ class Table extends Component<TableProps, TableState> {
   static isPivoted = _isPivoted;
 
   static settings = {
-    ...columnSettings({ hidden: true }),
+    ...columnSettings({ getHidden: () => true }),
     "table.pagination": {
-      get section() {
-        return t`Columns`;
-      },
+      getSection: () => t`Columns`,
       get title() {
         return t`Paginate results`;
       },
       inline: true,
       widget: "toggle",
       dashboard: true,
-      default: false,
+      getDefault: () => false,
     },
     "table.row_index": {
-      get section() {
-        return t`Columns`;
-      },
+      getSection: () => t`Display`,
       get title() {
         return t`Show row index`;
       },
       inline: true,
       widget: "toggle",
+      getDefault: () => false,
+    },
+    "table.freeze_columns": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Freeze columns`;
+      },
+      inline: true,
+      widget: "toggle",
       default: false,
+      getHidden: (series: Series, settings: ComputedVisualizationSettings) =>
+        _isPivoted(series, settings),
+      readDependencies: ["table.pivot"],
+      onUpdate: (value: boolean) => {
+        if (value) {
+          trackTableFreezeColumnsEnabled();
+        }
+      },
+    },
+    "table.freeze_columns_count": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Number of columns to freeze`;
+      },
+      widget: ChartSettingNumberInput,
+      default: 1,
+      isValid: (_series: Series, settings: VisualizationSettings) =>
+        settings["table.freeze_columns_count"] >= 1,
+      getHidden: (series: Series, settings: ComputedVisualizationSettings) =>
+        !settings["table.freeze_columns"] || _isPivoted(series, settings),
+      readDependencies: ["table.freeze_columns", "table.pivot"],
+      getProps: () => ({ min: 1 }),
+    },
+    "table.freeze_rows": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Freeze rows`;
+      },
+      inline: true,
+      widget: "toggle",
+      default: false,
+      getHidden: (series: Series, settings: ComputedVisualizationSettings) =>
+        _isPivoted(series, settings),
+      readDependencies: ["table.pivot"],
+      onUpdate: (value: boolean) => {
+        if (value) {
+          trackTableFreezeRowsEnabled();
+        }
+      },
+    },
+    "table.freeze_rows_count": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Number of rows to freeze`;
+      },
+      widget: ChartSettingNumberInput,
+      default: 1,
+      isValid: (_series: Series, settings: VisualizationSettings) =>
+        settings["table.freeze_rows_count"] >= 1,
+      getHidden: (series: Series, settings: ComputedVisualizationSettings) =>
+        !settings["table.freeze_rows"] || _isPivoted(series, settings),
+      readDependencies: ["table.freeze_rows", "table.pivot"],
+      getProps: () => ({ min: 1 }),
     },
     "table.pivot": {
-      get section() {
-        return t`Columns`;
-      },
+      getSection: () => t`Columns`,
       get title() {
         return t`Pivot table`;
       },
@@ -129,10 +190,17 @@ class Table extends Component<TableProps, TableState> {
         settings: ComputedVisualizationSettings,
       ) => data && data.cols.length !== 3 && !settings["table.pivot"],
       getDefault: ([{ card, data }]: Series) => {
+        let native: boolean;
+        try {
+          native = isNative(card);
+        } catch (error) {
+          // isNative throws when used in the visualizer
+          native = false;
+        }
         if (
           !data ||
           data.cols.length !== 3 ||
-          isNative(card) ||
+          native ||
           data.cols.filter(isMetric).length !== 1 ||
           data.cols.filter(isDimension).length !== 2
         ) {
@@ -144,9 +212,7 @@ class Table extends Component<TableProps, TableState> {
     },
 
     "table.pivot_column": {
-      get section() {
-        return t`Columns`;
-      },
+      getSection: () => t`Columns`,
       get title() {
         return t`Pivot column`;
       },
@@ -171,9 +237,7 @@ class Table extends Component<TableProps, TableState> {
       persistDefault: true,
     },
     "table.cell_column": {
-      get section() {
-        return t`Columns`;
-      },
+      getSection: () => t`Columns`,
       get title() {
         return t`Cell column`;
       },
@@ -204,11 +268,9 @@ class Table extends Component<TableProps, TableState> {
     ...tableColumnSettings({ isShowingDetailsOnlyColumns: false }),
     "table.column_widths": {},
     [DataGrid.COLUMN_FORMATTING_SETTING]: {
-      get section() {
-        return t`Conditional Formatting`;
-      },
+      getSection: () => t`Conditional Formatting`,
       widget: ChartSettingsTableFormatting,
-      default: [],
+      getDefault: () => [],
       getProps: (series: Series, settings: VisualizationSettings) => ({
         cols: series[0].data.cols.filter(isFormattable),
         isPivoted: settings["table.pivot"],
@@ -261,13 +323,13 @@ class Table extends Component<TableProps, TableState> {
             ? "right"
             : "left";
         },
-        props: {
+        getProps: () => ({
           options: [
             { name: t`Left`, value: "left" },
             { name: t`Right`, value: "right" },
             { name: t`Middle`, value: "middle" },
           ],
-        },
+        }),
       },
     };
 
@@ -285,7 +347,7 @@ class Table extends Component<TableProps, TableState> {
 
       settings["text_wrapping"] = {
         title: t`Wrap text`,
-        default: false,
+        getDefault: () => false,
         widget: "toggle",
         inline: true,
         isValid: (_column, columnSettings) => {
@@ -321,10 +383,10 @@ class Table extends Component<TableProps, TableState> {
       settings["view_as"] = {
         title: t`Display as`,
         widget: options.length === 2 ? "radio" : "select",
-        default: defaultValue,
-        props: {
+        getDefault: () => defaultValue,
+        getProps: () => ({
           options,
-        },
+        }),
       };
     }
 
@@ -334,7 +396,7 @@ class Table extends Component<TableProps, TableState> {
       title: t`Link text`,
       widget: ChartSettingLinkUrlInput,
       hint: linkFieldsHint,
-      default: null,
+      getDefault: () => null,
       getHidden: (_, settings) =>
         settings["view_as"] !== "link" && settings["view_as"] !== "email_link",
       readDependencies: ["view_as"],
@@ -361,7 +423,7 @@ class Table extends Component<TableProps, TableState> {
       title: t`Link URL`,
       widget: ChartSettingLinkUrlInput,
       hint: linkFieldsHint,
-      default: null,
+      getDefault: () => null,
       getHidden: (_, settings) => settings["view_as"] !== "link",
       readDependencies: ["view_as"],
       getProps: (
@@ -557,6 +619,3 @@ class Table extends Component<TableProps, TableState> {
     );
   }
 }
-
-// eslint-disable-next-line import/no-default-export
-export default Table;

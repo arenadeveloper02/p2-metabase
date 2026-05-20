@@ -6,13 +6,13 @@
    [metabase.analyze.core :as analyze]
    [metabase.lib.core :as lib]
    [metabase.lib.schema.id :as lib.schema.id]
-   [metabase.lib.util.match :as lib.util.match]
    [metabase.models.interface :as mi]
    [metabase.util :as u]
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
+   [metabase.util.match :as match]
    [metabase.xrays.automagic-dashboards.schema :as ads]
    [ring.util.codec :as codec]
    [toucan2.core :as t2]))
@@ -45,9 +45,10 @@
   (filter #(-> % :entity_type (isa? tablespec)) tables))
 
 (defn saved-metric?
-  "Is metric a saved (V2) metric? (Note that X-Rays do not currently know how to handle Saved V2 Metrics.)"
+  "Is this a saved aggregation clause? True for V2 Metrics and Measures."
   [metric]
-  (lib/clause-of-type? metric :metric))
+  (or (lib/clause-of-type? metric :metric)
+      (lib/clause-of-type? metric :measure)))
 
 (def ^{:arglists '([metric])} adhoc-metric?
   "Is this an adhoc metric?"
@@ -60,12 +61,12 @@
 (mu/defn field-reference->id :- [:maybe [:or ms/NonBlankString ::lib.schema.id/field]]
   "Extract field ID from a given field reference form."
   [clause :- :mbql.clause/field]
-  (lib.util.match/match-one clause [:field _opts id] id))
+  (match/match-one clause [:field _opts id] id))
 
 (mu/defn collect-field-references :- [:maybe [:sequential :mbql.clause/field]]
   "Collect all `:field` references from a given form."
   [form]
-  (lib.util.match/match form :field &match))
+  (match/match-many form [:field & _] &match))
 
 (mu/defn ->field :- [:maybe [:and
                              (ms/InstanceOf :model/Field)

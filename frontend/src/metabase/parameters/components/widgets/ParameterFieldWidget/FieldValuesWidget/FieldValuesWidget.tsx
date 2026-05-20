@@ -17,33 +17,35 @@ import {
   useGetRemappedDashboardParameterValueQuery,
   useGetRemappedParameterValueQuery,
 } from "metabase/api";
-import ExplicitSize from "metabase/common/components/ExplicitSize";
-import LoadingSpinner from "metabase/common/components/LoadingSpinner";
-import TokenField, {
+import { ExplicitSize } from "metabase/common/components/ExplicitSize";
+import { LoadingSpinner } from "metabase/common/components/LoadingSpinner";
+import { MultiAutocompleteWithTranslation } from "metabase/common/components/MultiAutocomplete";
+import {
+  TokenField,
   parseStringValue,
 } from "metabase/common/components/TokenField";
 import type { LayoutRendererArgs } from "metabase/common/components/TokenField/TokenField";
 import CS from "metabase/css/core/index.css";
 import { useEmbeddingEntityContext } from "metabase/embedding/context";
-import { Fields } from "metabase/entities/fields";
 import { useTranslateContent } from "metabase/i18n/hooks";
 import type { ContentTranslationFunction } from "metabase/i18n/types";
-import { parseNumber } from "metabase/lib/number";
-import { connect, useDispatch } from "metabase/lib/redux";
-import { isNotNull } from "metabase/lib/types";
 import {
   fetchCardParameterValues,
   fetchDashboardParameterValues,
   fetchParameterValues,
 } from "metabase/parameters/actions";
+import { connect, useDispatch } from "metabase/redux";
 import { addRemappings } from "metabase/redux/metadata";
+import type { State } from "metabase/redux/store";
+import { getMetadata } from "metabase/selectors/metadata";
 import {
   type ComboboxItem,
   Loader,
-  MultiAutocomplete,
   MultiAutocompleteOption,
   MultiAutocompleteValue,
 } from "metabase/ui";
+import { parseNumber } from "metabase/utils/number";
+import { isNotNull } from "metabase/utils/types";
 import Field from "metabase-lib/v1/metadata/Field";
 import { getSourceType } from "metabase-lib/v1/parameters/utils/parameter-source";
 import { normalizeParameter } from "metabase-lib/v1/parameters/utils/parameter-values";
@@ -55,7 +57,6 @@ import type {
   ParameterValueOrArray,
   RowValue,
 } from "metabase-types/api";
-import type { State } from "metabase-types/store";
 
 import { Value as ValueComponent } from "../Value";
 
@@ -84,11 +85,9 @@ const COMBOBOX_WIDTH = 364;
 const DROPDOWN_WIDTH = 314;
 
 function mapStateToProps(state: State, { fields = [] }: { fields: Field[] }) {
+  const metadata = getMetadata(state);
   return {
-    fields: fields.map(
-      (field) =>
-        Fields.selectors.getObject(state, { entityId: field.id }) || field,
-    ),
+    fields: fields.map((field) => metadata.field(field.id) || field),
   };
 }
 
@@ -453,7 +452,7 @@ export const FieldValuesWidgetInner = forwardRef<
             checkedColor={checkedColor}
           />
         ) : multi ? (
-          <MultiAutocomplete
+          <MultiAutocompleteWithTranslation
             value={value.filter(isNotNull).map((value) => String(value))}
             data={options
               .filter((option) => getValue(option) != null)

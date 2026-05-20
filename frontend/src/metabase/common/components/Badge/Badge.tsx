@@ -2,7 +2,8 @@ import cx from "classnames";
 import type { PropsWithChildren } from "react";
 
 import CS from "metabase/css/core/index.css";
-import type { IconName, IconProps } from "metabase/ui";
+import type { IconProps } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import { BadgeIcon, BadgeText, MaybeLink } from "./Badge.styled";
 
@@ -35,7 +36,7 @@ export const Badge = ({
   className,
   to,
   icon,
-  inactiveColor = "text-medium",
+  inactiveColor = "text-secondary",
   activeColor = "brand",
   isSingleLine = false,
   onClick,

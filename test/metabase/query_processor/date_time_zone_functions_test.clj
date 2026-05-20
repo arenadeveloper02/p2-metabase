@@ -1,4 +1,6 @@
 (ns ^:mb/driver-tests metabase.query-processor.date-time-zone-functions-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.date-time-zone-functions-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.query-processor.date-time-zone-functions-test]}}}}}}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
@@ -11,10 +13,10 @@
    [metabase.lib.metadata.result-metadata :as lib.metadata.result-metadata]
    [metabase.lib.options :as lib.options]
    [metabase.lib.test-util :as lib.tu]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.annotate :as annotate]
    [metabase.query-processor.preprocess :as qp.preprocess]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor.test :as qp]
    [metabase.query-processor.timezone :as qp.timezone]
    [metabase.test :as mt]
    [metabase.test.data.interface :as tx]
@@ -829,7 +831,7 @@
 
 (defmethod nested-convert-timezone-test-6-native-query :default
   [_driver card-tag]
-  (format "select * from {{%s}} as source" card-tag))
+  (format "select * from {{%s}} as __mb_source" card-tag))
 
 (defmethod nested-convert-timezone-test-6-native-query :oracle
   [_driver card-tag]

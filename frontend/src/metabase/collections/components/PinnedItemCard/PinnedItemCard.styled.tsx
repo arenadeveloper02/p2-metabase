@@ -4,9 +4,9 @@ import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 
 import { RawMaybeLink } from "metabase/common/components/Badge/Badge.styled";
-import Card from "metabase/common/components/Card";
+import { Card } from "metabase/common/components/Card";
 import { MarkdownPreview } from "metabase/common/components/MarkdownPreview";
-import { Box, type BoxProps, Icon } from "metabase/ui";
+import { Box, type BoxProps } from "metabase/ui";
 
 export const ItemCard = styled(Card)``;
 
@@ -23,12 +23,6 @@ export const ItemLink = styled(RawMaybeLink)<{ to?: string }>`
         `}
 `;
 
-export const ItemIcon = styled(Icon)`
-  color: var(--mb-color-brand);
-  height: 1.5rem;
-  width: 1.5rem;
-`;
-
 export const ActionsContainer = styled(Box)<BoxProps>`
   display: flex;
   align-items: center;
@@ -40,7 +34,7 @@ export const Title = styled.div`
   font-weight: bold;
   font-size: 1rem;
   line-height: 1.5rem;
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
   transition: color 0.2s ease;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -48,7 +42,7 @@ export const Title = styled.div`
 `;
 
 export const Description = styled(MarkdownPreview)`
-  color: var(--mb-color-text-medium);
+  color: var(--mb-color-text-secondary);
 `;
 
 export const Body = styled.div`

@@ -1,20 +1,18 @@
 import type { Editor, Range } from "@tiptap/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import type { OmniPickerItem } from "metabase/common/components/Pickers";
 import { getTranslatedEntityName } from "metabase/common/utils/model-names";
-import { modelToUrl } from "metabase/lib/urls/modelToUrl";
 import type { DocumentLinkedEntityPickerItemValue } from "metabase/rich_text_editing/tiptap/extensions/shared/LinkedEntityPickerModal/types";
+import { modelToUrl } from "metabase/urls/modelToUrl";
 import type {
   MentionableUser,
   RecentItem,
   SearchResult,
 } from "metabase-types/api";
 
-import {
-  buildSearchModelMenuItems,
-  entityToUrlableModel,
-  getBrowseAllItemIndex,
-} from "./suggestionUtils";
+import { useBuildSearchModelMenuItems } from "./suggestionHooks";
+import { entityToUrlableModel, getBrowseAllItemIndex } from "./suggestionUtils";
 import type { SuggestionModel, SuggestionPickerModalType } from "./types";
 import { type EntitySearchOptions, useEntitySearch } from "./useEntitySearch";
 
@@ -74,8 +72,24 @@ export function useEntitySuggestions({
 }: UseEntitySuggestionsOptions): UseEntitySuggestionsResult {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [modal, setModal] = useState<SuggestionPickerModalType>(null);
+  const buildSearchModelMenuItems = useBuildSearchModelMenuItems();
   const [selectedSearchModel, setSelectedSearchModel] =
-    useState<SuggestionModel | null>(null);
+    useState<SuggestionModel | null>(
+      searchModels?.length === 1 ? searchModels[0] : null,
+    );
+
+  // sync selectedSearchModel when searchModels changes
+  useEffect(() => {
+    if (searchModels?.length === 1) {
+      setSelectedSearchModel(searchModels[0]);
+    } else if (
+      selectedSearchModel &&
+      !searchModels?.includes(selectedSearchModel)
+    ) {
+      // Reset if current selection is no longer valid
+      setSelectedSearchModel(null);
+    }
+  }, [searchModels, selectedSearchModel]);
 
   const handleRecentSelect = useCallback(
     (item: RecentItem) => {
@@ -157,12 +171,26 @@ export function useEntitySuggestions({
           filteredSearchModels,
           handleSearchModelSelect,
         );
-  }, [filteredSearchModels, selectedSearchModel, handleSearchModelSelect]);
+  }, [
+    filteredSearchModels,
+    selectedSearchModel,
+    handleSearchModelSelect,
+    buildSearchModelMenuItems,
+  ]);
 
   const hasSearchModels = (searchModels?.length ?? 0) > 0;
   const hasMatchingFilteredModels = (filteredSearchModels?.length ?? 0) > 0;
   const isInModelSelectionMode =
-    !selectedSearchModel && hasSearchModels && hasMatchingFilteredModels;
+    !selectedSearchModel &&
+    hasSearchModels &&
+    hasMatchingFilteredModels &&
+    (searchModels?.length ?? 0) > 1;
+
+  const shouldFetchRecents =
+    enabled &&
+    query.length === 0 &&
+    !isInModelSelectionMode &&
+    !selectedSearchModel;
 
   const {
     menuItems: entityMenuItems,
@@ -174,11 +202,7 @@ export function useEntitySuggestions({
     onSelectSearchResult: handleSearchResultSelect,
     onSelectUser: handleUserSelect,
     enabled: enabled && !isInModelSelectionMode,
-    shouldFetchRecents:
-      enabled &&
-      query.length === 0 &&
-      !isInModelSelectionMode &&
-      !selectedSearchModel,
+    shouldFetchRecents,
     searchModels: effectiveSearchModels,
     searchOptions,
   });
@@ -264,7 +288,11 @@ export function useEntitySuggestions({
   );
 
   const handleModalSelect = useCallback(
-    (item: DocumentLinkedEntityPickerItemValue) => {
+    (item: OmniPickerItem) => {
+      if (item.model === "snippet" || item.model === "schema") {
+        console.error(`Cannot select ${item.model}`);
+        return;
+      }
       onSelectEntity({
         id: item.id,
         model: item.model,

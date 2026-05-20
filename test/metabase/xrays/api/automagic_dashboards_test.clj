@@ -1,4 +1,5 @@
 (ns metabase.xrays.api.automagic-dashboards-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.xrays.api.automagic-dashboards-test]}}}}}}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
@@ -7,7 +8,7 @@
    [metabase.permissions.core :as perms]
    [metabase.permissions.models.permissions-group :as perms-group]
    [metabase.permissions.test-util :as perms.test-util]
-   [metabase.query-processor :as qp]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]
    [metabase.test.fixtures :as fixtures]
    [metabase.util :as u]

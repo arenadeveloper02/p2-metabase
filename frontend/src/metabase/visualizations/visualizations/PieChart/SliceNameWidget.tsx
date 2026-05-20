@@ -1,17 +1,19 @@
 import { Box } from "metabase/ui";
-import type { PieRow } from "metabase/visualizations/echarts/pie/model/types";
+import type { PieRow } from "metabase-types/api";
 
 import { SliceNameInput } from "./SliceNameWidget.styled";
+
+export type SliceNameWidgetProps = {
+  initialKey: string | number;
+  pieRows: PieRow[];
+  updateRowName: (newName: string, key: string | number) => void;
+};
 
 export function SliceNameWidget({
   initialKey,
   pieRows,
   updateRowName,
-}: {
-  initialKey: string | number;
-  pieRows: PieRow[];
-  updateRowName: (newName: string, key: string | number) => void;
-}) {
+}: SliceNameWidgetProps) {
   if (pieRows.length === 0) {
     return null;
   }

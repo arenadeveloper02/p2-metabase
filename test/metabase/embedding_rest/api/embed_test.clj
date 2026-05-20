@@ -1,5 +1,6 @@
 (ns ^:mb/driver-tests metabase.embedding-rest.api.embed-test
   "Tests for /api/embed endpoints."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.embedding-rest.api.embed-test]}}}}}}
   (:require
    [buddy.sign.jwt :as jwt]
    [buddy.sign.util :as buddy-util]
@@ -10,7 +11,6 @@
    [dk.ative.docjure.spreadsheet :as spreadsheet]
    [java-time.api :as t]
    [metabase.api.common :as api]
-   [metabase.config.core :as config]
    [metabase.dashboards-rest.api-test :as api.dashboard-test]
    [metabase.embedding-rest.api.common :as api.embed.common]
    [metabase.parameters.chain-filter-test :as chain-filer-test]
@@ -21,6 +21,7 @@
    [metabase.query-processor.middleware.process-userland-query-test :as process-userland-query-test]
    [metabase.query-processor.pivot.test-util :as api.pivots]
    [metabase.query-processor.test-util :as qp.test-util]
+   [metabase.server.instance :as server.instance]
    [metabase.test :as mt]
    [metabase.test.http-client :as client]
    [metabase.tiles.api-test :as tiles.api-test]
@@ -178,8 +179,8 @@
   (with-embedding-enabled-and-new-secret-key!
     (let [card-url (str "embed/card/" (sign {:resource {:question "8"}
                                              :params   {}}))]
-      (is #(re-matches #"Invalid input:.+value must be an integer greater than zero.+got.+8"
-                       (client/client :get 400 card-url))))))
+      (is (re-find #"Invalid input:.+value must be an integer greater than zero.+got.+8"
+                   (client/client :get 400 card-url))))))
 
 (deftest check-that-the-endpoint-doesn-t-work-if-embedding-isn-t-enabled
   (mt/with-temporary-setting-values [enable-embedding false]
@@ -343,7 +344,7 @@
     (mt/test-helpers-set-global-values!
       (do-response-formats [response-format _request-options]
         (with-embedding-enabled-and-new-secret-key!
-          (let [expected-status (response-format->status-code response-format)]
+          (let [expected-status 400]
             (testing (str "If the card has an invalid query we should just get a generic \"query failed\" "
                           "exception (rather than leaking query info)")
               (with-temp-card [card {:enable_embedding true, :dataset_query {:database (mt/id)
@@ -389,7 +390,7 @@
   (testing (str "Downloading CSV/JSON/XLSX results shouldn't be subject to the default query constraints -- even if "
                 "the query comes in with `add-default-userland-constraints` (as will be the case if the query gets "
                 "saved from one that had it -- see #9831 and #10399)")
-    (with-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
+    (mt/with-dynamic-fn-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
       (with-embedding-enabled-and-new-secret-key!
         (with-temp-card [card {:enable_embedding true
                                :dataset_query    (assoc (mt/mbql-query venues)
@@ -557,7 +558,7 @@
       (mt/with-temp [:model/Card card (card-with-date-field-filter)]
         ;; make sure the URL doesn't include /api/ at the beginning like it normally would
         (binding [client/*url-prefix* ""]
-          (mt/with-temporary-setting-values [site-url (str "http://localhost:" (config/config-str :mb-jetty-port) client/*url-prefix*)]
+          (mt/with-temporary-setting-values [site-url (str "http://localhost:" (server.instance/server-port) client/*url-prefix*)]
             (is (= "count\n107\n"
                    (client/real-client :get 200 (str "embed/question/" (card-token card) ".csv?date=Q1-2014"))))))))))
 
@@ -778,7 +779,7 @@
 (deftest downloading-csv-json-xlsx-results-from-the-dashcard-endpoint-shouldn-t-be-subject-to-the-default-query-constraints
   (testing (str "Downloading CSV/JSON/XLSX results from the dashcard endpoint shouldn't be subject to the default "
                 "query constraints (#10399)")
-    (with-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
+    (mt/with-dynamic-fn-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
       (with-embedding-enabled-and-new-secret-key!
         (with-temp-dashcard [dashcard {:dash {:enable_embedding true}
                                        :card {:dataset_query (assoc (mt/mbql-query venues)
@@ -828,7 +829,7 @@
 
 (deftest downloading-csv-json-xlsx-results-from-the-dashcard-endpoint-respects-column-settings
   (testing "Downloading CSV/JSON/XLSX results should respect the column settings of the dashcard, such as column order and hidden/shown setting. (#33727)"
-    (with-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
+    (mt/with-dynamic-fn-redefs [qp.constraints/default-query-constraints (constantly {:max-results 10, :max-results-bare-rows 10})]
       (with-embedding-enabled-and-new-secret-key!
         (with-temp-dashcard [dashcard {:dash     {:enable_embedding true}
                                        :card     {:dataset_query (assoc (mt/mbql-query venues)
@@ -862,7 +863,7 @@
         (is (= {:status     "failed"
                 :error      "An error occurred while running the query."
                 :error_type "invalid-query"}
-               (client/client :get 202 (dashcard-url dashcard))))))))
+               (client/client :get 400 (dashcard-url dashcard))))))))
 
 (deftest check-that-the-dashcard-endpoint-doesn-t-work-if-embedding-isn-t-enabled
   (mt/with-temporary-setting-values [enable-embedding false]

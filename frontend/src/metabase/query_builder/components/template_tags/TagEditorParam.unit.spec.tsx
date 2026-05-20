@@ -1,4 +1,5 @@
 import userEvent from "@testing-library/user-event";
+import fetchMock from "fetch-mock";
 
 import {
   setupDatabasesEndpoints,
@@ -7,38 +8,50 @@ import {
 } from "__support__/server-mocks";
 import { createMockEntitiesState } from "__support__/store";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import { checkNotNull } from "metabase/lib/types";
+import {
+  createMockQueryBuilderState,
+  createMockState,
+} from "metabase/redux/store/mocks";
 import { getMetadata } from "metabase/selectors/metadata";
+import { checkNotNull } from "metabase/utils/types";
 import { getTemplateTagParameter } from "metabase-lib/v1/parameters/utils/template-tags";
-import type { Card, TemplateTag, TemplateTagType } from "metabase-types/api";
+import type {
+  Card,
+  Database,
+  Field,
+  FieldId,
+  TemplateTag,
+  TemplateTagType,
+} from "metabase-types/api";
 import {
   createMockCard,
+  createMockFieldDimension,
   createMockNativeDatasetQuery,
   createMockTemplateTag,
 } from "metabase-types/api/mocks";
 import {
   ORDERS,
   PEOPLE,
+  PRODUCTS_ID,
   REVIEWS,
   createSampleDatabase,
 } from "metabase-types/api/mocks/presets";
-import {
-  createMockQueryBuilderState,
-  createMockState,
-} from "metabase-types/store/mocks";
 
 import { TagEditorParam } from "./TagEditorParam";
 
 interface SetupOpts {
   tag?: TemplateTag;
   originalCard?: Card;
+  transformDatabase?: (database: Database) => void;
 }
 
 const setup = ({
   tag = createMockTemplateTag(),
   originalCard,
+  transformDatabase,
 }: SetupOpts = {}) => {
   const database = createSampleDatabase();
+  transformDatabase?.(database);
   const state = createMockState({
     qb: createMockQueryBuilderState({
       card: createMockCard({
@@ -81,6 +94,57 @@ const setup = ({
 };
 
 describe("TagEditorParam", () => {
+  describe("dimension field fetching", () => {
+    it("fetches the dimension field and its remapped field when mounting a dimension tag", async () => {
+      setup({
+        tag: createMockTemplateTag({
+          type: "dimension",
+          dimension: ["field", PEOPLE.NAME, null],
+          "widget-type": "string/=",
+        }),
+        transformDatabase: (database) => {
+          const peopleField = findFieldInDatabase(database, PEOPLE.NAME);
+          peopleField.dimensions = [
+            createMockFieldDimension({
+              type: "external",
+              human_readable_field_id: PEOPLE.SOURCE,
+            }),
+          ];
+        },
+      });
+
+      await waitFor(() => {
+        expect(
+          fetchMock.callHistory.calls(`path:/api/field/${PEOPLE.NAME}`),
+        ).toHaveLength(1);
+      });
+      await waitFor(() => {
+        expect(
+          fetchMock.callHistory.calls(`path:/api/field/${PEOPLE.SOURCE}`),
+        ).toHaveLength(1);
+      });
+    });
+
+    it("does not fetch a remapped field when the dimension has no remap", async () => {
+      setup({
+        tag: createMockTemplateTag({
+          type: "dimension",
+          dimension: ["field", PEOPLE.NAME, null],
+          "widget-type": "string/=",
+        }),
+      });
+
+      await waitFor(() => {
+        expect(
+          fetchMock.callHistory.calls(`path:/api/field/${PEOPLE.NAME}`),
+        ).toHaveLength(1);
+      });
+      expect(
+        fetchMock.callHistory.calls(`path:/api/field/${PEOPLE.SOURCE}`),
+      ).toHaveLength(0);
+    });
+  });
+
   describe("tag name", () => {
     it("should be able to update the name of the tag", async () => {
       const tag = createMockTemplateTag();
@@ -144,6 +208,36 @@ describe("TagEditorParam", () => {
         dimension: undefined,
         "widget-type": undefined,
       });
+    });
+
+    it("should reset type-specific properties when the type is changed", async () => {
+      const tag = createMockTemplateTag({
+        type: "table",
+        "table-id": 1,
+      });
+      const { setTemplateTag } = setup({ tag });
+
+      await userEvent.click(screen.getByTestId("variable-type-select"));
+      await userEvent.click(screen.getByText("Number"));
+
+      expect(setTemplateTag).toHaveBeenCalledWith({
+        ...tag,
+        type: "number",
+        "table-id": undefined,
+      });
+
+      expect(
+        screen.getByRole("switch", { name: /use variable name as alias/i }),
+      ).toBeChecked();
+
+      await userEvent.click(
+        screen.getByRole("switch", { name: /use variable name as alias/i }),
+      );
+      expect(setTemplateTag).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          "emit-alias": false,
+        }),
+      );
     });
   });
 
@@ -252,6 +346,21 @@ describe("TagEditorParam", () => {
     }, 40000);
   });
 
+  describe("table id", () => {
+    it("should be able to set the table id", async () => {
+      const tag = createMockTemplateTag({
+        type: "table",
+        "table-id": undefined,
+      });
+      const { setTemplateTag } = setup({ tag });
+      await userEvent.click(await screen.findByText("Products"));
+      expect(setTemplateTag).toHaveBeenCalledWith({
+        ...tag,
+        "table-id": PRODUCTS_ID,
+      });
+    });
+  });
+
   describe("field alias", () => {
     it.each<TemplateTagType>(["dimension", "temporal-unit"])(
       "should be possible to set a field alias for %s variables",
@@ -312,7 +421,7 @@ describe("TagEditorParam", () => {
     );
 
     it.each<TemplateTagType>(["text", "number", "date"])(
-      "should not show the field alias input for % variables",
+      "should not show the field alias input for %% variables",
       (type) => {
         const tag = createMockTemplateTag({ type });
         setup({ tag });
@@ -479,4 +588,14 @@ async function waitForElementsToLoad(text: string) {
     },
     { timeout: 20000 },
   );
+}
+
+function findFieldInDatabase(database: Database, fieldId: FieldId): Field {
+  for (const table of database.tables ?? []) {
+    const field = table.fields?.find((field) => field.id === fieldId);
+    if (field) {
+      return field;
+    }
+  }
+  throw new Error(`Field ${fieldId} not found in database ${database.id}`);
 }

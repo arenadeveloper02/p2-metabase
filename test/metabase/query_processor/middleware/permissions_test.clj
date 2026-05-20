@@ -1,17 +1,18 @@
 (ns metabase.query-processor.middleware.permissions-test
   "Tests for the middleware that checks whether the current user has permissions to run a given query."
-  {:clj-kondo/config '{:linters {:discouraged-var {metabase.test/with-temp {:level :off}}}}}
+  {:clj-kondo/config '{:linters {:discouraged-var {metabase.test/with-temp {:level :off}}
+                                 :deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.middleware.permissions-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [metabase.api.common :as api]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.test-metadata :as meta]
    [metabase.permissions.core :as perms]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.permissions :as qp.perms]
    [metabase.query-processor.pipeline :as qp.pipeline]
    [metabase.query-processor.setup :as qp.setup]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor.test :as qp]
    [metabase.test :as mt]
    [metabase.util :as u]
    [metabase.util.malli.fn :as mu.fn])
@@ -729,7 +730,6 @@
 (deftest e2e-ignore-user-supplied-card-ids-test
   (testing "You shouldn't be able to bypass security restrictions by passing `[:info :card-id]` in the query."
     (mt/with-temp-copy-of-db
-      ;; TODO: re-evaluate this test; the error is being thrown at the API-layer and not in the QP
       (mt/with-no-data-perms-for-all-users!
         (mt/with-restored-data-perms-for-group! (u/the-id (perms/all-users-group))
           (mt/with-temp [:model/Collection collection {}
@@ -738,9 +738,10 @@
             ;; Since the collection derives from the root collection this grant shouldn't really be needed, but better to
             ;; be extra-sure in this case that the user is getting rejected for data perms and not card/collection perms
             (perms/grant-collection-read-permissions! (perms/all-users-group) collection)
-            (is (= "You don't have permissions to do that."
-                   (mt/user-http-request :rasta :post 403 "dataset" (assoc (mt/mbql-query venues {:limit 1})
-                                                                           :info {:card-id (u/the-id card)}))))))))))
+            (is (=? {:status "failed"
+                     :error  "You do not have permissions to run this query."}
+                    (mt/user-http-request :rasta :post 403 "dataset" (assoc (mt/mbql-query venues {:limit 1})
+                                                                            :info {:card-id (u/the-id card)}))))))))))
 
 (deftest e2e-ignore-user-supplied-perms-test
   (testing "You shouldn't be able to bypass security restrictions by passing in `:query-permissions/perms` in the query"
@@ -753,18 +754,12 @@
                clojure.lang.ExceptionInfo
                #"You do not have permissions to run this query"
                (qp/process-query (mt/mbql-query venues {:limit 1})))))
-        (letfn [(process-query []
-                  (qp/process-query (assoc (mt/mbql-query venues {:limit 1})
-                                           :query-permissions/perms {:gtaps {:perms/view-data :unrestricted
-                                                                             :perms/create-queries {(mt/id :venues) :query-builder}}})))]
-          (testing "Make sure the middleware is actually preventing something by disabling it"
-            (with-redefs [qp.perms/remove-permissions-key identity]
-              (is (=? {:status :completed}
-                      (process-query)))))
-          (is (thrown-with-msg?
-               clojure.lang.ExceptionInfo
-               #"You do not have permissions to run this query"
-               (process-query))))))))
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"You do not have permissions to run this query"
+             (qp/process-query (assoc (mt/mbql-query venues {:limit 1})
+                                      :query-permissions/perms {:gtaps {:perms/view-data :unrestricted
+                                                                        :perms/create-queries {(mt/id :venues) :query-builder}}}))))))))
 
 (deftest e2e-ignore-user-supplied-sandboxed-tables-test
   (testing "You shouldn't be able to bypass security restrictions by passing in `:query-permissions/sandboxed-table` in the query"

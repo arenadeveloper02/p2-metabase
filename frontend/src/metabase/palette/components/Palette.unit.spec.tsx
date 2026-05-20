@@ -3,29 +3,56 @@ import fetchMock from "fetch-mock";
 import { Route } from "react-router";
 
 import {
+  setupCollectionByIdEndpoint,
   setupDatabasesEndpoints,
   setupRecentViewsEndpoints,
   setupSearchEndpoints,
 } from "__support__/server-mocks";
-import { renderWithProviders, screen } from "__support__/ui";
-import { createMockUser } from "metabase-types/api/mocks";
-import { createMockState } from "metabase-types/store/mocks";
+import { renderWithProviders, screen, waitFor } from "__support__/ui";
+import { createMockState } from "metabase/redux/store/mocks";
+import type { SearchResult } from "metabase-types/api";
+import {
+  createMockCollection,
+  createMockSearchResult,
+  createMockUser,
+} from "metabase-types/api/mocks";
 
 import { Palette } from "./Palette";
 
 const setup = ({
   routeProps,
-}: { routeProps?: { disableCommandPalette?: boolean } } = {}) => {
+  initialRoute,
+  searchResults = [],
+  searchResultsDelay,
+}: {
+  routeProps?: { disableCommandPalette?: boolean };
+  initialRoute?: string;
+  searchResults?: SearchResult[];
+  searchResultsDelay?: number;
+} = {}) => {
   setupDatabasesEndpoints([]);
-  setupSearchEndpoints([]);
+  setupSearchEndpoints(searchResults, searchResultsDelay);
   setupRecentViewsEndpoints([]);
-  renderWithProviders(<Route path="/" component={Palette} {...routeProps} />, {
-    withKBar: true,
-    withRouter: true,
-    storeInitialState: createMockState({
-      currentUser: createMockUser(),
-    }),
+  setupCollectionByIdEndpoint({
+    collections: [createMockCollection({ id: "root", can_write: true })],
   });
+  renderWithProviders(
+    <Route
+      path={initialRoute ? "*" : "/"}
+      component={Palette}
+      {...routeProps}
+    />,
+    {
+      withKBar: true,
+      withRouter: true,
+      initialRoute,
+      storeInitialState: createMockState({
+        currentUser: createMockUser({
+          permissions: { can_create_queries: true },
+        }),
+      }),
+    },
+  );
 };
 
 describe("command palette", () => {
@@ -64,18 +91,93 @@ describe("command palette", () => {
     await userEvent.type(input, "dark mode");
     await userEvent.click(await screen.findByText("Toggle dark/light mode"));
 
-    expect(
-      await fetchMock.callHistory
-        .lastCall(/\/api\/setting\/color-scheme/)
-        ?.request?.json(),
-    ).toEqual({ value: "dark" });
+    const calls = () =>
+      fetchMock.callHistory.calls(/\/api\/setting\/color-scheme/);
+
+    expect(await calls().at(-1)?.request?.json()).toEqual({ value: "dark" });
 
     await userEvent.click(await screen.findByText("Toggle dark/light mode"));
 
-    expect(
-      await fetchMock.callHistory
-        .lastCall(/\/api\/setting\/color-scheme/)
-        ?.request?.json(),
-    ).toEqual({ value: "auto" });
+    expect(await calls().at(-1)?.request?.json()).toEqual({
+      value: "auto",
+    });
+  });
+
+  it("should match the action with alias when typing original name", async () => {
+    setup();
+    await userEvent.keyboard("[ControlLeft>]k");
+    await screen.findByTestId("command-palette");
+    const input = await screen.findByPlaceholderText(/search for anything/i);
+
+    // Original shortcut name is "Create a question" but when registering action
+    // we rename it to "New question"
+    await userEvent.type(input, "create q");
+
+    expect(await screen.findByText("New question")).toBeInTheDocument();
+  });
+
+  it("should match actions via verb-swap aliases", async () => {
+    setup();
+    await userEvent.keyboard("[ControlLeft>]k");
+    await screen.findByTestId("command-palette");
+    const input = await screen.findByPlaceholderText(/search for anything/i);
+
+    await userEvent.type(input, "add dashboard");
+
+    expect(await screen.findByText("New dashboard")).toBeInTheDocument();
+  });
+
+  it("should tolerate small typos in the search query", async () => {
+    setup();
+    await userEvent.keyboard("[ControlLeft>]k");
+    await screen.findByTestId("command-palette");
+    const input = await screen.findByPlaceholderText(/search for anything/i);
+
+    await userEvent.type(input, "creat q");
+
+    expect(await screen.findByText("New question")).toBeInTheDocument();
+  });
+
+  it("should preserve user navigation selection when search results load", async () => {
+    const getSelectedOption = () =>
+      screen
+        .getAllByRole("option")
+        .find((option) => option.getAttribute("aria-selected") === "true");
+
+    setup({
+      searchResults: [createMockSearchResult({ name: "Metric search result" })],
+      searchResultsDelay: 50, // add a delay to endpoint so that loading state can be triggered consistently w/o test flakes
+    });
+
+    await userEvent.keyboard("[ControlLeft>]k");
+    await screen.findByTestId("command-palette");
+    const input = await screen.findByPlaceholderText(/search for anything/i);
+    await userEvent.type(input, "metric");
+
+    await screen.findByText("Loading...");
+    expect(getSelectedOption()?.textContent).toBe("New metric");
+
+    await userEvent.keyboard("{ArrowDown}");
+    expect(getSelectedOption()?.textContent).toBe("Browse metrics");
+
+    await screen.findByText("Metric search result");
+    expect(getSelectedOption()?.textContent).toBe("Browse metrics");
+  });
+
+  it("should initialize the search input from the search URL query (#71248)", async () => {
+    setup({
+      initialRoute: "/search?q=products",
+      searchResults: [createMockSearchResult({ name: "Products" })],
+    });
+
+    await userEvent.keyboard("[ControlLeft>]k");
+    await screen.findByTestId("command-palette");
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/search for anything/i)).toHaveValue(
+        "products",
+      );
+    });
+    expect(await screen.findByText("Products")).toBeInTheDocument();
   });
 });

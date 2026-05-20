@@ -1,4 +1,6 @@
 (ns metabase.driver.mysql-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.mysql-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.driver.mysql-test]}}}}}}
   (:require
    [clojure.java.jdbc :as jdbc]
    [clojure.set :as set]
@@ -13,6 +15,7 @@
    [metabase.driver.mysql :as mysql]
    [metabase.driver.mysql.actions :as mysql.actions]
    [metabase.driver.mysql.ddl :as mysql.ddl]
+   [metabase.driver.sql-jdbc :as driver.sql-jdbc]
    [metabase.driver.sql-jdbc.actions :as sql-jdbc.actions]
    [metabase.driver.sql-jdbc.actions-test :as sql-jdbc.actions-test]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
@@ -21,14 +24,15 @@
    [metabase.driver.sql-jdbc.sync.describe-database :as sql-jdbc.describe-database]
    [metabase.driver.sql-jdbc.sync.interface :as sql-jdbc.sync.interface]
    [metabase.driver.sql.query-processor :as sql.qp]
+   [metabase.lib-be.core :as lib-be]
    [metabase.lib.card :as lib.card]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.test-util :as lib.tu]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.query-processor.string-extracts-test :as string-extracts-test]
+   [metabase.query-processor.test :as qp]
    [metabase.sync.analyze.fingerprint :as sync.fingerprint]
    [metabase.sync.core :as sync]
    [metabase.sync.sync-metadata.tables :as sync-tables]
@@ -73,6 +77,38 @@
             (is (= [[1 nil]]
                    (mt/rows
                     (mt/run-mbql-query exciting-moments-in-history))))))))))
+
+(deftest sync-fks-test
+  (testing "Make sure we sync table FKs correctly for MySQL (#28060)"
+    (mt/test-driver :mysql
+      (tx/drop-if-exists-and-create-db! driver/*driver* "test_28060")
+      (let [details (tx/dbdef->connection-details :mysql :db {:database-name "test_28060"})
+            spec    (sql-jdbc.conn/connection-details->spec :mysql details)]
+        ;; according to #28060 this synced incorrectly (nil column and table names) and triggered an exception; this
+        ;; test is to prove that the issue is fixed
+        (doseq [lines [["CREATE TABLE IF NOT EXISTS foo ("
+                        "    id BIGINT(20) UNSIGNED,"
+                        "    PRIMARY KEY (id)"
+                        ");"]
+                       ["CREATE TABLE IF NOT EXISTS bar ("
+                        "    id BIGINT(20) UNSIGNED,"
+                        "    foo_id BIGINT(20) UNSIGNED,"
+                        "    FOREIGN KEY (foo_id) REFERENCES foo(id)"
+                        ");"]]
+                :let  [sql (str/join "\n" lines)]]
+          (jdbc/execute! spec [sql]))
+        (mt/with-temp [:model/Database database {:engine "mysql", :details details}]
+          (sync/sync-database! database)
+          (is (= [{:pk-table-schema nil
+                   :pk-table-name   "foo"
+                   :pk-column-name  "id"
+                   :fk-table-schema nil
+                   :fk-table-name   "bar"
+                   :fk-column-name  "foo_id"}]
+                 (into []
+                       (driver/describe-fks driver/*driver*
+                                            (lib-be/instance->metadata database :metadata/database)
+                                            {:table-names #{"foo" "bar"}})))))))))
 
 (deftest multiple-schema-test
   (testing "Make sure that we filter databases (schema) with :db or :dbname (#50072)"
@@ -657,7 +693,7 @@
 
 (deftest actions-maybe-parse-sql-error-test-2
   (testing "violate unique constraint"
-    (with-redefs [mysql.actions/constraint->column-names (constantly ["PRIMARY"])]
+    (mt/with-dynamic-fn-redefs [mysql.actions/constraint->column-names (constantly ["PRIMARY"])]
       (is (=? {:type :metabase.actions.error/violate-unique-constraint,
                :message "Primary already exists.",
                :errors {"PRIMARY" "This Primary value already exists."}}
@@ -722,7 +758,7 @@
                          :message     "Some of your values violate the constraint: email_format_check"
                          :status-code 400
                          :type        actions.error/violate-check-constraint}
-                        (sql-jdbc.actions-test/perform-action-ex-data
+                        (sql-jdbc.actions-test/perform-action-ex-data!
                          :model.row/create (mt/$ids {:create-row {"email" "invalid-email"
                                                                   "age"   25}
                                                      :database   (:id database)
@@ -754,7 +790,7 @@
                          :message     "Column1 and Column2 already exist."
                          :errors      {"column1" "This Column1 value already exists." "column2" "This Column2 value already exists."}
                          :status-code 400}
-                        (sql-jdbc.actions-test/perform-action-ex-data
+                        (sql-jdbc.actions-test/perform-action-ex-data!
                          :model.row/create (mt/$ids {:create-row {"id"      3
                                                                   "column1" "A"
                                                                   "column2" "A"}
@@ -767,7 +803,7 @@
                          :message     "Column1 and Column2 already exist."
                          :status-code 400
                          :type        actions.error/violate-unique-constraint}
-                        (sql-jdbc.actions-test/perform-action-ex-data
+                        (sql-jdbc.actions-test/perform-action-ex-data!
                          :model.row/update (mt/$ids {:update-row {"column1" "A"
                                                                   "column2" "A"}
                                                      :database   (:id database)
@@ -841,7 +877,7 @@
                                                                      :additional-options "trustServerCertificate=true")]
                                    (sql-jdbc.conn/with-connection-spec-for-testing-connection
                                     [spec [:mysql new-connection-details]]
-                                     (with-redefs [sql-jdbc.conn/db->pooled-connection-spec (fn [_] spec)]
+                                     (mt/with-dynamic-fn-redefs [sql-jdbc.conn/db->pooled-connection-spec (fn [_] spec)]
                                        (sql-jdbc.sync/current-user-table-privileges driver/*driver* spec {})))))]
           (try
             (doseq [stmt ["CREATE TABLE `bar` (id INTEGER);"
@@ -901,7 +937,7 @@
     (let [{schema :schema, table-name :name} (t2/select-one :model/Table (mt/id :checkins))]
       (qp.store/with-metadata-provider (mt/id)
         (testing "checking select privilege defaults to allow on timeout (#56737)"
-          (with-redefs [sql-jdbc.describe-database/simple-select-probe-query (constantly ["SELECT sleep(3)"])]
+          (mt/with-dynamic-fn-redefs [sql-jdbc.describe-database/simple-select-probe-query (constantly ["SELECT sleep(3)"])]
             (binding [sql-jdbc.describe-database/*select-probe-query-timeout-seconds* 1]
               (sql-jdbc.execute/do-with-connection-with-options
                driver/*driver*
@@ -974,7 +1010,8 @@
                                                  :password "password"
                                                  :ssl true
                                                  :additional-options "trustServerCertificate=true")]
-              (mt/with-temp [:model/Database database {:engine "mysql", :details user-connection-details}]
+              (mt/with-temp [:model/Database database {:engine "mysql", :details user-connection-details
+                                                       :dbms_version {:flavor "MySQL"}}]
                 (testing "With partial_revokes OFF (default), metadata/table-writable-check is supported"
                   (jdbc/execute! spec "SET GLOBAL partial_revokes = OFF;")
                   (is (true? (driver/database-supports? driver/*driver* :metadata/table-writable-check database))
@@ -1005,3 +1042,38 @@
               ;; Clean up: Reset partial_revokes to OFF before exiting
               (jdbc/execute! spec "SET GLOBAL partial_revokes = OFF;")
               (jdbc/execute! spec "DROP USER IF EXISTS 'partial_revokes_test_user';"))))))))
+
+(deftest ^:parallel only-connect-when-non-malicious-properties
+  (mt/test-driver :mysql
+    (let [details (:details (mt/db))]
+      (testing "Reject connection strings with malicious properties"
+        (are [bad-option] (let [details (assoc details :additional-options bad-option)]
+                            (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                                  #"Potentially dangerous keys in additional options"
+                                                  (driver/can-connect? :mysql details))))
+          "allowLoadLocalInfile=true"
+          "allowLoadLocalInfileInPath=1"
+          "allowUrlInLocalInfile=1"
+          "autoDeserialize=1"
+          "serverRSAPublicKeyFile=/path/to/file"))
+      (testing "Allow connection strings with non-malicious properties"
+        (are [ok-option] (let [details (assoc details :additional-options ok-option)]
+                           (is (true? (driver/can-connect? :mysql details))))
+          nil
+          ""
+          " "
+          "tinyInt1isBit=1")
+        (is (true? (driver/can-connect? :mysql details)))))))
+
+(deftest ^:parallel set-role-statement-escape-quotes-test
+  (mt/test-driver :mysql
+    (sql-jdbc.execute/do-with-connection-with-options
+     :mysql (mt/id) nil
+     (fn [conn]
+       (are [role expected] (= expected
+                               (driver.sql-jdbc/set-role-statement :mysql conn role))
+         "role'; SELECT sleep(10); --"
+         "SET ROLE 'role\\'; SELECT sleep(10); --';"
+
+         "webapp@localhost"
+         "SET ROLE 'webapp'@'localhost';")))))

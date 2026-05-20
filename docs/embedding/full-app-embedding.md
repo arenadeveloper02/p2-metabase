@@ -8,9 +8,7 @@ redirect_from:
 
 # Full app embedding
 
-{% include plans-blockquote.html feature="Full app embedding" convert_pro_link_to_embbedding=true %}
-
-{% include shared/in-page-promo-embedding-workshop.html %}
+{% include plans-blockquote.html feature="Full app embedding" convert_pro_link_to_embedding=true %}
 
 **Full app embedding** lets you embed the entire Metabase app in an iframe. Full app embedding integrates your [permissions](../permissions/introduction.md) and [SSO](../people-and-groups/start.md#authentication) to give people the right level of access to [query](../questions/query-builder/editor.md) and [drill-down](https://www.metabase.com/learn/metabase-basics/querying-and-dashboards/questions/drill-through) into your data.
 
@@ -75,7 +73,7 @@ To embed a specific Metabase dashboard, you'll want to use the dashboard's Entit
 src="https://metabase.yourcompany.com/dashboard/entity/[Entity ID]"
 ```
 
-To get a dashboard's Entity ID, visit the dashboard and click on the **info** button. In the **Overview** tab, copy the **Entity ID**. Then in your iframe's `src` attribute to:
+To get a dashboard's Entity ID, visit the dashboard and click on the **info** button. In the **Overview** tab, copy the **Entity ID**. Then set your iframe's `src` attribute to:
 
 ```
 src=https://metabase.yourcompany.com/dashboard/entity/Dc_7X8N7zf4iDK9Ps1M3b
@@ -129,7 +127,7 @@ Note that your full app embed must be compatible with Safari to run on _any_ bro
 
 If you want to embed Metabase in another domain (say, if Metabase is hosted at `metabase.yourcompany.com`, but you want to embed Metabase at `yourcompany.github.io`), you can tell Metabase to set the session cookie's SameSite value to "none".
 
-You can set session cookie's SameSite value in **Admin settings** > **Embedding** > **Security** > **SameSite cookie setting**.
+You can set session cookie's SameSite value in **Admin** > **Embedding** > **Security** > **SameSite cookie setting**.
 
 SameSite values include:
 
@@ -166,8 +164,6 @@ To manually log someone out of Metabase, load the following URL (for example, in
 ```sh
 https://metabase.yourcompany.com/auth/logout
 ```
-
-If you're using [JWT](../people-and-groups/authenticating-with-jwt.md) for SSO, we recommend setting the `exp` (expiration time) property to a short duration (e.g., 1 minute).
 
 ## Supported postMessage messages _from_ embedded Metabase
 
@@ -233,6 +229,10 @@ Additionally, each person within a single customer account could also be a membe
 ## Showing or hiding Metabase UI components
 
 See [full app UI components](./full-app-ui-components.md). For more granular control over embedded components, consider using [Modular embedding](./modular-embedding.md) instead.
+
+## Metabot in full-app embeds
+
+See [Embedded Metabot settings](../ai/settings.md#enable-metabot).
 
 ## Reference apps
 

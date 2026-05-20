@@ -1,7 +1,8 @@
 (ns metabase.query-processor.middleware.update-used-cards-test
   {:clj-kondo/config '{:linters
                        ;; allowing `with-temp` here since this actually tests what we persist to the app DB
-                       {:discouraged-var {metabase.test/with-temp {:level :off}}}}}
+                       {:discouraged-var {metabase.test/with-temp {:level :off}}
+                        :deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.middleware.update-used-cards-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [java-time.api :as t]
@@ -9,9 +10,9 @@
    [metabase.pulse.dashboard-subscription-test :as dashboard-subscription-test]
    [metabase.pulse.send :as pulse.send]
    [metabase.pulse.send-test :as pulse.send-test]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.middleware.update-used-cards :as qp.update-used-cards]
    [metabase.query-processor.pipeline :as qp.pipeline]
+   [metabase.query-processor.test :as qp]
    [metabase.query-processor.util :as qp.util]
    [metabase.test :as mt]
    [toucan2.core :as t2]))

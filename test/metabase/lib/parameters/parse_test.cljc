@@ -6,8 +6,11 @@
    [metabase.lib.parse :as lib.parse]
    [metabase.lib.util :as lib.util]))
 
-(defn- param [field-name] (lib.parms.parse.types/param {:k field-name}))
-(defn- optional [& args] (lib.parms.parse.types/optional {:args (vec args)}))
+(defn- param [field-name]
+  {:lib/type ::lib.parms.parse.types/param, :k field-name})
+
+(defn- optional [& args]
+  {:lib/type ::lib.parms.parse.types/optional, :args (vec args)})
 
 (defn- normalize-tokens
   [tokens]
@@ -102,6 +105,14 @@
            {"SELECT -- {{foo}}" ["SELECT -- {{foo}}"]
             "[[{{this}} -- and]] that" [(optional (param "this") " -- and") " that"]
             "SELECT /* \n --{{foo}} */ {{bar}}" ["SELECT /* \n --{{foo}} */ " (param "bar")]}
+
+           "-- inside {{...}} card ref tags should not trigger comment mode"
+           {"SELECT * FROM {{#35885-monthly-revenue--customer---replacement-}}"
+            ["SELECT * FROM " (param "#35885-monthly-revenue--customer---replacement-")]}
+
+           "/* */ inside {{...}} card ref tags should not trigger comment mode"
+           {"SELECT * FROM {{#1-revenue/*monthly*/}}"
+            ["SELECT * FROM " (param "#1-revenue/*monthly*/")]}
 
            "JSON queries that contain non-param fragments like '}}'"
            {"{x: {y: \"{{param}}\"}}"         ["{x: {y: \"" (param "param") "\"}}"]

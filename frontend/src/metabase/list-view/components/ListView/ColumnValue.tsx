@@ -1,13 +1,18 @@
 import { useMemo } from "react";
 
-import { Ellipsified } from "metabase/common/components/Ellipsified";
 import {
-  formatNumber,
-  formatValue,
-  getCurrencySymbol,
-} from "metabase/lib/formatting";
-import { Badge, Box, Flex, Icon, Image, Stack, Text } from "metabase/ui";
+  Badge,
+  Box,
+  Ellipsified,
+  Flex,
+  Icon,
+  Image,
+  Stack,
+  Text,
+} from "metabase/ui";
+import { formatNumber, getCurrencySymbol } from "metabase/utils/formatting";
 import { MiniBarCell } from "metabase/visualizations/components/TableInteractive/cells/MiniBarCell";
+import { formatValue } from "metabase/visualizations/lib/formatting";
 import { getColumnExtent } from "metabase/visualizations/lib/utils";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import { TYPE } from "metabase-lib/v1/types/constants";
@@ -34,6 +39,7 @@ import {
 import type {
   ColumnSettings,
   DatasetColumn,
+  RowValue,
   RowValues,
 } from "metabase-types/api";
 
@@ -43,9 +49,9 @@ import { getCategoryColor } from "./styling";
 interface ColumnValueProps {
   column: DatasetColumn;
   settings: ComputedVisualizationSettings;
-  rawValue: any;
+  rawValue: RowValue;
   style?: React.CSSProperties;
-  rows: RowValues;
+  rows: RowValues[];
   cols: DatasetColumn[];
 }
 
@@ -91,7 +97,7 @@ export function ColumnValue({
         c="text-primary"
         variant="outline"
         style={{
-          background: "var(--mb-color-bg-white)",
+          background: "var(--mb-color-background-primary)",
           textTransform: "capitalize",
         }}
         leftSection={
@@ -126,7 +132,7 @@ export function ColumnValue({
       }
       break;
     // Not using `isCategory` because it incorrectly gives false positive
-    // for many other category subtypes, like Name / Title / City (which we dont' want here).
+    // for many other category subtypes, like Name / Title / City (which we don't want here).
     case column.semantic_type === TYPE.Category:
       return (
         <Badge
@@ -134,7 +140,7 @@ export function ColumnValue({
           size="lg"
           variant="outline"
           style={{
-            background: "var(--mb-color-bg-white)",
+            background: "var(--mb-color-background-primary)",
             color: "var(--mb-color-text-primary)",
           }}
           leftSection={
@@ -160,7 +166,7 @@ export function ColumnValue({
           size="lg"
           variant="outline"
           style={{
-            background: "var(--mb-color-bg-white)",
+            background: "var(--mb-color-background-primary)",
           }}
         >
           {value}
@@ -176,7 +182,7 @@ export function ColumnValue({
           truncate
           fw="bold"
           style={style}
-          c={style?.color || "text-primary"}
+          c={style?.color ? undefined : "text-primary"}
         >
           {value}
         </Ellipsified>
@@ -184,7 +190,12 @@ export function ColumnValue({
     case isEmail(column):
     case isURL(column) && !isImageURL(column) && !isAvatarURL(column):
       return (
-        <Ellipsified size="sm" fw="bold" style={style} tooltip={rawValue}>
+        <Ellipsified
+          size="sm"
+          fw="bold"
+          style={style}
+          tooltip={typeof rawValue === "object" ? undefined : rawValue}
+        >
           {value}
         </Ellipsified>
       );
@@ -222,7 +233,7 @@ export function ColumnValue({
           className={styles.badge}
           variant="outline"
           style={{
-            background: "var(--mb-color-bg-white)",
+            background: "var(--mb-color-background-primary)",
           }}
         >
           <Text fw="bold">
@@ -278,7 +289,7 @@ export function ColumnValue({
           style={{
             objectFit: "cover",
             borderRadius: "0.5rem",
-            border: "1px solid var(--mb-color-border-secondary)",
+            border: "1px solid var(--mb-color-border)",
           }}
         />
       );
@@ -305,7 +316,7 @@ export function ColumnValue({
       size="sm"
       truncate
       style={style}
-      c={style?.color || "text-primary"}
+      c={style?.color ? undefined : "text-primary"}
     >
       {value}
     </Ellipsified>

@@ -4,12 +4,13 @@ import { replace } from "react-router-redux";
 import { t } from "ttag";
 
 import { useGetPasswordResetTokenStatusQuery } from "metabase/api";
-import Button from "metabase/common/components/Button";
-import Link from "metabase/common/components/Link";
-import { useDispatch } from "metabase/lib/redux";
-import { addUndo } from "metabase/redux/undo";
+import { Button } from "metabase/common/components/Button";
+import { Link } from "metabase/common/components/Link";
+import { useValidatePassword } from "metabase/common/hooks";
+import { useToast } from "metabase/common/hooks/use-toast";
+import { useDispatch } from "metabase/redux";
 
-import { resetPassword, validatePassword } from "../../actions";
+import { resetPassword } from "../../actions";
 import type { ResetPasswordData } from "../../types";
 import { AuthLayout } from "../AuthLayout";
 import { ResetPasswordForm } from "../ResetPasswordForm";
@@ -34,6 +35,8 @@ export const ResetPassword = ({
   const redirectUrl = location?.query?.redirect;
   const email = location?.query?.email;
   const dispatch = useDispatch();
+  const [sendToast] = useToast();
+  const validatePassword = useValidatePassword();
   const { data: status, isLoading } =
     useGetPasswordResetTokenStatusQuery(token);
 
@@ -41,9 +44,9 @@ export const ResetPassword = ({
     async ({ password }: ResetPasswordData) => {
       await dispatch(resetPassword({ token, password })).unwrap();
       dispatch(replace(redirectUrl || "/"));
-      dispatch(addUndo({ message: t`You've updated your password.` }));
+      sendToast({ message: t`You've updated your password.` });
     },
-    [token, dispatch, redirectUrl],
+    [token, dispatch, redirectUrl, sendToast],
   );
 
   if (isLoading) {

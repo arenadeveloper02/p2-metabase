@@ -4,8 +4,12 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import CS from "metabase/css/core/index.css";
+<<<<<<< HEAD
 import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatNullable } from "metabase/lib/formatting/nullable";
+=======
+import { formatNullable } from "metabase/utils/formatting/nullable";
+>>>>>>> master
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
@@ -28,13 +32,19 @@ import {
 } from "metabase/visualizations/shared/utils/sizes";
 import type {
   ComputedVisualizationSettings,
+  VisualizationDefinition,
   VisualizationProps,
 } from "metabase/visualizations/types";
 import { BarChart } from "metabase/visualizations/visualizations/BarChart";
 import { funnelToBarTransform } from "metabase/visualizations/visualizations/Funnel/funnel-bar-transform";
-import type { DatasetData, RawSeries, RowValue } from "metabase-types/api";
+import {
+  type DatasetData,
+  type RawSeries,
+  type RowValue,
+  getRowsForStableKeys,
+} from "metabase-types/api";
 
-import FunnelNormal from "../../components/FunnelNormal";
+import { FunnelNormal } from "../../components/FunnelNormal";
 
 import type { FunnelRow } from "./types";
 
@@ -42,7 +52,7 @@ const getUniqueFunnelRows = (rows: FunnelRow[]) => {
   return [...new Map(rows.map((row) => [row.key, row])).values()];
 };
 
-Object.assign(Funnel, {
+const FunnelViz: VisualizationDefinition = {
   getUiName: () => t`Funnel`,
   identifier: "funnel",
   iconName: "funnel",
@@ -67,7 +77,7 @@ Object.assign(Funnel, {
     }
 
     if (rows.length < 1) {
-      throw new MinRowsError(1, rows.length);
+      throw new MinRowsError(rows.length);
     }
     if (!settings["funnel.dimension"] || !settings["funnel.metric"]) {
       throw new ChartSettingsError(
@@ -81,16 +91,21 @@ Object.assign(Funnel, {
   hasEmptyState: true,
 
   settings: {
+<<<<<<< HEAD
     ...columnSettings(),
+=======
+    ...columnSettings({ getHidden: () => true }),
+>>>>>>> master
     ...dimensionSetting("funnel.dimension", {
-      // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
-      section: t`Data`,
+      getSection: () => t`Data`,
       // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
       title: t`Column with steps`,
       dashboard: false,
       useRawSeries: true,
       showColumnSetting: true,
-      marginBottom: "0.625rem",
+      getWrapperStyle: () => ({
+        marginBottom: "0.625rem",
+      }),
     }),
     "funnel.order_dimension": {
       getValue: (_series: RawSeries, settings: ComputedVisualizationSettings) =>
@@ -98,17 +113,13 @@ Object.assign(Funnel, {
       readDependencies: ["funnel.rows"],
     },
     "funnel.rows": {
-      // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
-      section: t`Data`,
+      getSection: () => t`Data`,
       widget: ChartSettingOrderedSimple,
       getValue: (
-        [
-          {
-            data: { cols, rows },
-          },
-        ]: RawSeries,
+        rawSeries: RawSeries,
         settings: ComputedVisualizationSettings,
       ) => {
+        const { cols } = rawSeries[0].data;
         const dimensionIndex = cols.findIndex(
           (col) => col.name === settings["funnel.dimension"],
         );
@@ -116,7 +127,10 @@ Object.assign(Funnel, {
         const dimension = settings["funnel.dimension"];
 
         const rowsOrder = settings["funnel.rows"];
-        const rowsKeys = rows.map((row) => formatNullable(row[dimensionIndex]));
+        const rowsForKeys = getRowsForStableKeys(rawSeries[0].data);
+        const rowsKeys = rowsForKeys.map((row) =>
+          formatNullable(row[dimensionIndex]),
+        );
 
         const getDefault = (keys: RowValue[], existingRows?: any[]) => {
           // Generate colors for the keys
@@ -161,6 +175,7 @@ Object.assign(Funnel, {
 
         return getUniqueFunnelRows(funnelRows);
       },
+<<<<<<< HEAD
       getProps: (
         _object: RawSeries,
         computedSettings: ComputedVisualizationSettings,
@@ -188,6 +203,11 @@ Object.assign(Funnel, {
           },
         };
       },
+=======
+      getProps: () => ({
+        hasEditSettings: false,
+      }),
+>>>>>>> master
       getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
         settings["funnel.dimension"] === null ||
         settings["funnel.metric"] === null,
@@ -195,8 +215,7 @@ Object.assign(Funnel, {
       dataTestId: "funnel-row-sort",
     },
     ...metricSetting("funnel.metric", {
-      // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
-      section: t`Data`,
+      getSection: () => t`Data`,
 
       // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
       title: t`Measure`,
@@ -209,20 +228,21 @@ Object.assign(Funnel, {
       // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
       title: t`Funnel type`,
 
-      // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
-      section: t`Display`,
+      getSection: () => t`Display`,
 
       widget: "select",
-      props: {
+      getProps: () => ({
         options: [
-          // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
           { name: t`Funnel`, value: "funnel" },
+<<<<<<< HEAD
           // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
           { name: t`Funnel (Vertical)`, value: "echarts" },
           // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
+=======
+>>>>>>> master
           { name: t`Bar chart`, value: "bar" },
         ],
-      },
+      }),
       // legacy "bar" funnel was only previously available via multiseries
       getDefault: (series: RawSeries) => (series.length > 1 ? "bar" : "funnel"),
       useRawSeries: true,
@@ -241,18 +261,21 @@ Object.assign(Funnel, {
         settings["funnel.type"] !== "echarts",
     },
   },
-});
+};
+
+Object.assign(Funnel, FunnelViz);
 
 export function Funnel(props: VisualizationProps) {
   const {
     headerIcon,
     settings,
     showTitle,
-    isVisualizerViz,
+    isVisualizerCard,
     actionButtons,
     className,
     onChangeCardAndRun,
     rawSeries,
+    visualizerRawSeries,
     fontFamily,
     getHref,
     isDashboard,
@@ -343,6 +366,7 @@ export function Funnel(props: VisualizationProps) {
   // so title selection is disabled in this case
   const canSelectTitle =
     !!onChangeCardAndRun &&
+<<<<<<< HEAD
     (!isVisualizerViz || React.Children.count(titleMenuItems) === 1);
   if (settings["funnel.type"] === "echarts") {
     const option = getFunnelChartOption(
@@ -373,12 +397,16 @@ export function Funnel(props: VisualizationProps) {
       </div>
     );
   }
+=======
+    (!isVisualizerCard || React.Children.count(titleMenuItems) === 1);
+>>>>>>> master
 
   return (
     <div className={cx(className, CS.flex, CS.flexColumn, CS.p1)}>
       {hasTitle && (
         <ChartCaption
           series={groupedRawSeries}
+          visualizerRawSeries={visualizerRawSeries}
           settings={settings}
           icon={headerIcon}
           getHref={canSelectTitle ? getHref : undefined}

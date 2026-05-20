@@ -1,18 +1,18 @@
 import { useMemo } from "react";
 import { t } from "ttag";
-import _ from "underscore";
 import * as Yup from "yup";
 
+import { useListCollectionsQuery } from "metabase/api";
 import FormCollectionPicker from "metabase/collections/containers/FormCollectionPicker";
-import Button from "metabase/common/components/Button";
-import FormErrorMessage from "metabase/common/components/FormErrorMessage";
-import FormInput from "metabase/common/components/FormInput";
-import FormSubmitButton from "metabase/common/components/FormSubmitButton";
-import FormTextArea from "metabase/common/components/FormTextArea";
-import { SnippetCollections } from "metabase/entities/snippet-collections";
+import { Button } from "metabase/common/components/Button";
+import { FormErrorMessage } from "metabase/common/components/FormErrorMessage";
+import { FormInput } from "metabase/common/components/FormInput";
+import { FormSubmitButton } from "metabase/common/components/FormSubmitButton";
+import { FormTextArea } from "metabase/common/components/FormTextArea";
+import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { Form, FormProvider } from "metabase/forms";
-import * as Errors from "metabase/lib/errors";
 import { Flex } from "metabase/ui";
+import * as Errors from "metabase/utils/errors";
 import type { Collection, NativeQuerySnippet } from "metabase-types/api";
 
 import S from "./SnippetForm.module.css";
@@ -49,7 +49,7 @@ interface SnippetLoaderProps {
 }
 type SnippetFormProps = SnippetFormOwnProps & SnippetLoaderProps;
 
-function SnippetForm({
+function SnippetFormInner({
   snippet,
   snippetCollections,
   isEditing,
@@ -102,7 +102,7 @@ function SnippetForm({
             <FormCollectionPicker
               name="collection_id"
               title={t`Folder this should be in`}
-              type="snippet-collections"
+              collectionPickerModalProps={{ namespaces: ["snippets"] }}
             />
           )}
           <Flex align="center" justify="space-between">
@@ -119,7 +119,7 @@ function SnippetForm({
               )}
               <FormErrorMessage inline />
             </Flex>
-            <Flex align="center" justify="center" gap="sm">
+            <Flex align="center" justify="center" gap="sm" mt="md">
               {!!onCancel && (
                 <Button type="button" onClick={onCancel}>{t`Cancel`}</Button>
               )}
@@ -136,5 +136,18 @@ function SnippetForm({
   );
 }
 
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default _.compose(SnippetCollections.loadList())(SnippetForm);
+export function SnippetForm(props: SnippetFormOwnProps) {
+  const {
+    data: snippetCollections,
+    isLoading,
+    error,
+  } = useListCollectionsQuery({ namespace: "snippets" });
+  return (
+    <LoadingAndErrorWrapper loading={isLoading} error={error} noWrapper>
+      <SnippetFormInner
+        {...props}
+        snippetCollections={snippetCollections ?? []}
+      />
+    </LoadingAndErrorWrapper>
+  );
+}

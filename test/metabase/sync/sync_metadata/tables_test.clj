@@ -42,21 +42,24 @@
              (set (for [table (t2/select [:model/Table :name :visibility_type :initial_sync_status] :db_id (mt/id))]
                     (into {} table))))))))
 
-(deftest transform-temp-tables-are-skipped-test
-  (mt/when-ee-evailable
-   (let [temp-table   {:name   "mb_transform_temp_table_temp_123"
-                       :schema "public"}
-         normal-table {:name   "orders"
-                       :schema "public"}
-         db-metadata  {:tables #{temp-table normal-table}}]
-     (testing "table-set excludes transform temporary tables when flagged and has transforms feature"
-       (mt/with-premium-features #{:transforms}
-         (is (= #{normal-table}
-                (#'sync-tables/table-set db-metadata)))))
-     (testing "ignroe it if transform feature is disabled"
-       (mt/with-premium-features #{}
-         (is (= #{normal-table temp-table}
-                (#'sync-tables/table-set db-metadata))))))))
+(deftest transform-temp-tables-are-skipped-without-premium-features
+  (let [temp-table   {:name   "mb_transform_temp_table_temp_123"
+                      :schema "public"}
+        normal-table {:name   "orders"
+                      :schema "public"}
+        db-metadata  {:tables #{temp-table normal-table}}]
+    (testing "with no premium features, table-set excludes transform temporary tables"
+      (mt/with-premium-features #{}
+        (is (= #{normal-table}
+               (#'sync-tables/table-set db-metadata)))))
+    (testing "when hosted, includes transform temporary tables"
+      (mt/with-premium-features #{:hosting}
+        (is (= #{normal-table temp-table}
+               (#'sync-tables/table-set db-metadata)))))
+    (testing "when hosted with `transforms` enabled, excludes the temp tables"
+      (mt/with-premium-features #{:hosting :transforms-basic}
+        (is (= #{normal-table}
+               (#'sync-tables/table-set db-metadata)))))))
 
 (deftest retire-tables-test
   (testing "`retire-tables!` should retire the Table(s) passed to it, not all Tables in the DB -- see #9593"
@@ -210,6 +213,31 @@
           (is (= "active_table" (:name active-table)))
           (is (true? (:active active-table))))))))
 
+(deftest archive-tables-skips-transform-targets-test
+  (testing "Tables with transform_target=true should never be archived, even if old enough"
+    (mt/with-temp [:model/Database db {}
+                   :model/Table provisional {:name             "transform_output"
+                                             :db_id            (u/the-id db)
+                                             :active           false
+                                             :transform_target true
+                                             :deactivated_at   (t/minus (t/offset-date-time) (t/days 30))}
+                   :model/Table normal     {:name             "old_table"
+                                            :db_id            (u/the-id db)
+                                            :active           false
+                                            :transform_target false
+                                            :deactivated_at   (t/minus (t/offset-date-time) (t/days 30))}]
+      (#'sync-tables/archive-tables! db)
+
+      (testing "Transform target table is not archived or renamed"
+        (let [table (t2/select-one :model/Table (:id provisional))]
+          (is (nil? (:archived_at table)))
+          (is (= "transform_output" (:name table)))))
+
+      (testing "Normal table is archived as usual"
+        (let [table (t2/select-one :model/Table (:id normal))]
+          (is (some? (:archived_at table)))
+          (is (str/starts-with? (:name table) "old_table__mbarchiv__")))))))
+
 (deftest archive-tables-already-archived-test
   (testing "Already archived tables should not be processed again"
     (mt/with-temp [:model/Database db {}
@@ -272,6 +300,72 @@
           (is (not= (:id original-table) (:id new-table)))
           (is (= "sensitive_table" (:name new-table)))
           (is (nil? (:archived_at new-table))))))))
+
+(deftest computed-tables-not-marked-writable-by-sync-test
+  (testing "Sync should not mark computed tables as writable, even if the driver reports them as writable"
+    (mt/with-temp [:model/Database db {:engine ::toucanery/toucanery}
+                   :model/Table computed-table {:name           "computed_table"
+                                                :db_id          (u/the-id db)
+                                                :data_authority :computed
+                                                :is_writable    false}
+                   :model/Table normal-table   {:name           "normal_table"
+                                                :db_id          (u/the-id db)
+                                                :data_authority :unconfigured
+                                                :is_writable    false}]
+      ;; Simulate what happens during sync: the driver reports both tables as writable
+      (let [select-cols (into [:model/Table :id :name :schema :data_authority] @#'sync-tables/keys-to-update)]
+        (#'sync-tables/update-table-metadata-if-needed!
+         {:name "computed_table" :schema nil :is_writable true}
+         (t2/select-one select-cols (:id computed-table))
+         db)
+        (#'sync-tables/update-table-metadata-if-needed!
+         {:name "normal_table" :schema nil :is_writable true}
+         (t2/select-one select-cols (:id normal-table))
+         db))
+      (testing "computed table should remain non-writable"
+        (is (false? (t2/select-one-fn :is_writable :model/Table (:id computed-table)))))
+      (testing "normal table should be updated to writable"
+        (is (true? (t2/select-one-fn :is_writable :model/Table (:id normal-table))))))))
+
+(deftest no-spurious-update-when-metadata-unchanged-test
+  (testing (str "update-table-metadata-if-needed! should not issue an UPDATE (which would bump updated_at) "
+                "when none of the tracked metadata fields have changed. Regression test for GHY-3272 — "
+                "a customer with a trigger on metabase_table.updated_at was seeing it fire on every sync.")
+    (mt/with-temp [:model/Database db {:engine ::toucanery/toucanery}
+                   :model/Table    tbl {:name                    "stable_table"
+                                        :db_id                   (u/the-id db)
+                                        :description             nil
+                                        :database_require_filter nil
+                                        :estimated_row_count     100
+                                        :initial_sync_status     "complete"
+                                        :visibility_type         nil
+                                        :is_writable             false
+                                        :data_authority          :unconfigured}]
+      (let [select-cols        (into [:model/Table :id :name :schema :data_authority]
+                                     @#'sync-tables/keys-to-update)
+            matching-metadata  {:name                    "stable_table"
+                                :schema                  nil
+                                :description             nil
+                                :database_require_filter nil
+                                :estimated_row_count     100
+                                :is_writable             false}
+            initial-updated-at (t2/select-one-fn :updated_at :model/Table (:id tbl))]
+        (testing "no-op sync does not bump updated_at"
+          (#'sync-tables/update-table-metadata-if-needed!
+           matching-metadata
+           (t2/select-one select-cols (:id tbl))
+           db)
+          (is (= initial-updated-at
+                 (t2/select-one-fn :updated_at :model/Table (:id tbl)))))
+        (testing "a real change still bumps updated_at"
+          (#'sync-tables/update-table-metadata-if-needed!
+           (assoc matching-metadata :estimated_row_count 999)
+           (t2/select-one select-cols (:id tbl))
+           db)
+          (is (not= initial-updated-at
+                    (t2/select-one-fn :updated_at :model/Table (:id tbl))))
+          (is (= 999
+                 (t2/select-one-fn :estimated_row_count :model/Table (:id tbl)))))))))
 
 (deftest sample-database-tables-data-authority-test
   (testing "Tables from sample databases should be marked as :ingested"

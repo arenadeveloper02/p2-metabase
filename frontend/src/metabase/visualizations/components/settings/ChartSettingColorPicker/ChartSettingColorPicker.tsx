@@ -4,11 +4,17 @@ import type { PillSize } from "metabase/common/components/ColorPill";
 import { ColorSelector } from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
+<<<<<<< HEAD
 import { getAccentColors, getStatusColors } from "metabase/lib/colors/groups";
 import type { AccentColorOptions } from "metabase/lib/colors/types";
 import { Box, type BoxProps } from "metabase/ui";
+=======
+import { Box } from "metabase/ui";
+import { getAccentColors } from "metabase/ui/colors/groups";
+import type { AccentColorOptions } from "metabase/ui/colors/types";
+>>>>>>> master
 
-interface ChartSettingColorPickerProps extends BoxProps {
+interface ChartSettingColorPickerProps {
   className?: string;
   value: string;
   title?: string;
@@ -31,8 +37,11 @@ export const ChartSettingColorPicker = ({
     harmony: false,
     gray: true,
   },
+<<<<<<< HEAD
   additionalColors = [],
   ...boxProps
+=======
+>>>>>>> master
 }: ChartSettingColorPickerProps) => {
   // For the SDK the ColorSelector is rendered inside a parent Mantine popover,
   // so as a nested popover it should not be rendered within a portal
@@ -63,7 +72,11 @@ export const ChartSettingColorPicker = ({
   } = boxProps as any;
 
   return (
+<<<<<<< HEAD
     <Box className={cx(CS.flex, CS.alignCenter, className)} {...validBoxProps}>
+=======
+    <Box className={cx(CS.flex, CS.alignCenter, className)}>
+>>>>>>> master
       <ColorSelector
         value={value}
         colors={uniqueColors}

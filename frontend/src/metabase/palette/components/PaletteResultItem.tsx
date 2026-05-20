@@ -1,7 +1,8 @@
-import ExternalLink from "metabase/common/components/ExternalLink";
-import Link from "metabase/common/components/Link";
+import { EntityIcon } from "metabase/common/components/EntityIcon";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
+import { Link } from "metabase/common/components/Link";
 import { PLUGIN_MODERATION } from "metabase/plugins";
-import { Box, Flex, Group, Icon, Stack, Text } from "metabase/ui";
+import { Box, Flex, Group, Stack, Text } from "metabase/ui";
 
 import type { PaletteActionImpl } from "../types";
 import {
@@ -32,15 +33,16 @@ export const PaletteResultItem = ({ item, active }: PaletteResultItemProps) => {
         flexGrow: 1,
         flexBasis: 0,
       }}
-      bg={active ? "var(--mb-color-background-hover)" : undefined}
-      c="var(--mb-color-text-dark)"
+      bg={active ? "background-hover" : undefined}
+      c="text-primary"
       aria-label={item.name}
       aria-disabled={item.disabled ? true : false}
       wrap="nowrap"
     >
       {icon && (
-        <Icon
+        <EntityIcon
           {...icon}
+          iconUrl={item.iconUrl}
           style={{
             flexBasis: "16px",
           }}
@@ -59,7 +61,7 @@ export const PaletteResultItem = ({ item, active }: PaletteResultItemProps) => {
                 status={item.extra.moderatedStatus}
                 filled
                 size={14}
-                color="var(--mb-color-brand)"
+                color="brand"
                 style={{
                   verticalAlign: "text-bottom",
                 }}
@@ -70,11 +72,7 @@ export const PaletteResultItem = ({ item, active }: PaletteResultItemProps) => {
           {subtext && (
             <Flex
               flex="0 0 auto"
-              c={
-                active
-                  ? "var(--mb-color-text-medium)"
-                  : "var(--mb-color-text-light)"
-              }
+              c={active ? "text-secondary" : "text-tertiary"}
               fz="0.75rem"
               lh="1rem"
               maw="40%"
@@ -89,11 +87,7 @@ export const PaletteResultItem = ({ item, active }: PaletteResultItemProps) => {
 
         {item.subtitle && (
           <Text
-            c={
-              active
-                ? "var(--mb-color-text-medium)"
-                : "var(--mb-color-text-light)"
-            }
+            c={active ? "text-secondary" : "text-tertiary"}
             component="span"
             lh="1rem"
             style={{

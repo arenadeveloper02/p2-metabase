@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react";
 
 import { useTranslateContent } from "metabase/i18n/hooks";
-import { isReducedMotionPreferred } from "metabase/lib/dom";
+import { isReducedMotionPreferred } from "metabase/utils/dom";
 import { extractRemappings } from "metabase/visualizations";
-import { getChartMeasurements } from "metabase/visualizations/echarts/cartesian/chart-measurements";
+import { getChartLayout } from "metabase/visualizations/echarts/cartesian/layout";
 import { getCartesianChartModel } from "metabase/visualizations/echarts/cartesian/model";
 import type {
   CartesianChartModel,
@@ -105,9 +105,9 @@ export function useModelsAndOption(
     tc,
   ]);
 
-  const chartMeasurements = useMemo(
+  const chartLayout = useMemo(
     () =>
-      getChartMeasurements(
+      getChartLayout(
         chartModel,
         settings,
         hasTimelineEvents,
@@ -122,11 +122,11 @@ export function useModelsAndOption(
     () =>
       getTimelineEventsModel(
         chartModel,
-        chartMeasurements,
+        chartLayout,
         timelineEvents ?? [],
         renderingContext,
       ),
-    [chartModel, chartMeasurements, timelineEvents, renderingContext],
+    [chartModel, chartLayout, timelineEvents, renderingContext],
   );
 
   const selectedOrHoveredTimelineEventIds = useMemo(() => {
@@ -159,12 +159,13 @@ export function useModelsAndOption(
     const shouldAnimate = !isReducedMotionPreferred();
 
     let baseOption;
+
     switch (card.display) {
       case "waterfall":
         baseOption = getWaterfallChartOption(
           chartModel as WaterfallChartModel,
           width,
-          chartMeasurements,
+          chartLayout,
           timelineEventsModel,
           selectedOrHoveredTimelineEventIds,
           settings,
@@ -175,7 +176,7 @@ export function useModelsAndOption(
       case "scatter":
         baseOption = getScatterPlotOption(
           chartModel as ScatterPlotModel,
-          chartMeasurements,
+          chartLayout,
           timelineEventsModel,
           selectedOrHoveredTimelineEventIds,
           settings,
@@ -187,7 +188,7 @@ export function useModelsAndOption(
       default:
         baseOption = getCartesianChartOption(
           chartModel as CartesianChartModel,
-          chartMeasurements,
+          chartLayout,
           timelineEventsModel,
           selectedOrHoveredTimelineEventIds,
           settings,
@@ -207,12 +208,12 @@ export function useModelsAndOption(
     card.display,
     tooltipOption,
     chartModel,
-    chartMeasurements,
+    chartLayout,
     timelineEventsModel,
     selectedOrHoveredTimelineEventIds,
     settings,
     renderingContext,
   ]);
 
-  return { chartModel, timelineEventsModel, option };
+  return { chartModel, timelineEventsModel, option, renderingContext };
 }

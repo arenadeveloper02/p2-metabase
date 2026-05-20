@@ -1,4 +1,3 @@
-import { updateMetadata } from "metabase/lib/redux/metadata";
 import { PLUGIN_API } from "metabase/plugins";
 import { QueryMetadataSchema, QuestionSchema } from "metabase/schema";
 import type {
@@ -17,9 +16,12 @@ import type {
   GetPublicCard,
   GetRemappedCardParameterValueRequest,
   ListCardsRequest,
+  ParameterId,
+  ParameterValues,
   UpdateCardKeyRequest,
   UpdateCardRequest,
 } from "metabase-types/api";
+import type { EntityToken, EntityUuid } from "metabase-types/api/entity";
 
 import { Api } from "./api";
 import {
@@ -32,15 +34,28 @@ import {
   provideCardTags,
   provideParameterValuesTags,
 } from "./tags";
+import { hydrateLegacyEntities } from "./utils/hydrate-legacy-entities";
 import { handleQueryFulfilled } from "./utils/lifecycle";
 
 const PERSISTED_MODEL_REFRESH_DELAY = 200;
+
+export type CardParameterValuesRequest = {
+  cardId?: CardId | EntityToken;
+  entityIdentifier?: EntityUuid | EntityToken | null;
+  paramId: ParameterId;
+};
+
+export type SearchCardParameterValuesRequest = CardParameterValuesRequest & {
+  query: string;
+};
 
 export const cardApi = Api.injectEndpoints({
   endpoints: (builder) => {
     const updateCardPropertiesMutation = <
       PropertyKey extends keyof UpdateCardRequest,
-    >() =>
+    >(
+      additionalTags: ReturnType<typeof listTag>[] = [],
+    ) =>
       builder.mutation<Card, UpdateCardKeyRequest<PropertyKey>>({
         query: ({ id, ...body }) => ({
           method: "PUT",
@@ -52,6 +67,7 @@ export const cardApi = Api.injectEndpoints({
             listTag("card"),
             idTag("card", id),
             idTag("table", `card__${id}`),
+            ...additionalTags,
           ]),
       });
 
@@ -63,10 +79,7 @@ export const cardApi = Api.injectEndpoints({
           params,
         }),
         providesTags: (cards = []) => provideCardListTags(cards),
-        onQueryStarted: (_, { queryFulfilled, dispatch }) =>
-          handleQueryFulfilled(queryFulfilled, (data) =>
-            dispatch(updateMetadata(data, [QuestionSchema])),
-          ),
+        onQueryStarted: hydrateLegacyEntities([QuestionSchema]),
       }),
       getCard: builder.query<Card, GetCardRequest>({
         query: ({ id, ignore_error, ...params }) => ({
@@ -76,10 +89,7 @@ export const cardApi = Api.injectEndpoints({
           noEvent: ignore_error,
         }),
         providesTags: (card) => (card ? provideCardTags(card) : []),
-        onQueryStarted: (_, { queryFulfilled, dispatch }) =>
-          handleQueryFulfilled(queryFulfilled, (data) =>
-            dispatch(updateMetadata(data, QuestionSchema)),
-          ),
+        onQueryStarted: hydrateLegacyEntities(QuestionSchema),
       }),
       getCardQueryMetadata: builder.query<CardQueryMetadata, CardId>({
         query: (id) => ({
@@ -88,10 +98,7 @@ export const cardApi = Api.injectEndpoints({
         }),
         providesTags: (metadata, _error, id) =>
           metadata ? provideCardQueryMetadataTags(id, metadata) : [],
-        onQueryStarted: (_, { queryFulfilled, dispatch }) =>
-          handleQueryFulfilled(queryFulfilled, (data) =>
-            dispatch(updateMetadata(data, QueryMetadataSchema)),
-          ),
+        onQueryStarted: hydrateLegacyEntities(QueryMetadataSchema),
       }),
       getCardQuery: builder.query<Dataset, CardQueryRequest>({
         query: ({ cardId, ...body }) => ({
@@ -101,6 +108,39 @@ export const cardApi = Api.injectEndpoints({
         }),
         providesTags: (_data, _error, { cardId }) =>
           provideCardQueryTags(cardId),
+      }),
+      getCardQueryPivot: builder.query<Dataset, CardQueryRequest>({
+        query: ({ cardId, ...body }) => ({
+          method: "POST",
+          url: `/api/card/pivot/${cardId}/query`,
+          body,
+        }),
+        providesTags: (_data, _error, { cardId }) =>
+          provideCardQueryTags(cardId),
+      }),
+      getCardParameterValues: builder.query<
+        ParameterValues,
+        CardParameterValuesRequest
+      >({
+        query: (params) => ({
+          method: "GET",
+          url: "/api/card/:cardId/params/:paramId/values",
+          params,
+        }),
+        providesTags: (_response, _error, { paramId }) =>
+          provideParameterValuesTags(paramId),
+      }),
+      searchCardParameterValues: builder.query<
+        ParameterValues,
+        SearchCardParameterValuesRequest
+      >({
+        query: (params) => ({
+          method: "GET",
+          url: "/api/card/:cardId/params/:paramId/search/:query",
+          params,
+        }),
+        providesTags: (_response, _error, { paramId }) =>
+          provideParameterValuesTags(paramId),
       }),
       getRemappedCardParameterValue: builder.query<
         FieldValue,
@@ -294,7 +334,7 @@ export const cardApi = Api.injectEndpoints({
       }),
       updateCardEnableEmbedding: updateCardPropertiesMutation<
         "enable_embedding" | "embedding_type"
-      >(),
+      >([listTag("embedding-hub-checklist")]),
       updateCardEmbeddingParams: updateCardPropertiesMutation<
         "embedding_params" | "embedding_type"
       >(),
@@ -332,6 +372,11 @@ export const {
   useLazyGetCardQuery,
   useGetCardQueryMetadataQuery,
   useGetCardQueryQuery,
+  useLazyGetCardQueryQuery,
+  useGetCardQueryPivotQuery,
+  useLazyGetCardQueryPivotQuery,
+  useGetCardParameterValuesQuery,
+  useSearchCardParameterValuesQuery,
   useGetRemappedCardParameterValueQuery,
   useCreateCardMutation,
   useUpdateCardMutation,

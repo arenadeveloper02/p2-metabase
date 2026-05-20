@@ -1,6 +1,7 @@
 import { P, match } from "ts-pattern";
 
-import { Card, Group, Icon, type IconName, Stack, Text } from "metabase/ui";
+import { Card, Group, Icon, Stack, Text } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import { STEPS_WITHOUT_RESOURCE_SELECTION } from "../constants";
 import type {
@@ -41,7 +42,7 @@ export const SelectEmbedResourceRecentItemCard = ({
         <Text fw="bold">{recentItem.name}</Text>
 
         {recentItem.description && (
-          <Text size="sm" c="text-medium">
+          <Text size="sm" c="text-secondary">
             {recentItem.description}
           </Text>
         )}

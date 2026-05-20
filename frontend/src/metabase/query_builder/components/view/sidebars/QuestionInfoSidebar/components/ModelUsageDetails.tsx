@@ -1,13 +1,13 @@
 import { t } from "ttag";
 
 import { useListCardsQuery } from "metabase/api";
-import Link from "metabase/common/components/Link";
+import { Link } from "metabase/common/components/Link";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import { getIcon } from "metabase/lib/icon";
-import * as Urls from "metabase/lib/urls";
-import type { IconName } from "metabase/ui";
+import { useGetIcon } from "metabase/hooks/use-icon";
 import { Group, Icon, Repeat, Skeleton, Stack, Text } from "metabase/ui";
+import * as Urls from "metabase/urls";
 import type Question from "metabase-lib/v1/Question";
+import type { IconName } from "metabase-types/api";
 
 import { ToggleFullList } from "./ToggleFullList";
 import { useExpandableList } from "./hooks";
@@ -17,6 +17,7 @@ type ModelUsageDetailsProps = {
 };
 
 export function ModelUsageDetails({ model }: ModelUsageDetailsProps) {
+  const getIcon = useGetIcon();
   const {
     data: cards = [],
     error,
@@ -44,7 +45,7 @@ export function ModelUsageDetails({ model }: ModelUsageDetailsProps) {
     return (
       <Text
         lh={1}
-        color="text-medium"
+        color="text-secondary"
       >{t`This model is not used by any questions yet.`}</Text>
     );
   }
@@ -54,14 +55,14 @@ export function ModelUsageDetails({ model }: ModelUsageDetailsProps) {
       {filtered.map((card) => {
         return (
           <Link
-            to={Urls.question(card)}
+            to={Urls.card(card)}
             aria-label={card.name}
             variant="brand"
             key={card.id}
           >
             <Group gap="sm">
               <Icon
-                c="text-dark"
+                c="text-primary"
                 name={getIcon({ model: "card", ...card }).name as IconName}
               />
               <Text lh="1.25rem" color="inherit">

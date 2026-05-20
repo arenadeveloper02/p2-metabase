@@ -78,11 +78,6 @@ export type RecentItem = RecentTableItem | RecentCollectionItem;
 export const isRecentTableItem = (item: RecentItem): item is RecentTableItem =>
   item.model === "table";
 
-export const isRecentCollectionItem = (
-  item: RecentItem,
-): item is RecentCollectionItem =>
-  ["collection", "dashboard", "card", "dataset", "metric"].includes(item.model);
-
 export interface RecentItemsResponse {
   recent_views: RecentItem[];
 }

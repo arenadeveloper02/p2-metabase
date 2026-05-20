@@ -15,15 +15,19 @@ import {
   StringColumn,
 } from "__support__/visualizations";
 import { Api } from "metabase/api";
-import { MetabaseReduxProvider } from "metabase/lib/redux";
 import { publicReducers } from "metabase/reducers-public";
+import { MetabaseReduxProvider } from "metabase/redux";
+import {
+  createMockSettingsState,
+  createMockState,
+} from "metabase/redux/store/mocks";
 import { Box } from "metabase/ui";
 import { registerVisualization } from "metabase/visualizations";
 import { BarChart } from "metabase/visualizations/visualizations/BarChart";
-import PivotTable from "metabase/visualizations/visualizations/PivotTable";
+import { PivotTable } from "metabase/visualizations/visualizations/PivotTable";
 import { PIVOT_TABLE_MOCK_DATA } from "metabase/visualizations/visualizations/PivotTable/pivot-table-test-mocks";
 import { SmartScalar } from "metabase/visualizations/visualizations/SmartScalar";
-import Table from "metabase/visualizations/visualizations/Table/Table";
+import { Table } from "metabase/visualizations/visualizations/Table/Table";
 import * as TABLE_MOCK_DATA from "metabase/visualizations/visualizations/Table/stories-data";
 import {
   createMockCard,
@@ -31,10 +35,6 @@ import {
   createMockDataset,
   createMockDatasetData,
 } from "metabase-types/api/mocks";
-import {
-  createMockSettingsState,
-  createMockState,
-} from "metabase-types/store/mocks";
 
 import {
   PublicOrEmbeddedQuestionView,
@@ -195,7 +195,7 @@ export const TransparentThemeDefault = {
 
 function LightBackgroundDecorator(Story: StoryFn) {
   return (
-    <Box bg="#ddd" h="100%">
+    <Box bg="background-primary" h="100%">
       <Story />
     </Box>
   );
@@ -282,6 +282,26 @@ export const SmartScalarDarkTheme = {
   args: {
     ...SmartScalarLightTheme.args,
     theme: "night",
+  },
+};
+
+// Regression guard for metabase#72443: `₂` subscript descender used to clip at the value's line-box edge.
+export const SmartScalarUnicodeSubscript = {
+  render: Template,
+
+  args: {
+    ...SmartScalarLightTheme.args,
+    card: createMockCard({
+      id: getNextId(),
+      display: "smartscalar",
+      visualization_settings: {
+        "graph.dimensions": ["timestamp"],
+        "graph.metrics": ["count"],
+        column_settings: {
+          '["name","Count"]': { suffix: "tCO₂e" },
+        },
+      },
+    }),
   },
 };
 
