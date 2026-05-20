@@ -6,6 +6,7 @@ import { usePrevious } from "react-use";
 import _ from "underscore";
 
 import { useSetting } from "metabase/common/hooks";
+import { EMBED_EXTERNAL_USER_ID_QUERY_PARAM } from "metabase/embedding/constants";
 import { IS_EMBED_PREVIEW } from "metabase/lib/embed";
 import { useDispatch, useSelector } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
@@ -51,8 +52,12 @@ export function useDashboardUrlQuery(
 
   const previousQueryParams = usePrevious(queryParams);
 
+  const externalUserId = location.query?.[EMBED_EXTERNAL_USER_ID_QUERY_PARAM];
+  const hasExternalUserId =
+    typeof externalUserId === "string" && externalUserId.length > 0;
+
   useEffect(() => {
-    if (!dashboardId || !selectedTab) {
+    if (!dashboardId || !selectedTab || hasExternalUserId) {
       return;
     }
 
@@ -69,7 +74,7 @@ export function useDashboardUrlQuery(
     } catch {
       // Ignore storage errors (private browsing, security policies, etc.)
     }
-  }, [dashboardId, selectedTab]);
+  }, [dashboardId, selectedTab, hasExternalUserId]);
 
   useEffect(() => {
     if (!dashboardId || tabs.length <= 1) {
@@ -82,6 +87,11 @@ export function useDashboardUrlQuery(
 
     const tabInUrl = parseTabId(location);
     if (tabInUrl != null) {
+      restoredDashboardIdRef.current = dashboardId;
+      return;
+    }
+
+    if (hasExternalUserId) {
       restoredDashboardIdRef.current = dashboardId;
       return;
     }
@@ -107,7 +117,7 @@ export function useDashboardUrlQuery(
     }
 
     restoredDashboardIdRef.current = dashboardId;
-  }, [dashboardId, tabs, location, selectedTab, dispatch]);
+  }, [dashboardId, tabs, location, selectedTab, dispatch, hasExternalUserId]);
 
   useEffect(() => {
     /**
@@ -181,7 +191,10 @@ export function useDashboardUrlQuery(
   }, [router, location, selectedTab, dispatch]);
 }
 
-const QUERY_PARAMS_ALLOW_LIST = ["objectId"];
+const QUERY_PARAMS_ALLOW_LIST = [
+  "objectId",
+  EMBED_EXTERNAL_USER_ID_QUERY_PARAM,
+];
 
 function parseTabId(location: Location) {
   const slug = location.query?.tab;

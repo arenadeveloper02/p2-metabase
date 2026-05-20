@@ -36,6 +36,7 @@
     :model/DashboardCard                     metabase.dashboards.models.dashboard-card
     :model/DashboardCardSeries               metabase.dashboards.models.dashboard-card-series
     :model/DashboardTab                      metabase.dashboards.models.dashboard-tab
+    :model/EmbedDashboardTabPreference       metabase.embedding.models.embed-dashboard-tab-preference
     :model/DataPermissions                   metabase.permissions.models.data-permissions
     :model/Database                          metabase.warehouses.models.database
     :model/DatabaseRouter                    metabase-enterprise.database-routing.model

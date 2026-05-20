@@ -209,6 +209,12 @@ export const EmbedApi = {
   cardQuery: GET(getEmbedBase() + "/card/:token/query"),
   cardQueryPivot: GET(getEmbedBase() + "/pivot/card/:token/query"),
   dashboard: GET(getEmbedBase() + "/dashboard/:token"),
+  dashboardTabPreference: GET(
+    getEmbedBase() + "/dashboard/:token/tab-preference",
+  ),
+  saveDashboardTabPreference: PUT(
+    getEmbedBase() + "/dashboard/:token/tab-preference",
+  ),
   dashboardCardQuery: GET(
     getEmbedBase() + "/dashboard/:token/dashcard/:dashcardId/card/:cardId",
   ),

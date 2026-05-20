@@ -5,6 +5,7 @@ import { DASHBOARD_DISPLAY_ACTIONS } from "metabase/dashboard/components/Dashboa
 import { useDashboardLocationSync } from "metabase/dashboard/containers/DashboardApp/use-dashboard-location-sync";
 import { DashboardContextProvider } from "metabase/dashboard/context";
 import { useDashboardUrlQuery } from "metabase/dashboard/hooks/use-dashboard-url-query";
+import { useEmbedDashboardTabPreference } from "metabase/embedding/hooks/use-embed-dashboard-tab-preference";
 import { isActionDashCard, isQuestionCard } from "metabase/dashboard/utils";
 import { EmbeddingEntityContextProvider } from "metabase/embedding/context";
 import { useDispatch, useSelector } from "metabase/lib/redux";
@@ -24,6 +25,7 @@ const PublicOrEmbeddedDashboardPageInner = ({
 }: WithRouterProps) => {
   useDashboardLocationSync({ location });
   useDashboardUrlQuery(router, location);
+  useEmbedDashboardTabPreference(location);
 
   return <PublicOrEmbeddedDashboardView />;
 };

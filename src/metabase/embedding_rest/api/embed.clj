@@ -20,6 +20,7 @@
    [metabase.eid-translation.core :as eid-translation]
    [metabase.embedding-rest.api.common :as api.embed.common]
    [metabase.embedding.jwt :as embedding.jwt]
+   [metabase.embedding.models.embed-dashboard-tab-preference :as embed-dashboard-tab-preference]
    [metabase.events.core :as events]
    [metabase.query-processor.card :as qp.card]
    [metabase.query-processor.middleware.constraints :as qp.constraints]
@@ -162,6 +163,43 @@
     (api.embed.common/check-embedding-enabled-for-dashboard (embedding.jwt/get-in-unsigned-token-or-throw unsigned [:resource :dashboard]))
     (u/prog1 (api.embed.common/dashboard-for-unsigned-token unsigned, :constraints [:enable_embedding true])
       (events/publish-event! :event/dashboard-read {:object-id (:id <>), :user-id api/*current-user-id*}))))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :get "/dashboard/:token/tab-preference"
+  "Return the last selected tab for an embedded dashboard and external application user.
+
+  Pass `external_user_id` as a query parameter. This should be your application's opaque user identifier, not a
+  Metabase user id."
+  [{:keys [token]} :- [:map
+                       [:token api.embed.common/EncodedToken]]
+   {:keys [external_user_id]} :- [:map
+                                  [:external_user_id ms/NonBlankString]]]
+  (let [unsigned       (unsign-and-translate-ids token)
+        dashboard-id   (api.embed.common/unsigned-token->dashboard-id unsigned)]
+    (api.embed.common/check-embedding-enabled-for-dashboard dashboard-id)
+    (if-let [tab-id (embed-dashboard-tab-preference/get-preference external_user_id dashboard-id)]
+      {:tab_id tab-id}
+      {})))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :put "/dashboard/:token/tab-preference"
+  "Save the last selected tab for an embedded dashboard and external application user."
+  [{:keys [token]} :- [:map
+                       [:token api.embed.common/EncodedToken]]
+   _query-params
+   {:keys [external_user_id tab_id]} :- [:map
+                                         [:external_user_id ms/NonBlankString]
+                                         [:tab_id ms/PositiveInt]]]
+  (let [unsigned     (unsign-and-translate-ids token)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)]
+    (api.embed.common/check-embedding-enabled-for-dashboard dashboard-id)
+    (embed-dashboard-tab-preference/set-preference! external_user_id dashboard-id tab_id)))
 
 (defn- process-query-for-dashcard-with-signed-token
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the
