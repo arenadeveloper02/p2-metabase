@@ -574,6 +574,26 @@
       (is (=? successful-dashboard-info
               (client/client :get 200 (dashboard-url (:entity_id dash) dash)))))))
 
+(deftest embed-dashboard-tab-preference-test
+  (with-embedding-enabled-and-new-secret-key!
+    (mt/with-temp [:model/Dashboard dash {:enable_embedding true}]
+      (mt/with-temp [:model/DashboardTab tab {:name "Tab 1" :position 0 :dashboard_id (:id dash)}]
+        (let [tab-id (:id tab)
+              token (dash-token dash)
+              pref-path (str "embed/dashboard/" token "/tab-preference")]
+          (is (= {}
+                 (client/client :get 200 (str pref-path "?external_user_id=app-user-1"))))
+          (is (= {:tab_id tab-id}
+                 (client/client :put 200 pref-path
+                                {:external_user_id "app-user-1"
+                                 :tab_id tab-id}))
+          (is (= {:tab_id tab-id}
+                 (client/client :get 200 (str pref-path "?external_user_id=app-user-1"))))
+          (is (= "Invalid tab for dashboard"
+                 (client/client :put 400 pref-path
+                                {:external_user_id "app-user-1"
+                                 :tab_id 999999}))))))))
+
 (deftest bad-dashboard-id-fails
   (with-embedding-enabled-and-new-secret-key!
     (let [dashboard-url (str "embed/dashboard/" (sign {:resource {:dashboard "8"} :params   {}}))]
