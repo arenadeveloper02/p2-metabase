@@ -45,6 +45,17 @@ function setup({
         tabs: tabs ?? TEST_DASHBOARD_STATE.dashboards[1].tabs,
       },
     },
+    editingDashboard: isEditing
+      ? {
+          ...TEST_DASHBOARD_STATE.dashboards[1],
+          dashcards: dashcards
+            ? Object.values(dashcards)
+            : TEST_DASHBOARD_STATE.dashboards[1].dashcards.map(
+                (dcId) => TEST_DASHBOARD_STATE.dashcards[dcId],
+              ),
+          tabs: tabs ?? TEST_DASHBOARD_STATE.dashboards[1].tabs,
+        }
+      : null,
   };
 
   const RoutedDashboardComponent = withRouter(
@@ -135,12 +146,12 @@ async function openTabMenu(num: number) {
     hidden: true,
   });
   await userEvent.click(dropdownIcons[num - 1]);
-  await screen.findByRole("option");
+  await screen.findByRole("listbox");
 }
 
 async function selectTabMenuItem(
   num: number,
-  name: "Delete" | "Rename" | "Duplicate",
+  name: "Delete" | "Rename" | "Duplicate" | "Hide" | "Unhide",
 ) {
   const dropdownIcons = screen.getAllByRole("img", {
     name: "chevrondown icon",
@@ -171,6 +182,14 @@ async function duplicateTab(num: number) {
   return selectTabMenuItem(num, "Duplicate");
 }
 
+async function hideTab(num: number) {
+  return selectTabMenuItem(num, "Hide");
+}
+
+async function unhideTab(num: number) {
+  return selectTabMenuItem(num, "Unhide");
+}
+
 async function findSlug({ tabId, name }: { tabId: number; name: string }) {
   return screen.findByText(new RegExp(createTabSlug({ id: tabId, name })));
 }
@@ -197,6 +216,20 @@ describe("DashboardTabs", () => {
   });
 
   describe("when not editing", () => {
+    it("should hide tabs with is_shown set to false", () => {
+      setup({
+        isEditing: false,
+        tabs: [
+          { ...getDefaultTab({ tabId: 1, dashId: 1, name: "Tab 1" }), is_shown: true },
+          { ...getDefaultTab({ tabId: 2, dashId: 1, name: "Tab 2" }), is_shown: false },
+        ],
+      });
+
+      expect(queryTab(1)).not.toBeInTheDocument();
+      expect(queryTab(2)).not.toBeInTheDocument();
+      expect(screen.getByText("Path is /dashboard/1")).toBeInTheDocument();
+    });
+
     it("should display tabs without menus when there are two or more", () => {
       setup({ isEditing: false });
 
@@ -274,6 +307,18 @@ describe("DashboardTabs", () => {
   });
 
   describe("when editing", () => {
+    it("should display hidden tabs while editing", () => {
+      setup({
+        tabs: [
+          { ...getDefaultTab({ tabId: 1, dashId: 1, name: "Tab 1" }), is_shown: true },
+          { ...getDefaultTab({ tabId: 2, dashId: 1, name: "Tab 2" }), is_shown: false },
+        ],
+      });
+
+      expect(queryTab(1)).toBeVisible();
+      expect(queryTab(2)).toBeVisible();
+    });
+
     it("should display a placeholder tab when there are none", async () => {
       setup({ tabs: [] });
 
@@ -507,6 +552,27 @@ describe("DashboardTabs", () => {
 
         expect(queryTab(name)).toBeInTheDocument();
         expect(await findSlug({ tabId: 1, name })).toBeInTheDocument();
+      });
+    });
+
+    describe("when hiding and unhiding tabs", () => {
+      it("should hide a tab and show unhide option", async () => {
+        setup();
+
+        await hideTab(2);
+        await openTabMenu(2);
+
+        expect(screen.getByText("Unhide")).toBeInTheDocument();
+      });
+
+      it("should unhide a tab", async () => {
+        setup();
+
+        await hideTab(2);
+        await unhideTab(2);
+        await openTabMenu(2);
+
+        expect(screen.getByText("Hide")).toBeInTheDocument();
       });
     });
   });

@@ -211,6 +211,7 @@ export type DashboardTab = {
   dashboard_id: DashboardId;
   entity_id?: BaseEntityId;
   name: string;
+  is_shown?: boolean;
   position?: number;
   created_at?: string;
   updated_at?: string;

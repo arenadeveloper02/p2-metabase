@@ -51,6 +51,7 @@
 (defmethod serdes/hash-fields :model/DashboardTab
   [_dashboard-tab]
   [:name
+   :is_shown
    (comp serdes/identity-hash
          #(t2/select-one :model/Dashboard :id %)
          :dashboard_id)
@@ -62,7 +63,7 @@
    (serdes/infer-self-path "DashboardTab" dashcard)])
 
 (defmethod serdes/make-spec "DashboardTab" [_model-name _opts]
-  {:copy      [:entity_id :name :position]
+  {:copy      [:entity_id :name :position :is_shown]
    :skip      []
    :transform {:created_at   (serdes/date)
                :dashboard_id (serdes/parent-ref)}})
@@ -82,7 +83,7 @@
   "Updates tabs of a dashboard if changed."
   [current-tabs :- [:sequential [:map [:id ms/PositiveInt]]]
    new-tabs     :- [:sequential [:map [:id ms/PositiveInt]]]]
-  (let [update-ks       [:name :position]
+  (let [update-ks       [:name :position :is_shown]
         id->current-tab (m/index-by :id current-tabs)
         to-update-tabs  (filter
                           ;; filter out tabs that haven't changed

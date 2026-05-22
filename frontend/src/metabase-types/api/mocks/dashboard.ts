@@ -52,6 +52,7 @@ export const createMockDashboardTab = (
   id: 1,
   dashboard_id: 1,
   name: "Tab 1",
+  is_shown: true,
   entity_id: MOCK_DASHBOARD_TAB_ENTITY_ID,
   created_at: "2020-01-01T12:30:30.000000",
   updated_at: "2020-01-01T12:30:30.000000",

@@ -51,6 +51,7 @@ import {
   duplicateTab,
   moveTab,
   renameTab,
+  setTabShown,
   selectTab,
   undoDeleteTab,
 } from "metabase/dashboard/actions/tabs";
@@ -171,6 +172,7 @@ export const mapDispatchToProps = {
   duplicateTab,
   moveTab,
   renameTab,
+  setTabShown,
   selectTab,
   undoDeleteTab,
 };

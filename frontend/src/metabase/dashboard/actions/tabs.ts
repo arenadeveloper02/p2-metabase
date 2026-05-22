@@ -58,6 +58,10 @@ type MoveTabPayload = {
   sourceTabId: DashboardTabId;
   destinationTabId: DashboardTabId;
 };
+type SetTabShownPayload = {
+  tabId: DashboardTabId;
+  isShown: boolean;
+};
 type SelectTabPayload = {
   tabId: DashboardTabId | null;
 };
@@ -81,6 +85,7 @@ const DELETE_TAB = "metabase/dashboard/DELETE_TAB";
 const UNDO_DELETE_TAB = "metabase/dashboard/UNDO_DELETE_TAB";
 const RENAME_TAB = "metabase/dashboard/RENAME_TAB";
 const MOVE_TAB = "metabase/dashboard/MOVE_TAB";
+const SET_TAB_SHOWN = "metabase/dashboard/SET_TAB_SHOWN";
 const SELECT_TAB = "metabase/dashboard/SELECT_TAB";
 const MOVE_DASHCARD_TO_TAB = "metabase/dashboard/MOVE_DASHCARD_TO_TAB";
 const UNDO_MOVE_DASHCARD_TO_TAB =
@@ -170,6 +175,7 @@ export const undoDeleteTab =
 export const renameTab = createAction<RenameTabPayload>(RENAME_TAB);
 
 export const moveTab = createAction<MoveTabPayload>(MOVE_TAB);
+export const setTabShown = createAction<SetTabShownPayload>(SET_TAB_SHOWN);
 
 export const moveDashCardToTab =
   ({ destinationTabId, dashCardId }: MoveDashCardToTabPayload) =>
@@ -249,6 +255,7 @@ export function getDefaultTab({
     id: tabId,
     dashboard_id: dashId,
     name,
+    is_shown: true,
   };
 }
 
@@ -498,6 +505,26 @@ export const tabsReducer = createReducer<DashboardState>(
         prevDash.tabs = arrayMove(prevTabs, sourceTabIndex, destTabIndex);
       },
     );
+
+    builder.addCase(setTabShown, (state, { type, payload: { tabId, isShown } }) => {
+      const { prevTabs } = getPrevDashAndTabs({ state });
+      const tabToUpdate = prevTabs.find(({ id }) => id === tabId);
+      if (!tabToUpdate) {
+        throw new Error(
+          `SET_TAB_SHOWN was dispatched but tab with id ${tabId} was not found`,
+        );
+      }
+
+      markDashboardDirty(type, state);
+
+      tabToUpdate.is_shown = isShown;
+      if (isShown || state.selectedTabId !== tabId) {
+        return;
+      }
+
+      const shownTabs = prevTabs.filter((tab) => tab.is_shown !== false);
+      state.selectedTabId = shownTabs[0]?.id ?? null;
+    });
 
     builder.addCase(selectTab, (state, { payload: { tabId } }) => {
       _selectTab({ state, tabId });
