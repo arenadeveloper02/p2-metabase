@@ -1256,27 +1256,6 @@ databaseChangeLog:
         - dropColumn:
             tableName: pulse
             columnName: disable_links
-
-  - changeSet:
-      id: v58.2026-05-06T07:45:00
-      author: codex
-      comment: Add is_shown column to dashboard_tab
-      changes:
-        - addColumn:
-            tableName: dashboard_tab
-            columns:
-              - column:
-                  name: is_shown
-                  type: boolean
-                  remarks: Whether a dashboard tab should be shown in view mode
-                  defaultValueBoolean: true
-                  constraints:
-                    nullable: false
-      rollback:
-        - dropColumn:
-            tableName: dashboard_tab
-            columnName: is_shown
-
 # >>>>>>>>>> DO NOT ADD NEW MIGRATIONS BELOW THIS LINE! ADD THEM ABOVE <<<<<<<<<<
 
 ########################################################################################################################

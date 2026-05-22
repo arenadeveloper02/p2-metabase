@@ -46,6 +46,8 @@ import { ParameterValueWidget } from "../ParameterValueWidget";
 import { RequiredParamToggle } from "../RequiredParamToggle";
 import { ValuesSourceSettings } from "../ValuesSourceSettings";
 
+import { DateRangeDefaultPeriodSetting } from "./DateRangeDefaultPeriodSetting";
+import { DateSingleDefaultPeriodSetting } from "./DateSingleDefaultPeriodSetting";
 import { MoveParameterMenu } from "./MoveParameterMenu";
 import S from "./ParameterSettings.module.css";
 import { TemporalUnitSettings } from "./TemporalUnitSettings";
@@ -216,6 +218,20 @@ export const ParameterSettings = ({
             onChangeSourceSettings={handleSourceSettingsChange}
           />
         </Box>
+      )}
+
+      {parameter.type === "date/single" && (
+        <DateSingleDefaultPeriodSetting
+          parameter={parameter}
+          onChangeDefaultValue={onChangeDefaultValue}
+        />
+      )}
+
+      {parameter.type === "date/range" && (
+        <DateRangeDefaultPeriodSetting
+          parameter={parameter}
+          onChangeDefaultValue={onChangeDefaultValue}
+        />
       )}
 
       {isSingleOrMultiSelectable(parameter) && (
