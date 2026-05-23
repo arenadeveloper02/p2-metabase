@@ -168,6 +168,46 @@ export function dateParameterValueToSingleDate(
   return range?.start ?? null;
 }
 
+/**
+ * Resolves a `date/single` parameter value to a concrete date string (e.g.
+ * `2026-05-21`). Relative presets such as `past1days` are evaluated against
+ * `now` so rolling defaults stay correct while URL/API params use fixed dates.
+ */
+export function resolveDateSingleParameterValueToString(
+  value: ParameterValueOrArray | null | undefined,
+  now: Dayjs = dayjs(),
+): string | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const filter = deserializeDateParameterValue(value);
+  if (filter?.type === "relative") {
+    const range = dateParameterValueToRange(value, now);
+    if (range == null) {
+      return value;
+    }
+
+    const start = dayjs(range.start).format("YYYY-MM-DD");
+    const end = dayjs(range.end).format("YYYY-MM-DD");
+    if (start === end) {
+      return start;
+    }
+
+    return value;
+  }
+
+  if (filter?.type === "specific" && filter.operator === "=") {
+    return serializeDateParameterValue(filter) ?? null;
+  }
+
+  return value;
+}
+
 export function dateParameterValueToRangeString(
   value: ParameterValueOrArray | null | undefined,
   now: Dayjs = dayjs(),

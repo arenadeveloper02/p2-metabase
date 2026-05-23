@@ -1,5 +1,6 @@
 import _ from "underscore";
 
+import { resolveDateSingleParameterValueToString } from "metabase/querying/parameters/utils/relative-date-to-range";
 import {
   getQueryType,
   getSourceConfig,
@@ -152,10 +153,15 @@ export function getParameterValuesBySlug(parameters, parameterValuesById) {
   parameterValuesById = parameterValuesById ?? {};
 
   return Object.fromEntries(
-    parameters.map((parameter) => [
-      parameter.slug,
-      parameter.value ?? parameterValuesById[parameter.id] ?? null,
-    ]),
+    parameters.map((parameter) => {
+      let value = parameter.value ?? parameterValuesById[parameter.id] ?? null;
+
+      if (parameter.type === "date/single" && value != null) {
+        value = resolveDateSingleParameterValueToString(value) ?? value;
+      }
+
+      return [parameter.slug, value];
+    }),
   );
 }
 

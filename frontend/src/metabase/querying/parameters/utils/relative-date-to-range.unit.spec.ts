@@ -6,6 +6,7 @@ import { serializeDateParameterValue } from "metabase/querying/parameters/utils/
 import {
   dateParameterValueToRange,
   relativeDateValueToRange,
+  resolveDateSingleParameterValueToString,
 } from "./relative-date-to-range";
 
 const NOW = dayjs("2016-06-07T12:13:55");
@@ -153,5 +154,31 @@ describe("dateParameterValueToRange", () => {
     const range = dateParameterValueToRange(value, NOW);
     expect(formatDate(range!.start)).toBe("2016-05-23");
     expect(formatDate(range!.end)).toBe("2016-05-29");
+  });
+});
+
+describe("resolveDateSingleParameterValueToString", () => {
+  beforeEach(() => {
+    dayjs.updateLocale("en", { weekStart: 1 });
+  });
+
+  it.each([
+    ["past1days", "2016-06-06"],
+    ["past1days-from-1days", "2016-06-05"],
+    ["yesterday", "2016-06-06"],
+  ] as const)("should resolve %s to %s", (value, expected) => {
+    expect(resolveDateSingleParameterValueToString(value, NOW)).toBe(expected);
+  });
+
+  it("should preserve fixed date values", () => {
+    expect(resolveDateSingleParameterValueToString("2020-02-15", NOW)).toBe(
+      "2020-02-15",
+    );
+  });
+
+  it("should not resolve date range strings", () => {
+    expect(resolveDateSingleParameterValueToString("past1weeks", NOW)).toBe(
+      "past1weeks",
+    );
   });
 });

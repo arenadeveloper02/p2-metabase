@@ -1,6 +1,5 @@
 import dayjs from "dayjs";
 import { useState } from "react";
-import { match } from "ts-pattern";
 import { t } from "ttag";
 
 import {
@@ -12,7 +11,10 @@ import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
-import { dateParameterValueToSingleDate } from "metabase/querying/parameters/utils/relative-date-to-range";
+import {
+  dateParameterValueToSingleDate,
+  resolveDateSingleParameterValueToString,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
@@ -45,7 +47,10 @@ export function DateSingleWidget({
 
   const handleSubmit = () => {
     if (!state.isSpecific && state.relativeValue != null) {
-      onChange(serializeDateParameterValue(state.relativeValue));
+      const resolved = resolveDateSingleParameterValueToString(
+        serializeDateParameterValue(state.relativeValue),
+      );
+      onChange(resolved ?? getSpecificWidgetValue(state.pickerValue));
     } else {
       onChange(getSpecificWidgetValue(state.pickerValue));
     }
