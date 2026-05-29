@@ -224,3 +224,33 @@ export function dateParameterValueToRangeString(
     hasTime: false,
   });
 }
+
+/**
+ * Resolves a `date/range` parameter value to a concrete date range string (e.g.
+ * `2026-05-19~2026-05-25`). Relative presets such as `past1weeks` are evaluated
+ * against `now` so rolling defaults stay correct while query params use fixed
+ * dates (Monday–Sunday for week presets).
+ */
+export function resolveDateRangeParameterValueToString(
+  value: ParameterValueOrArray | null | undefined,
+  now: Dayjs = dayjs(),
+): string | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const filter = deserializeDateParameterValue(value);
+  if (filter?.type === "relative") {
+    return dateParameterValueToRangeString(value, now);
+  }
+
+  if (filter?.type === "specific" && filter.operator === "between") {
+    return serializeDateParameterValue(filter) ?? null;
+  }
+
+  return value;
+}

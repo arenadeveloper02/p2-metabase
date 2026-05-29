@@ -6,7 +6,10 @@ import * as Lib from "metabase-lib";
 import Question from "metabase-lib/v1/Question";
 import { deriveFieldOperatorFromParameter } from "metabase-lib/v1/parameters/utils/operators";
 import { normalizeParameterValue } from "metabase-lib/v1/parameters/utils/parameter-values";
-import { resolveDateSingleParameterValueToString } from "metabase/querying/parameters/utils/relative-date-to-range";
+import {
+  resolveDateRangeParameterValueToString,
+  resolveDateSingleParameterValueToString,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 
 export function isNative(card) {
   if (!card) {
@@ -59,6 +62,10 @@ export function applyParameters(
 
     if (parameter.type === "date/single" && value != null) {
       value = resolveDateSingleParameterValueToString(value) ?? value;
+    }
+
+    if (parameter.type === "date/range" && value != null) {
+      value = resolveDateRangeParameterValueToString(value) ?? value;
     }
 
     const cardId = card.id || card.original_card_id;

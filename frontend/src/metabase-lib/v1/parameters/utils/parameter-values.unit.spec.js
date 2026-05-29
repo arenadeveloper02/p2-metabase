@@ -214,6 +214,24 @@ describe("parameters/utils/parameter-values", () => {
 
       jest.useRealTimers();
     });
+
+    it("should resolve relative date/range values to concrete date ranges", () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+
+      const dateRangeParameter = {
+        id: 223,
+        slug: "date_range",
+        type: "date/range",
+        value: "past1weeks",
+      };
+
+      expect(getParameterValuesBySlug([dateRangeParameter], {})).toEqual({
+        date_range: "2016-05-30~2016-06-05",
+      });
+
+      jest.useRealTimers();
+    });
   });
 
   describe("getParameterValue", () => {

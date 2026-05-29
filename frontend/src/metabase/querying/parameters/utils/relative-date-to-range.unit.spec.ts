@@ -6,6 +6,7 @@ import { serializeDateParameterValue } from "metabase/querying/parameters/utils/
 import {
   dateParameterValueToRange,
   relativeDateValueToRange,
+  resolveDateRangeParameterValueToString,
   resolveDateSingleParameterValueToString,
 } from "./relative-date-to-range";
 
@@ -179,6 +180,33 @@ describe("resolveDateSingleParameterValueToString", () => {
   it("should not resolve date range strings", () => {
     expect(resolveDateSingleParameterValueToString("past1weeks", NOW)).toBe(
       "past1weeks",
+    );
+  });
+});
+
+describe("resolveDateRangeParameterValueToString", () => {
+  beforeEach(() => {
+    dayjs.updateLocale("en", { weekStart: 1 });
+  });
+
+  it.each([
+    ["past1weeks", "2016-05-30~2016-06-05"],
+    ["past1weeks-from-1weeks", "2016-05-23~2016-05-29"],
+    ["past1months", "2016-05-01~2016-05-31"],
+    ["past1months-from-1months", "2016-04-01~2016-04-30"],
+  ] as const)("should resolve %s to %s", (value, expected) => {
+    expect(resolveDateRangeParameterValueToString(value, NOW)).toBe(expected);
+  });
+
+  it("should preserve fixed date range values", () => {
+    expect(
+      resolveDateRangeParameterValueToString("2020-02-15~2020-03-05", NOW),
+    ).toBe("2020-02-15~2020-03-05");
+  });
+
+  it("should resolve single-day relative strings to a one-day range", () => {
+    expect(resolveDateRangeParameterValueToString("past1days", NOW)).toBe(
+      "2016-06-06~2016-06-06",
     );
   });
 });
