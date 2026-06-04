@@ -182,6 +182,18 @@ describe("resolveDateSingleParameterValueToString", () => {
       "past1weeks",
     );
   });
+
+  it.each([
+    ["past1weeks-end", "2016-06-05"],
+    ["past1months-end", "2016-05-31"],
+  ] as const)(
+    "should resolve last day of period %s to %s",
+    (value, expected) => {
+      expect(resolveDateSingleParameterValueToString(value, NOW)).toBe(
+        expected,
+      );
+    },
+  );
 });
 
 describe("resolveDateRangeParameterValueToString", () => {

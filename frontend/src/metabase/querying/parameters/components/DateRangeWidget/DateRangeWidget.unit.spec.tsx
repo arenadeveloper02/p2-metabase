@@ -43,10 +43,16 @@ describe("DateRangeWidget", () => {
     expect(screen.getByText("February 2020")).toBeInTheDocument();
   });
 
-  it("should accept a previously selected relative date range", async () => {
+  it("should resolve a previously selected relative date range on apply", async () => {
     const { onChange } = setup({ value: "past1weeks" });
     await userEvent.click(screen.getByText("Apply"));
-    expect(onChange).toHaveBeenCalledWith("past1weeks");
+    expect(onChange).toHaveBeenCalledWith("2016-05-30~2016-06-05");
+  });
+
+  it("should resolve previous month presets on apply", async () => {
+    const { onChange } = setup({ value: "past1months" });
+    await userEvent.click(screen.getByText("Apply"));
+    expect(onChange).toHaveBeenCalledWith("2016-05-01~2016-05-31");
   });
 
   it("should not render a period preset dropdown", () => {

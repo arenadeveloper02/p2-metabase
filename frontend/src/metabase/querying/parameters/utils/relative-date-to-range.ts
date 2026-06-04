@@ -164,8 +164,17 @@ export function dateParameterValueToSingleDate(
   value: ParameterValueOrArray | null | undefined,
   now: Dayjs = dayjs(),
 ): Date | null {
+  const filter = deserializeDateParameterValue(value);
   const range = dateParameterValueToRange(value, now);
-  return range?.start ?? null;
+  if (range == null) {
+    return null;
+  }
+
+  if (filter?.type === "relative" && filter.options?.usePeriodEnd) {
+    return range.end;
+  }
+
+  return range.start;
 }
 
 /**
@@ -192,8 +201,13 @@ export function resolveDateSingleParameterValueToString(
       return value;
     }
 
+    const usePeriodEnd = filter.options?.usePeriodEnd;
     const start = dayjs(range.start).format("YYYY-MM-DD");
     const end = dayjs(range.end).format("YYYY-MM-DD");
+    if (usePeriodEnd) {
+      return end;
+    }
+
     if (start === end) {
       return start;
     }

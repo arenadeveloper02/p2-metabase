@@ -12,7 +12,10 @@ import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
-import { dateParameterValueToRange } from "metabase/querying/parameters/utils/relative-date-to-range";
+import {
+  dateParameterValueToRange,
+  resolveDateRangeParameterValueToString,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
@@ -45,7 +48,10 @@ export function DateRangeWidget({
 
   const handleSubmit = () => {
     if (!state.isSpecific && state.relativeValue != null) {
-      onChange(serializeDateParameterValue(state.relativeValue));
+      const resolved = resolveDateRangeParameterValueToString(
+        serializeDateParameterValue(state.relativeValue),
+      );
+      onChange(resolved ?? getSpecificWidgetValue(state.pickerValue));
     } else {
       onChange(getSpecificWidgetValue(state.pickerValue));
     }

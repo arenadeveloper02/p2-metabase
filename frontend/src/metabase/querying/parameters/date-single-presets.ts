@@ -1,10 +1,29 @@
 import { t } from "ttag";
 
 import { completedPeriodValue } from "metabase/querying/filters/rolling-date-presets";
-import type { RelativeDatePickerValue } from "metabase/querying/filters/types";
+import type {
+  DatePickerTruncationUnit,
+  RelativeDatePickerValue,
+} from "metabase/querying/filters/types";
 import { serializeDateParameterValue } from "metabase/querying/parameters/utils/parsing";
 
-export type DateSingleRelativePresetId = "yesterday" | "day-before-yesterday";
+export type DateSingleRelativePresetId =
+  | "yesterday"
+  | "day-before-yesterday"
+  | "last-day-of-previous-week"
+  | "last-day-of-previous-month";
+
+/** Last calendar day of a completed week (Sun) or month, using Mon–Sun weeks. */
+export function lastDayOfCompletedPeriodValue(
+  unit: Extract<DatePickerTruncationUnit, "week" | "month">,
+): RelativeDatePickerValue {
+  return {
+    type: "relative",
+    value: -1,
+    unit,
+    options: { usePeriodEnd: true },
+  };
+}
 
 export type DateSingleRelativePreset = {
   id: DateSingleRelativePresetId;
@@ -26,6 +45,20 @@ export const DATE_SINGLE_RELATIVE_PRESETS: DateSingleRelativePreset[] = [
       return t`Day before yesterday`;
     },
     value: completedPeriodValue("day", 1),
+  },
+  {
+    id: "last-day-of-previous-week",
+    get label() {
+      return t`Last day of previous week`;
+    },
+    value: lastDayOfCompletedPeriodValue("week"),
+  },
+  {
+    id: "last-day-of-previous-month",
+    get label() {
+      return t`Last day of previous month`;
+    },
+    value: lastDayOfCompletedPeriodValue("month"),
   },
 ];
 
