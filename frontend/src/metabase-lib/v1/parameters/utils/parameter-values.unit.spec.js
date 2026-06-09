@@ -196,6 +196,42 @@ describe("parameters/utils/parameter-values", () => {
       expect(getParameterValuesBySlug(undefined, {})).toEqual({});
       expect(getParameterValuesBySlug(null, {})).toEqual({});
     });
+
+    it("should resolve relative date/single values to concrete dates", () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+
+      const dateParameter = {
+        id: 222,
+        slug: "date",
+        type: "date/single",
+        value: "past1days",
+      };
+
+      expect(getParameterValuesBySlug([dateParameter], {})).toEqual({
+        date: "2016-06-06",
+      });
+
+      jest.useRealTimers();
+    });
+
+    it("should resolve relative date/range values to concrete date ranges", () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+
+      const dateRangeParameter = {
+        id: 223,
+        slug: "date_range",
+        type: "date/range",
+        value: "past1weeks",
+      };
+
+      expect(getParameterValuesBySlug([dateRangeParameter], {})).toEqual({
+        date_range: "2016-05-30~2016-06-05",
+      });
+
+      jest.useRealTimers();
+    });
   });
 
   describe("getParameterValue", () => {

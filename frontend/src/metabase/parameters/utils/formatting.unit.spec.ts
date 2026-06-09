@@ -195,6 +195,7 @@ describe("metabase/parameters/utils/formatting", () => {
       beforeAll(() => {
         jest.useFakeTimers();
         jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
+        dayjs.updateLocale("en", { weekStart: 1 });
       });
 
       afterAll(() => {
@@ -209,6 +210,16 @@ describe("metabase/parameters/utils/formatting", () => {
         expect(
           formatParameterValue("past1days-from-1days", parameter),
         ).toEqual("June 5, 2016");
+      });
+
+      it("should format last day of previous week and month presets", () => {
+        const parameter = createMockUiParameter({ type: "date/single" });
+        expect(formatParameterValue("past1weeks-end", parameter)).toEqual(
+          "June 5, 2016",
+        );
+        expect(formatParameterValue("past1months-end", parameter)).toEqual(
+          "May 31, 2016",
+        );
       });
     });
 

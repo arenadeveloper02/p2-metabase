@@ -7,10 +7,12 @@ import {
 } from "./date-single-presets";
 
 describe("date-single-presets", () => {
-  it("should expose yesterday and day before yesterday presets", () => {
+  it("should expose rolling single-date presets", () => {
     expect(DATE_SINGLE_RELATIVE_PRESETS.map((p) => p.id)).toEqual([
       "yesterday",
       "day-before-yesterday",
+      "last-day-of-previous-week",
+      "last-day-of-previous-month",
     ]);
   });
 
@@ -22,6 +24,8 @@ describe("date-single-presets", () => {
   it.each([
     ["yesterday", "past1days"],
     ["day-before-yesterday", "past1days-from-1days"],
+    ["last-day-of-previous-week", "past1weeks-end"],
+    ["last-day-of-previous-month", "past1months-end"],
   ] as const)(
     "should map preset %s to default value %s",
     (presetId, serialized) => {

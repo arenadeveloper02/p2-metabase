@@ -51,6 +51,28 @@ describe("DateSingleDefaultPeriodSetting", () => {
     );
   });
 
+  it("should set last day of previous week as a rolling default", async () => {
+    const { onChangeDefaultValue } = setup();
+
+    await userEvent.click(screen.getByLabelText("Default period"));
+    await userEvent.click(
+      await screen.findByText("Last day of previous week"),
+    );
+
+    expect(onChangeDefaultValue).toHaveBeenCalledWith("past1weeks-end");
+  });
+
+  it("should set last day of previous month as a rolling default", async () => {
+    const { onChangeDefaultValue } = setup();
+
+    await userEvent.click(screen.getByLabelText("Default period"));
+    await userEvent.click(
+      await screen.findByText("Last day of previous month"),
+    );
+
+    expect(onChangeDefaultValue).toHaveBeenCalledWith("past1months-end");
+  });
+
   it("should clear the default when normal is selected", async () => {
     const { onChangeDefaultValue } = setup({ default: "past1days" });
 

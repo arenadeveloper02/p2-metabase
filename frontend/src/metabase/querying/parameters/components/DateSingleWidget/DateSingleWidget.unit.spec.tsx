@@ -43,7 +43,7 @@ describe("DateSingleWidget", () => {
   it("should accept a previously selected relative date", async () => {
     const { onChange } = setup({ value: "past1days" });
     await userEvent.click(screen.getByText("Apply"));
-    expect(onChange).toHaveBeenCalledWith("past1days");
+    expect(onChange).toHaveBeenCalledWith("2016-06-06");
   });
 
   it("should not render a period preset dropdown", () => {

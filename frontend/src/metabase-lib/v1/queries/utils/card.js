@@ -6,6 +6,10 @@ import * as Lib from "metabase-lib";
 import Question from "metabase-lib/v1/Question";
 import { deriveFieldOperatorFromParameter } from "metabase-lib/v1/parameters/utils/operators";
 import { normalizeParameterValue } from "metabase-lib/v1/parameters/utils/parameter-values";
+import {
+  resolveDateRangeParameterValueToString,
+  resolveDateSingleParameterValueToString,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 
 export function isNative(card) {
   if (!card) {
@@ -54,7 +58,15 @@ export function applyParameters(
   const datasetQuery = copy(card.dataset_query);
   datasetQuery.parameters = [];
   for (const parameter of parameters || []) {
-    const value = parameterValues[parameter.id];
+    let value = parameterValues[parameter.id];
+
+    if (parameter.type === "date/single" && value != null) {
+      value = resolveDateSingleParameterValueToString(value) ?? value;
+    }
+
+    if (parameter.type === "date/range" && value != null) {
+      value = resolveDateRangeParameterValueToString(value) ?? value;
+    }
 
     const cardId = card.id || card.original_card_id;
     const mapping = _.findWhere(

@@ -6,6 +6,8 @@ import { serializeDateParameterValue } from "metabase/querying/parameters/utils/
 import {
   dateParameterValueToRange,
   relativeDateValueToRange,
+  resolveDateRangeParameterValueToString,
+  resolveDateSingleParameterValueToString,
 } from "./relative-date-to-range";
 
 const NOW = dayjs("2016-06-07T12:13:55");
@@ -153,5 +155,70 @@ describe("dateParameterValueToRange", () => {
     const range = dateParameterValueToRange(value, NOW);
     expect(formatDate(range!.start)).toBe("2016-05-23");
     expect(formatDate(range!.end)).toBe("2016-05-29");
+  });
+});
+
+describe("resolveDateSingleParameterValueToString", () => {
+  beforeEach(() => {
+    dayjs.updateLocale("en", { weekStart: 1 });
+  });
+
+  it.each([
+    ["past1days", "2016-06-06"],
+    ["past1days-from-1days", "2016-06-05"],
+    ["yesterday", "2016-06-06"],
+  ] as const)("should resolve %s to %s", (value, expected) => {
+    expect(resolveDateSingleParameterValueToString(value, NOW)).toBe(expected);
+  });
+
+  it("should preserve fixed date values", () => {
+    expect(resolveDateSingleParameterValueToString("2020-02-15", NOW)).toBe(
+      "2020-02-15",
+    );
+  });
+
+  it("should not resolve date range strings", () => {
+    expect(resolveDateSingleParameterValueToString("past1weeks", NOW)).toBe(
+      "past1weeks",
+    );
+  });
+
+  it.each([
+    ["past1weeks-end", "2016-06-05"],
+    ["past1months-end", "2016-05-31"],
+  ] as const)(
+    "should resolve last day of period %s to %s",
+    (value, expected) => {
+      expect(resolveDateSingleParameterValueToString(value, NOW)).toBe(
+        expected,
+      );
+    },
+  );
+});
+
+describe("resolveDateRangeParameterValueToString", () => {
+  beforeEach(() => {
+    dayjs.updateLocale("en", { weekStart: 1 });
+  });
+
+  it.each([
+    ["past1weeks", "2016-05-30~2016-06-05"],
+    ["past1weeks-from-1weeks", "2016-05-23~2016-05-29"],
+    ["past1months", "2016-05-01~2016-05-31"],
+    ["past1months-from-1months", "2016-04-01~2016-04-30"],
+  ] as const)("should resolve %s to %s", (value, expected) => {
+    expect(resolveDateRangeParameterValueToString(value, NOW)).toBe(expected);
+  });
+
+  it("should preserve fixed date range values", () => {
+    expect(
+      resolveDateRangeParameterValueToString("2020-02-15~2020-03-05", NOW),
+    ).toBe("2020-02-15~2020-03-05");
+  });
+
+  it("should resolve single-day relative strings to a one-day range", () => {
+    expect(resolveDateRangeParameterValueToString("past1days", NOW)).toBe(
+      "2016-06-06~2016-06-06",
+    );
   });
 });

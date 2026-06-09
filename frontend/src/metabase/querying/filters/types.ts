@@ -59,6 +59,8 @@ export interface RelativeDatePickerValue {
 
 export interface RelativeDatePickerOptions {
   includeCurrent?: boolean;
+  /** When true, a single-date parameter uses the last day of the completed period. */
+  usePeriodEnd?: boolean;
 }
 
 export interface ExcludeDatePickerValue {

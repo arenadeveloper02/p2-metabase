@@ -164,8 +164,62 @@ export function dateParameterValueToSingleDate(
   value: ParameterValueOrArray | null | undefined,
   now: Dayjs = dayjs(),
 ): Date | null {
+  const filter = deserializeDateParameterValue(value);
   const range = dateParameterValueToRange(value, now);
-  return range?.start ?? null;
+  if (range == null) {
+    return null;
+  }
+
+  if (filter?.type === "relative" && filter.options?.usePeriodEnd) {
+    return range.end;
+  }
+
+  return range.start;
+}
+
+/**
+ * Resolves a `date/single` parameter value to a concrete date string (e.g.
+ * `2026-05-21`). Relative presets such as `past1days` are evaluated against
+ * `now` so rolling defaults stay correct while URL/API params use fixed dates.
+ */
+export function resolveDateSingleParameterValueToString(
+  value: ParameterValueOrArray | null | undefined,
+  now: Dayjs = dayjs(),
+): string | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const filter = deserializeDateParameterValue(value);
+  if (filter?.type === "relative") {
+    const range = dateParameterValueToRange(value, now);
+    if (range == null) {
+      return value;
+    }
+
+    const usePeriodEnd = filter.options?.usePeriodEnd;
+    const start = dayjs(range.start).format("YYYY-MM-DD");
+    const end = dayjs(range.end).format("YYYY-MM-DD");
+    if (usePeriodEnd) {
+      return end;
+    }
+
+    if (start === end) {
+      return start;
+    }
+
+    return value;
+  }
+
+  if (filter?.type === "specific" && filter.operator === "=") {
+    return serializeDateParameterValue(filter) ?? null;
+  }
+
+  return value;
 }
 
 export function dateParameterValueToRangeString(
@@ -183,4 +237,34 @@ export function dateParameterValueToRangeString(
     values: [range.start, range.end],
     hasTime: false,
   });
+}
+
+/**
+ * Resolves a `date/range` parameter value to a concrete date range string (e.g.
+ * `2026-05-19~2026-05-25`). Relative presets such as `past1weeks` are evaluated
+ * against `now` so rolling defaults stay correct while query params use fixed
+ * dates (Monday–Sunday for week presets).
+ */
+export function resolveDateRangeParameterValueToString(
+  value: ParameterValueOrArray | null | undefined,
+  now: Dayjs = dayjs(),
+): string | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const filter = deserializeDateParameterValue(value);
+  if (filter?.type === "relative") {
+    return dateParameterValueToRangeString(value, now);
+  }
+
+  if (filter?.type === "specific" && filter.operator === "between") {
+    return serializeDateParameterValue(filter) ?? null;
+  }
+
+  return value;
 }

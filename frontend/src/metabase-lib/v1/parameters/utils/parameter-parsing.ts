@@ -5,6 +5,10 @@ import {
   normalizeStringParameterValue,
   normalizeTemporalUnitParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
+import {
+  resolveDateRangeParameterValueToString,
+  resolveDateSingleParameterValueToString,
+} from "metabase/querying/parameters/utils/relative-date-to-range";
 import * as Lib from "metabase-lib";
 import type Field from "metabase-lib/v1/metadata/Field";
 import type { FieldFilterUiParameter } from "metabase-lib/v1/parameters/types";
@@ -77,6 +81,18 @@ export function parseParameterValue(value: any, parameter: Parameter) {
     case "location":
       return normalizeStringParameterValue(coercedValue);
     case "date":
+      if (parameter.type === "date/single") {
+        return (
+          resolveDateSingleParameterValueToString(coercedValue) ??
+          normalizeDateParameterValue(coercedValue)
+        );
+      }
+      if (parameter.type === "date/range") {
+        return (
+          resolveDateRangeParameterValueToString(coercedValue) ??
+          normalizeDateParameterValue(coercedValue)
+        );
+      }
       return normalizeDateParameterValue(coercedValue);
     case "boolean":
       return normalizeBooleanParameterValue(coercedValue);
