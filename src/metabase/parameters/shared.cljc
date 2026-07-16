@@ -3,7 +3,9 @@
   dashboard cards."
   (:require
    #?@(:clj
-       ([metabase.util.date-2 :as u.date]
+       ([java-time.api :as t]
+        [metabase.query-processor.parameters.dates :as qp.parameters.dates]
+        [metabase.util.date-2 :as u.date]
         [metabase.util.date-2.parse.builder :as b]
         [metabase.util.i18n.impl :as i18n.impl]))
    #?@(:cljs
@@ -36,12 +38,70 @@
   (let [values (u/one-or-many values)]
     (trs "contains {0}" (formatted-list values :conjunction (trs "or")))))
 
+#?(:clj
+   (def ^:private numeric-date-format "MM/dd/yyyy"))
+
+#?(:clj
+   (defn- iso-date-string->numeric
+     [iso-date locale]
+     (u.date/format numeric-date-format (u.date/parse iso-date) locale)))
+
+#?(:clj
+   (defn- resolve-special-relative-date-iso
+     "Resolve rolling single-date presets that are not handled by [[qp.parameters.dates/date-string->range]]."
+     [date-string]
+     (case date-string
+       "past1weeks-end"
+       (let [today         (t/local-date)
+             day-of-week   (.getValue (t/day-of-week today))
+             monday        (t/minus today (t/days (dec day-of-week)))
+             last-week-end (t/minus monday (t/days 1))]
+         (u.date/format "yyyy-MM-dd" last-week-end))
+
+       "past1months-end"
+       (let [today          (t/local-date)
+             last-month-end (t/minus (t/adjust today :first-day-of-month) (t/days 1))]
+         (u.date/format "yyyy-MM-dd" last-month-end))
+
+       nil)))
+
+#?(:clj
+   (defn format-date-parameter-value-numeric
+     "Format a date parameter value as MM/DD/YYYY for display in embedded text cards."
+     [tyype value locale]
+     (when (and value (str/starts-with? (name tyype) "date"))
+       (let [date-string (str value)]
+         (try
+           (let [{:keys [start end]} (qp.parameters.dates/date-string->range date-string)]
+             (cond
+               (and start end (not= start end))
+               (str (iso-date-string->numeric start locale)
+                    " - "
+                    (iso-date-string->numeric end locale))
+
+               start
+               (iso-date-string->numeric start locale)
+
+               end
+               (iso-date-string->numeric end locale)))
+           (catch Throwable _
+             (when-let [iso (resolve-special-relative-date-iso date-string)]
+               (iso-date-string->numeric iso locale))))))))
+
+(defn- single-date-value-parseable?
+  "Whether `value` is an absolute date/time string that can be formatted as a single date."
+  [value locale]
+  #?(:cljs (.isValid (.locale (moment value) locale))
+     :clj  (try (some? (u.date/parse value))
+                (catch Exception _ false))))
+
 ;; TODO: Refactor to use time/parse-unit and time/format-unit
 (defmethod formatted-value :date/single
   [_ value locale]
-  #?(:cljs (let [m (.locale (moment value) locale)]
-             (.format m "MMMM D, YYYY"))
-     :clj  (u.date/format "MMMM d, yyyy" (u.date/parse value) locale)))
+  (if (single-date-value-parseable? value locale)
+    #?(:cljs (.format (.locale (moment value) locale) "MMMM D, YYYY")
+       :clj  (u.date/format "MMMM d, yyyy" (u.date/parse value) locale))
+    (formatted-value :date/all-options value locale)))
 
 ;; TODO: Refactor to use time/parse-unit and time/format-unit
 (defmethod formatted-value :date/month-year
@@ -110,7 +170,9 @@
     #"^thisquarter$"                        (lib/describe-temporal-interval 0 :quarter)
     #"^thisyear$"                           (lib/describe-temporal-interval 0 :year)
     #"^(past|next)([0-9]+)([a-z]+)s~?$" :>> (fn [matches] (apply format-relative-date matches))
-    #"^(past|next)([0-9]+)([a-z]+)s-from-([0-9]+)([a-z]+)s$" :>> (fn [matches] (apply format-relative-date-with-offset matches))))
+    #"^(past|next)([0-9]+)([a-z]+)s-from-([0-9]+)([a-z]+)s$" :>> (fn [matches] (apply format-relative-date-with-offset matches))
+    #"^past1weeks-end$"                    (trs "Last day of previous week")
+    #"^past1months-end$"                    (trs "Last day of previous month")))
 
 (defn- format-day [value locale]
   (-> value
@@ -153,6 +215,8 @@
     #"^([0-9-T:]+)~$"          :>> #(trs "After {0}"  (formatted-value :date/single % locale))
     #"^([0-9-T:]+~[0-9-T:]+)$" :>> #(formatted-value :date/range % locale)
     #"^(exclude-.+)$"          :>> #(formatted-value :date/exclude % locale)
+    #"^past1weeks-end$"        (trs "Last day of previous week")
+    #"^past1months-end$"       (trs "Last day of previous month")
     (formatted-value :date/relative value locale)))
 
 (defn formatted-list
@@ -186,13 +250,21 @@
   [text regex]
   (str/replace text regex #(str \\ %)))
 
+(defn- formatted-parameter-value
+  [tyype value locale {:keys [numeric-date-format?]}]
+  (if numeric-date-format?
+    #?(:clj  (or (format-date-parameter-value-numeric tyype value locale)
+                 (formatted-value tyype value locale))
+       :cljs (formatted-value tyype value locale))
+    (formatted-value tyype value locale)))
+
 (defn- value
-  [tag-name tag->param locale escape-markdown]
-  (let [param    (get tag->param tag-name)
-        value    (:value param)
-        tyype    (:type param)]
+  [tag-name tag->param locale escape-markdown opts]
+  (let [param (get tag->param tag-name)
+        value (:value param)
+        tyype (:type param)]
     (when value
-      (try (cond-> (formatted-value tyype value locale)
+      (try (cond-> (formatted-parameter-value tyype value locale opts)
              escape-markdown (escape-chars escaped-chars-regex))
            (catch #?(:clj Throwable :cljs js/Error) _
              ;; If we got an exception (most likely during date parsing/formatting), fallback to the default
@@ -272,11 +344,11 @@
 (defn- add-values-to-variables
   "Given `split-text`, containing a list of alternating strings and TextParam, add a :value key to any TextParams
   with a corresponding value in `tag->normalized-param`."
-  [tag->normalized-param locale escape-markdown split-text]
+  [tag->normalized-param locale escape-markdown opts split-text]
   (map
    (fn [maybe-variable]
      (if (TextParam? maybe-variable)
-       (assoc maybe-variable :value (value (:tag maybe-variable) tag->normalized-param locale escape-markdown))
+       (assoc maybe-variable :value (value (:tag maybe-variable) tag->normalized-param locale escape-markdown opts))
        maybe-variable))
    split-text))
 
@@ -307,13 +379,19 @@
 (defn ^:export substitute-tags
   "Given the context of a text dashboard card, replace all template tags in the text with their corresponding values,
   formatted and escaped appropriately if escape-markdown is true. Specifically escape-markdown should be false when the
-  output isn't being rendered directly as markdown, such as in header cards."
+  output isn't being rendered directly as markdown, such as in header cards.
+
+  `opts` is an optional map that can include `:numeric-date-format?` to format date parameters as MM/DD/YYYY."
   ([text tag->param]
-   (substitute-tags text tag->param "en" true))
+   (substitute-tags text tag->param "en" true {}))
   ([text tag->param locale escape-markdown]
+   (substitute-tags text tag->param locale escape-markdown {}))
+  ([text tag->param locale escape-markdown opts]
    (when text
      (let [tag->param #?(:clj tag->param
                          :cljs (js->clj tag->param))
+           opts       #?(:clj opts
+                       :cljs (js->clj opts :keywordize-keys true))
            tag->normalized-param (try
                                    (update-vals tag->param parameters.schema/normalize-parameter)
                                    (catch #?(:clj Throwable :cljs :default) e
@@ -329,6 +407,6 @@
        ;; 4. `strip-optional-blocks` => "3"
        (->> text
             split-on-tags
-            (add-values-to-variables tag->normalized-param locale escape-markdown)
+            (add-values-to-variables tag->normalized-param locale escape-markdown opts)
             join-consecutive-strings
             strip-optional-blocks)))))

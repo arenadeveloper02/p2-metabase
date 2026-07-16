@@ -310,6 +310,44 @@
       {"foo" {:type :date/all-options :value "next5years"}}
       "Next 5 years")))
 
+(deftest ^:parallel substitute-tags-date-single-relative-filters
+  (testing "Relative date values are formatted correctly for date/single parameters"
+    (are [text tag->param expected] (= expected (substitute-tags text tag->param))
+      "{{foo}}"
+      {"foo" {:type :date/single :value "past1days"}}
+      "Yesterday"
+
+      "{{foo}}"
+      {"foo" {:type :date/single :value "past1weeks-end"}}
+      "Last day of previous week"
+
+      "{{foo}}"
+      {"foo" {:type :date/single :value "past1months-end"}}
+      "Last day of previous month")))
+
+#?(:clj
+   (deftest ^:parallel substitute-tags-date-single-numeric-format
+     (testing "Date values are formatted as MM/DD/YYYY when :numeric-date-format? is true"
+       (are [text tag->param expected]
+         (= expected (substitute-tags text tag->param "en" true {:numeric-date-format? true}))
+         "{{foo}}"
+         {"foo" {:type :date/single :value "2022-07-09"}}
+         "07/09/2022"
+
+         "{{foo}}"
+         {"foo" {:type :date/range :value "2022-07-06~2022-07-09"}}
+         "07/06/2022 - 07/09/2022")
+
+       (testing "relative dates resolve to concrete MM/DD/YYYY dates"
+         (let [expected-yesterday (params/format-date-parameter-value-numeric :date/single "past1days" "en")
+               expected-week-end  (params/format-date-parameter-value-numeric :date/single "past1weeks-end" "en")]
+           (is (= expected-yesterday
+                  (substitute-tags "{{foo}}" {"foo" {:type :date/single :value "past1days"}} "en" true
+                                     {:numeric-date-format? true})))
+           (is (= expected-week-end
+                  (substitute-tags "{{foo}}" {"foo" {:type :date/single :value "past1weeks-end"}} "en" true
+                                     {:numeric-date-format? true})))))))
+
 (deftest ^:parallel substitute-tags-date-filters-4
   (testing "Date values are formatted using the locale passed in as an argument"
     (are [text tag->param expected] (= expected (substitute-tags text tag->param "es" true))

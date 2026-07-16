@@ -16,7 +16,9 @@ import {
 } from "metabase-lib/v1/parameters/utils/parameter-type";
 import type { ParameterValue, RowValue } from "metabase-types/api";
 
-import { formatDateValue } from "./date-formatting";
+import { formatDateParameterValueNumeric, formatDateValue } from "./date-formatting";
+
+export { formatDateParameterValueNumeric };
 
 function inferValueType(parameter: UiParameter) {
   const type = getParameterType(parameter);

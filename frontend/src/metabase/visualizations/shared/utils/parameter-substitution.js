@@ -2,6 +2,43 @@ import _ from "underscore";
 
 import { substitute_tags } from "cljs/metabase.parameters.shared";
 import { siteLocale, withInstanceLanguage } from "metabase/lib/i18n";
+import {
+  isDateParameter,
+  isTemporalUnitParameter,
+} from "metabase-lib/v1/parameters/utils/parameter-type";
+import {
+  formatDateParameterValueNumeric,
+  formatParameterValue,
+} from "metabase/parameters/utils/formatting";
+
+function isEmbedDashboardPath() {
+  return window.location.pathname.includes("/embed/");
+}
+
+function getParameterForSubstitution(parameter, rawParameterValue, urlEncode) {
+  if (rawParameterValue == null || rawParameterValue === "") {
+    return { ...parameter, value: rawParameterValue };
+  }
+
+  const parameterValue = urlEncode
+    ? encodeURIComponent(rawParameterValue)
+    : rawParameterValue;
+
+  if (
+    !urlEncode &&
+    (isDateParameter(parameter) || isTemporalUnitParameter(parameter))
+  ) {
+    const formatted = isEmbedDashboardPath()
+      ? formatDateParameterValueNumeric(parameter, String(parameterValue))
+      : formatParameterValue(parameterValue, parameter);
+    if (formatted != null) {
+      // Value is already formatted; use :default so substitute_tags does not re-format it.
+      return { ...parameter, value: formatted, type: "default" };
+    }
+  }
+
+  return { ...parameter, value: parameterValue };
+}
 
 export function fillParametersInText({
   dashcard,
@@ -20,12 +57,13 @@ export function fillParametersInText({
 
       if (parameter) {
         const rawParameterValue = parameterValues[parameter.id];
-        const parameterValue = urlEncode
-          ? encodeURIComponent(rawParameterValue)
-          : rawParameterValue;
         return {
           ...acc,
-          [tagId]: { ...parameter, value: parameterValue },
+          [tagId]: getParameterForSubstitution(
+            parameter,
+            rawParameterValue,
+            urlEncode,
+          ),
         };
       }
 

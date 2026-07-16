@@ -6,8 +6,39 @@ import { deserializeDateParameterValue } from "metabase/querying/parameters/util
 import {
   dateParameterValueToRange,
   dateParameterValueToSingleDate,
+  resolveDateRangeParameterValueToString,
+  resolveDateSingleParameterValueToString,
 } from "metabase/querying/parameters/utils/relative-date-to-range";
 import type { Parameter } from "metabase-types/api";
+import dayjs from "dayjs";
+
+const NUMERIC_DATE_FORMAT = "MM/DD/YYYY";
+
+function formatIsoDateNumeric(isoDate: string) {
+  return dayjs(isoDate).format(NUMERIC_DATE_FORMAT);
+}
+
+export function formatDateParameterValueNumeric(
+  parameter: Parameter,
+  value: string,
+): string | null {
+  if (parameter.type === "date/range" || parameter.type === "date/all-options") {
+    const rangeStr = resolveDateRangeParameterValueToString(value);
+    if (rangeStr?.includes("~")) {
+      const [start, end] = rangeStr.split("~");
+      if (start && end) {
+        return `${formatIsoDateNumeric(start)} - ${formatIsoDateNumeric(end)}`;
+      }
+    }
+  }
+
+  const single = resolveDateSingleParameterValueToString(value);
+  if (single) {
+    return formatIsoDateNumeric(single);
+  }
+
+  return formatDateValue(parameter, value);
+}
 
 export function formatDateValue(
   parameter: Parameter,

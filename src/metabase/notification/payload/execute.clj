@@ -120,19 +120,29 @@
 
 (defn process-virtual-dashcard
   "Given a virtual (text or heading) dashcard and the parameters on a dashboard, returns the dashcard with any
-  parameter values appropriately substituted into connected variables in the text."
-  [dashcard parameters]
-  (let [text                  (-> dashcard :visualization_settings :text)
-        parameter-mappings    (:parameter_mappings dashcard)
-        tag-names             (shared.params/tag_names text)
-        param-id->param       (into {} (map (juxt :id identity) parameters))
-        tag-name->param-id    (into {} (map (juxt (comp second :target) :parameter_id) parameter-mappings))
-        tag->param            (reduce (fn [m tag-name]
-                                        (when-let [param-id (get tag-name->param-id tag-name)]
-                                          (assoc m tag-name (get param-id->param param-id))))
-                                      {}
-                                      tag-names)]
-    (update-in dashcard [:visualization_settings :text] shared.params/substitute-tags tag->param (system/site-locale) (escape-markdown-chars? dashcard))))
+  parameter values appropriately substituted into connected variables in the text.
+
+  Options:
+  - `:numeric-date-format?` - when true, format date parameters as MM/DD/YYYY (used for embedded dashboards)."
+  ([dashcard parameters]
+   (process-virtual-dashcard dashcard parameters {}))
+  ([dashcard parameters {:keys [numeric-date-format?]}]
+   (let [text                  (-> dashcard :visualization_settings :text)
+         parameter-mappings    (:parameter_mappings dashcard)
+         tag-names             (shared.params/tag_names text)
+         param-id->param       (into {} (map (juxt :id identity) parameters))
+         tag-name->param-id    (into {} (map (juxt (comp second :target) :parameter_id) parameter-mappings))
+         tag->param            (reduce (fn [m tag-name]
+                                       (when-let [param-id (get tag-name->param-id tag-name)]
+                                         (assoc m tag-name (get param-id->param param-id))))
+                                     {}
+                                     tag-names)]
+     (update-in dashcard [:visualization_settings :text]
+                shared.params/substitute-tags
+                tag->param
+                (system/site-locale)
+                (escape-markdown-chars? dashcard)
+                {:numeric-date-format? numeric-date-format?}))))
 
 (defn- fixup-viz-settings
   "The viz-settings from :data :viz-settings might be incorrect if there is a cached of the same query.

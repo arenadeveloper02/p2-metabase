@@ -267,7 +267,8 @@
            (map
             (fn [card]
               (if (-> card :visualization_settings :virtual_card)
-                (notification.payload/process-virtual-dashcard card params-with-values)
+                (notification.payload/process-virtual-dashcard card params-with-values
+                                                               {:numeric-date-format? true})
                 card))
             dashcards))))
 
