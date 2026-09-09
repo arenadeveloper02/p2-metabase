@@ -53,7 +53,7 @@
    (serdes/infer-self-path "DashboardTab" dashcard)])
 
 (defmethod serdes/make-spec "DashboardTab" [_model-name _opts]
-  {:copy      [:entity_id :name :position]
+  {:copy      [:entity_id :name :position :is_shown]
    :skip      []
    :transform {:created_at   (serdes/date)
                :dashboard_id (serdes/parent-ref)}})
@@ -73,7 +73,7 @@
   "Updates tabs of a dashboard if changed."
   [current-tabs :- [:sequential [:map [:id ms/PositiveInt]]]
    new-tabs     :- [:sequential [:map [:id ms/PositiveInt]]]]
-  (let [update-ks       [:name :position]
+  (let [update-ks       [:name :position :is_shown]
         id->current-tab (m/index-by :id current-tabs)
         to-update-tabs  (filter
                          ;; filter out tabs that haven't changed
@@ -110,9 +110,9 @@
                               (delete-tabs! to-delete-ids))
         old->new-tab-id     (when (seq to-create)
                               (let [new-tab-ids (t2/insert-returning-pks! :model/DashboardTab
-                                                                          (->> to-create
-                                                                               (map #(dissoc % :id))
-                                                                               (map #(assoc % :dashboard_id dashboard-id))))]
+                                          (->> to-create
+                                               (map #(dissoc % :id))
+                                               (map #(assoc % :dashboard_id dashboard-id))))]
                                 (zipmap (map :id to-create) new-tab-ids)))]
     (when (seq to-update)
       (update-tabs! current-tabs to-update))

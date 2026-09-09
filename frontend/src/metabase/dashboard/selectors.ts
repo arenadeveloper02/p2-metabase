@@ -554,32 +554,62 @@ export const getIsAdditionalInfoVisible = createSelector(
     !isEmbeddingIframe || !!embedOptions.additional_info,
 );
 
-export const getTabs = createSelector([getDashboard], (dashboard) => {
-  if (!dashboard) {
-    return [];
-  }
-  return dashboard.tabs?.filter((tab) => !tab.isRemoved) ?? [];
-});
+export const getTabs = createSelector(
+  [getDashboard, getIsEditing],
+  (dashboard, isEditing) => {
+    if (!dashboard) {
+      return [];
+    }
+
+    return (
+      dashboard.tabs?.filter(
+        (tab) =>
+          !tab.isRemoved &&
+          (isEditing || tab.is_shown === undefined || tab.is_shown),
+      ) ?? []
+    );
+  },
+);
 
 export const getSelectedTabId = createSelector(
   [
     getIsWebApp,
     (state) => getSetting(state, "site-url"),
     getDashboard,
+    getTabs,
     (state) => state.dashboard.selectedTabId,
     (state: State & Partial<SdkSharedStoreState>) =>
       state.sdk?.initialDashboardTabId,
   ],
-  (isWebApp, siteUrl, dashboard, selectedTabId, sdkInitialDashboardTabId) => {
+  (
+    isWebApp,
+    siteUrl,
+    dashboard,
+    tabs,
+    selectedTabId,
+    sdkInitialDashboardTabId,
+  ) => {
     if (dashboard && selectedTabId === null) {
+      const dashboardWithVisibleTabs = { ...dashboard, tabs };
       if (isEmbeddingSdk()) {
-        return getSdkInitialDashboardTabId(dashboard, sdkInitialDashboardTabId);
+        return getSdkInitialDashboardTabId(
+          dashboardWithVisibleTabs,
+          sdkInitialDashboardTabId,
+        );
       } else {
-        return getInitialSelectedTabId(dashboard, siteUrl, isWebApp);
+        return getInitialSelectedTabId(
+          dashboardWithVisibleTabs,
+          siteUrl,
+          isWebApp,
+        );
       }
-    } else {
-      return selectedTabId;
     }
+
+    if (selectedTabId !== null && !tabs.some((tab) => tab.id === selectedTabId)) {
+      return tabs[0]?.id ?? null;
+    }
+
+    return selectedTabId;
   },
 );
 

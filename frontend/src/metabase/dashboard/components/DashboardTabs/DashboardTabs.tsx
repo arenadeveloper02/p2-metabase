@@ -26,12 +26,14 @@ export function DashboardTabs() {
     createNewTab,
     duplicateTab,
     deleteTab,
+    setTabShown,
     renameTab,
     selectTab,
     selectedTabId,
     moveTab,
   } = useDashboardTabs();
   const hasMultipleTabs = tabs.length > 1;
+  const shownTabsCount = tabs.filter((tab) => tab.is_shown !== false).length;
   const showTabs = hasMultipleTabs || isEditing;
   const showPlaceholder = tabs.length === 0 && isEditing;
 
@@ -58,63 +60,84 @@ export function DashboardTabs() {
     return null;
   }
 
-  const menuItems: TabButtonMenuItem[] = [
+  const baseMenuItems: TabButtonMenuItem[] = [
     {
       label: t`Duplicate`,
       action: (_, value) => duplicateTab(value),
     },
   ];
-  if (hasMultipleTabs) {
-    menuItems.push({
-      label: t`Delete`,
-      action: (_, value) => {
-        const performDelete = () => deleteTab(value);
-        const tabQuestions = dashboard?.dashcards.filter(
-          (dashcard) =>
-            dashcard.dashboard_tab_id === value && !isVirtualDashCard(dashcard),
-        );
-        const tabDashboardQuestions = tabQuestions?.filter(
-          (dashcard) => dashcard.card.dashboard_id !== null,
-        );
-        const hasDashboardQuestions = !!tabDashboardQuestions?.length;
-        if (!hasDashboardQuestions) {
-          performDelete();
-          return;
-        }
-        const areAllDashboardQuestions =
-          tabQuestions?.length === tabDashboardQuestions.length;
-        show({
-          size: areAllDashboardQuestions ? "sm" : undefined,
-          title: areAllDashboardQuestions
-            ? t`Delete this tab and its charts?`
-            : t`Delete this tab?`,
-          message: areAllDashboardQuestions ? (
-            t`If you'd like to keep any of them, you can move them to a different tab, dashboard, or collection.`
-          ) : (
-            <>
-              {t`This will also delete any questions saved in it. If you'd like to keep any of these, move them to a different tab, dashboard, or collection.`}
-              <List ml="md" mt="sm">
-                {uniq(tabDashboardQuestions, (dc) => dc.card.id).map(
-                  (dashcard) => (
-                    <List.Item key={dashcard.card.id}>
-                      <Link
-                        to={`/question/${dashcard.card.id}`}
-                        className={CS.link}
-                      >
-                        {dashcard.card.name}
-                      </Link>
-                    </List.Item>
-                  ),
-                )}
-              </List>
-            </>
-          ),
-          confirmButtonText: t`Delete tab`,
-          onConfirm: performDelete,
-        });
-      },
-    });
-  }
+  const getMenuItems = (tabId: SelectedTabId): TabButtonMenuItem[] => {
+    const tab = tabs.find(({ id }) => id === tabId);
+    const menuItems = [...baseMenuItems];
+
+    if (tab && hasMultipleTabs) {
+      const isShown = tab.is_shown !== false;
+      menuItems.push({
+        label: isShown ? t`Hide` : t`Unhide`,
+        action: () => {
+          if (isShown && shownTabsCount <= 1) {
+            return;
+          }
+          setTabShown(tab.id, !isShown);
+        },
+      });
+    }
+
+    if (hasMultipleTabs) {
+      menuItems.push({
+        label: t`Delete`,
+        action: (_, value) => {
+          const performDelete = () => deleteTab(value);
+          const tabQuestions = dashboard?.dashcards.filter(
+            (dashcard) =>
+              dashcard.dashboard_tab_id === value &&
+              !isVirtualDashCard(dashcard),
+          );
+          const tabDashboardQuestions = tabQuestions?.filter(
+            (dashcard) => dashcard.card.dashboard_id !== null,
+          );
+          const hasDashboardQuestions = !!tabDashboardQuestions?.length;
+          if (!hasDashboardQuestions) {
+            performDelete();
+            return;
+          }
+          const areAllDashboardQuestions =
+            tabQuestions?.length === tabDashboardQuestions.length;
+          show({
+            size: areAllDashboardQuestions ? "sm" : undefined,
+            title: areAllDashboardQuestions
+              ? t`Delete this tab and its charts?`
+              : t`Delete this tab?`,
+            message: areAllDashboardQuestions ? (
+              t`If you'd like to keep any of them, you can move them to a different tab, dashboard, or collection.`
+            ) : (
+              <>
+                {t`This will also delete any questions saved in it. If you'd like to keep any of these, move them to a different tab, dashboard, or collection.`}
+                <List ml="md" mt="sm">
+                  {uniq(tabDashboardQuestions, (dc) => dc.card.id).map(
+                    (dashcard) => (
+                      <List.Item key={dashcard.card.id}>
+                        <Link
+                          to={`/question/${dashcard.card.id}`}
+                          className={CS.link}
+                        >
+                          {dashcard.card.name}
+                        </Link>
+                      </List.Item>
+                    ),
+                  )}
+                </List>
+              </>
+            ),
+            confirmButtonText: t`Delete tab`,
+            onConfirm: performDelete,
+          });
+        },
+      });
+    }
+
+    return menuItems;
+  };
 
   return (
     <Flex align="start" gap="lg" w="100%" className={S.dashboardTabs}>
@@ -129,7 +152,7 @@ export function DashboardTabs() {
             label={t`Tab 1`}
             value={null}
             showMenu
-            menuItems={menuItems}
+            menuItems={baseMenuItems}
           />
         ) : (
           tabs.map((tab) => (
@@ -145,7 +168,7 @@ export function DashboardTabs() {
                 onRename={(name) => renameTab(tab.id, name)}
                 canRename={isEditing && hasMultipleTabs}
                 showMenu={isEditing}
-                menuItems={menuItems}
+                menuItems={getMenuItems(tab.id)}
               />
             </Sortable>
           ))

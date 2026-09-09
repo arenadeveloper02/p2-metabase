@@ -916,7 +916,8 @@
    [:id       ms/Int]
    [:name     ms/NonBlankString]
    ;; tab order -- `metabase.dashboards.models.dashboard-tab/do-update-tabs!` writes it alongside `:name`
-   [:position {:optional true} ms/IntGreaterThanOrEqualToZero]])
+   [:position {:optional true} ms/IntGreaterThanOrEqualToZero]
+   [:is_shown {:optional true} :boolean]])
 
 (defn- track-dashcard-and-tab-events!
   [{dashboard-id :id :as dashboard}
