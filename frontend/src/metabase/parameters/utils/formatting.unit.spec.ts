@@ -398,4 +398,18 @@ describe("metabase/parameters/utils/formatting", () => {
       expect(formatParameterValue(value, parameter, {})).toEqual(expected);
     });
   });
+
+  describe("rolling date defaults", () => {
+    it("should show the editor label for a single-date rolling default", () => {
+      const parameter = createMockUiParameter({ type: "date/single" });
+      expect(formatParameterValue("yesterday", parameter)).toEqual("Yesterday");
+    });
+
+    it("should show the editor label for a date-range rolling default", () => {
+      const parameter = createMockUiParameter({ type: "date/range" });
+      expect(formatParameterValue("previous-month", parameter)).toEqual(
+        "Previous month",
+      );
+    });
+  });
 });

@@ -577,4 +577,56 @@ describe("parameters/utils/parameter-values", () => {
       });
     });
   });
+
+  describe("rolling date defaults", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date("2025-03-12T15:00:00"));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("should resolve a date/single default to an ISO date", () => {
+      const parameter = createMockParameter({
+        id: "date",
+        slug: "date",
+        type: "date/single",
+        default: "yesterday",
+      });
+
+      expect(getParameterValueFromQueryParams(parameter, {})).toEqual(
+        "2025-03-11",
+      );
+    });
+
+    it("should resolve a date/range default to an ISO range", () => {
+      const parameter = createMockParameter({
+        id: "date",
+        slug: "date",
+        type: "date/range",
+        default: "previous-month",
+      });
+
+      expect(getParameterValueFromQueryParams(parameter, {})).toEqual(
+        "2025-02-01~2025-02-28",
+      );
+    });
+
+    it("should resolve a rolling token from query params to ISO", () => {
+      const parameter = createMockParameter({
+        id: "date",
+        slug: "date(current)",
+        type: "date/range",
+        default: "previous-month",
+      });
+
+      expect(
+        getParameterValueFromQueryParams(parameter, {
+          "date(current)": "month-before-previous",
+        }),
+      ).toEqual("2025-01-01~2025-01-31");
+    });
+  });
 });

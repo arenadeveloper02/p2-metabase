@@ -51,6 +51,7 @@ export type ParameterValueWidgetProps = {
   mimicMantine?: boolean;
   isSortable?: boolean;
   prefix?: ReactNode;
+  showRollingDefaults?: boolean;
 } & Partial<PopoverProps>;
 
 export const ParameterValueWidget = ({
@@ -71,6 +72,7 @@ export const ParameterValueWidget = ({
   setValue,
   value,
   prefix,
+  showRollingDefaults = false,
   ...popoverProps
 }: ParameterValueWidgetProps) => {
   const tc = useTranslateContent();
@@ -231,6 +233,7 @@ export const ParameterValueWidget = ({
             setParameterValueToDefault={setParameterValueToDefault}
             enableRequiredBehavior={enableRequiredBehavior}
             isSortable={isSortable}
+            showRollingDefaults={showRollingDefaults}
             onFocusChanged={onFocusChanged}
           />
           {getActionIcon()}
@@ -311,6 +314,7 @@ export const ParameterValueWidget = ({
             setParameterValueToDefault={setParameterValueToDefault}
             enableRequiredBehavior={enableRequiredBehavior}
             isSortable={isSortable}
+            showRollingDefaults={showRollingDefaults}
             onFocusChanged={onFocusChanged}
             onPopoverClose={close}
           />

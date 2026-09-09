@@ -5,6 +5,7 @@ import {
   normalizeStringParameterValue,
   normalizeTemporalUnitParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
+import { resolveRollingDateParameterValue } from "metabase/querying/parameters/utils/rolling-date-defaults";
 import * as Lib from "metabase-lib";
 import type Field from "metabase-lib/v1/metadata/Field";
 import type { FieldFilterUiParameter } from "metabase-lib/v1/parameters/types";
@@ -36,11 +37,18 @@ export function getParameterValueFromQueryParams(
     // If there is a parameter with a value set in the URL, do not use last used
     // parameter values (metabase#48524). This avoids a case where some
     // parameters are set via the URL and some have values from the last run.
-    if (hasQueryParams) {
-      return parameter.default ?? null;
-    } else {
-      return lastUsedValues[parameter.id] ?? parameter.default ?? null;
-    }
+    const fallback = hasQueryParams
+      ? (parameter.default ?? null)
+      : (lastUsedValues[parameter.id] ?? parameter.default ?? null);
+    return resolveRollingDateParameterValue(parameter.type, fallback) ?? null;
+  }
+
+  const rollingQueryValue = resolveRollingDateParameterValue(
+    parameter.type,
+    maybeParameterValue,
+  );
+  if (rollingQueryValue !== maybeParameterValue) {
+    return rollingQueryValue ?? null;
   }
 
   const parsedValue = parseParameterValue(maybeParameterValue, parameter);

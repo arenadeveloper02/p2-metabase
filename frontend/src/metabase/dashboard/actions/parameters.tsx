@@ -22,6 +22,7 @@ import {
   setParameterType as setParamType,
 } from "metabase/parameters/utils/dashboards";
 import { getParameterValuesByIdFromQueryParams } from "metabase/parameters/utils/parameter-parsing";
+import { resolveRollingDateParameterValue } from "metabase/querying/parameters/utils/rolling-date-defaults";
 import { createAction, createThunkAction } from "metabase/redux";
 import { selectTab, setParameterValues } from "metabase/redux/dashboard";
 import type { Dispatch, GetState } from "metabase/redux/store";
@@ -838,11 +839,18 @@ export const setParameterValue = createThunkAction(
   SET_PARAMETER_VALUE,
   (parameterId: ParameterId, value: unknown) => (_dispatch, getState) => {
     const isSettingDraftParameterValues = !getIsAutoApplyFilters(getState());
-    const isValueEmpty = isParameterValueEmpty(value);
+    const parameter = getParameters(getState()).find(
+      ({ id }) => id === parameterId,
+    );
+    const resolvedValue =
+      typeof value === "string" || value == null
+        ? resolveRollingDateParameterValue(parameter?.type, value)
+        : value;
+    const isValueEmpty = isParameterValueEmpty(resolvedValue);
 
     return {
       id: parameterId,
-      value: isValueEmpty ? PULSE_PARAM_EMPTY : value,
+      value: isValueEmpty ? PULSE_PARAM_EMPTY : resolvedValue,
       isDraft: isSettingDraftParameterValues,
     };
   },
@@ -894,7 +902,11 @@ export const resetParameters = createThunkAction(
     const parameters = getFiltersToReset(getState());
 
     return parameters.map((parameter) => {
-      const newValue = parameter.default ?? null;
+      const newValue =
+        resolveRollingDateParameterValue(
+          parameter.type,
+          parameter.default ?? null,
+        ) ?? null;
       const isValueEmpty = isParameterValueEmpty(newValue);
 
       return {

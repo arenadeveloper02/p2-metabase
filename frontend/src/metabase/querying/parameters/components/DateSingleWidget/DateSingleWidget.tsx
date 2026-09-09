@@ -7,6 +7,8 @@ import {
   SingleDatePicker,
   type SingleDatePickerValue,
 } from "metabase/querying/common/components/DatePicker/SpecificDatePicker/SingleDatePicker";
+import type { DatePickerOperator } from "metabase/querying/common/types";
+import { RollingDateDefaultShortcuts } from "metabase/querying/parameters/components/RollingDateDefaultShortcuts";
 import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
@@ -17,12 +19,15 @@ import type { ParameterValueOrArray } from "metabase-types/api";
 type DateSingleWidgetProps = {
   value: ParameterValueOrArray | null | undefined;
   submitButtonLabel?: string;
+  showRollingDefaults?: boolean;
+  availableOperators?: DatePickerOperator[];
   onChange: (value: string) => void;
 };
 
 export function DateSingleWidget({
   value,
   submitButtonLabel = t`Apply`,
+  showRollingDefaults = false,
   onChange,
 }: DateSingleWidgetProps) {
   const [pickerValue, setPickerValue] = useState(
@@ -34,17 +39,26 @@ export function DateSingleWidget({
   };
 
   return (
-    <SingleDatePicker
-      value={pickerValue}
-      hasTimeToggle
-      renderSubmitButton={() => (
-        <Button type="submit" variant="filled">
-          {submitButtonLabel}
-        </Button>
+    <>
+      {showRollingDefaults && (
+        <RollingDateDefaultShortcuts
+          parameterType="date/single"
+          value={value}
+          onChange={onChange}
+        />
       )}
-      onChange={setPickerValue}
-      onSubmit={handleSubmit}
-    />
+      <SingleDatePicker
+        value={pickerValue}
+        hasTimeToggle
+        renderSubmitButton={() => (
+          <Button type="submit" variant="filled">
+            {submitButtonLabel}
+          </Button>
+        )}
+        onChange={setPickerValue}
+        onSubmit={handleSubmit}
+      />
+    </>
   );
 }
 

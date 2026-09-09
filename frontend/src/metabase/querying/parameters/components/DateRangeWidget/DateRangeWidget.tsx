@@ -7,6 +7,8 @@ import {
   DateRangePicker,
   type DateRangePickerValue,
 } from "metabase/querying/common/components/DatePicker/SpecificDatePicker/DateRangePicker";
+import type { DatePickerOperator } from "metabase/querying/common/types";
+import { RollingDateDefaultShortcuts } from "metabase/querying/parameters/components/RollingDateDefaultShortcuts";
 import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
@@ -17,12 +19,15 @@ import type { ParameterValueOrArray } from "metabase-types/api";
 type DateRangeWidgetProps = {
   value: ParameterValueOrArray | null | undefined;
   submitButtonLabel?: string;
+  showRollingDefaults?: boolean;
+  availableOperators?: DatePickerOperator[];
   onChange: (value: string) => void;
 };
 
 export function DateRangeWidget({
   value,
   submitButtonLabel = t`Apply`,
+  showRollingDefaults = false,
   onChange,
 }: DateRangeWidgetProps) {
   const [pickerValue, setPickerValue] = useState(
@@ -34,17 +39,26 @@ export function DateRangeWidget({
   };
 
   return (
-    <DateRangePicker
-      value={pickerValue}
-      hasTimeToggle
-      renderSubmitButton={() => (
-        <Button type="submit" variant="filled">
-          {submitButtonLabel}
-        </Button>
+    <>
+      {showRollingDefaults && (
+        <RollingDateDefaultShortcuts
+          parameterType="date/range"
+          value={value}
+          onChange={onChange}
+        />
       )}
-      onChange={setPickerValue}
-      onSubmit={handleSubmit}
-    />
+      <DateRangePicker
+        value={pickerValue}
+        hasTimeToggle
+        renderSubmitButton={() => (
+          <Button type="submit" variant="filled">
+            {submitButtonLabel}
+          </Button>
+        )}
+        onChange={setPickerValue}
+        onSubmit={handleSubmit}
+      />
+    </>
   );
 }
 

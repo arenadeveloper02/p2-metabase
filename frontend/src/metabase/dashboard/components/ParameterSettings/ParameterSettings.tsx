@@ -258,6 +258,7 @@ export const ParameterSettings = ({
             placeholder={t`No default`}
             setValue={onChangeDefaultValue}
             mimicMantine
+            showRollingDefaults
           />
         </div>
 
