@@ -3,11 +3,13 @@
   align-items: center;
   gap: 0.25rem;
   min-width: 0;
+  max-width: 100%;
+  height: auto;
   padding: 0.25rem 0.625em;
   overflow: hidden;
   font-weight: 700;
   color: var(--mb-color-core-brand);
-  white-space: nowrap;
+  white-space: normal;
   border-radius: 5px;
   background-color: color-mix(
     in srgb,
@@ -24,6 +26,11 @@
     var(--mb-color-core-brand),
     transparent 82%
   );
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .alignRight {

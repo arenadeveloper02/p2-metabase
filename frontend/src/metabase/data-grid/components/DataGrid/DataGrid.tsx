@@ -6,9 +6,10 @@ import {
 import type { HeaderGroup } from "@tanstack/react-table";
 import cx from "classnames";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import _ from "underscore";
 
+import { useElementSize } from "metabase/ui";
 import { getScrollBarSize } from "metabase/utils/dom";
 import { useForceUpdate } from "metabase/utils/use-force-update";
 
@@ -78,10 +79,8 @@ export const DataGrid = function DataGrid<TData>({
 }: DataGridProps<TData>) {
   const { columnVirtualizer, virtualIndexAttributeName } = virtualGrid;
 
-  const [headerHeight, setHeaderHeight] = useState(HEADER_HEIGHT);
-  const headerRef = useCallback((node: HTMLDivElement | null) => {
-    setHeaderHeight(node?.offsetHeight ?? HEADER_HEIGHT);
-  }, []);
+  const { ref: headerRef, height: measuredHeaderHeight } = useElementSize();
+  const headerHeight = measuredHeaderHeight || HEADER_HEIGHT;
 
   const forceUpdate = useForceUpdate();
   useEffect(() => {

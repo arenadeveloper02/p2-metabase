@@ -2,7 +2,8 @@
   overflow: hidden;
   display: flex;
   align-items: center;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
   width: 100%;
   cursor: default;
   font-weight: 700;
@@ -11,7 +12,9 @@
 }
 
 .content {
-  overflow: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   outline: none;
 }
 

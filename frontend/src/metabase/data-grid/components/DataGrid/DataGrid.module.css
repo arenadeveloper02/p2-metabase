@@ -31,12 +31,14 @@
 .headerContainer {
   display: flex;
   flex-direction: row;
+  align-items: stretch;
   position: sticky;
   top: 0;
   z-index: 3;
   border-bottom: 1px solid var(--mb-color-border-neutral-subtle);
   min-width: max-content;
-  height: 37px;
+  min-height: 37px;
+  height: auto;
 }
 
 .pinnedRowsSection {

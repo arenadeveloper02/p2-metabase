@@ -39,7 +39,7 @@ export const DataGridHeader = <TData,>({
       style={{
         backgroundColor,
         paddingLeft,
-        height: `${HEADER_BASE_HEIGHT}px`,
+        minHeight: `${HEADER_BASE_HEIGHT}px`,
         ...styles?.row,
       }}
     >
@@ -71,7 +71,10 @@ export const DataGridHeader = <TData,>({
           <div
             key={header.id}
             role="columnheader"
-            style={columnPositionStyles}
+            style={{
+              ...columnPositionStyles,
+              minWidth: 0,
+            }}
             data-header-id={header.id}
           >
             {headerContent}

@@ -269,6 +269,16 @@ describe("DataGrid", () => {
     expect(nameSortIcon).toBeDefined();
   });
 
+  it("renders header labels without ellipsis tooltips", () => {
+    renderWithProviders(<TestDataGrid />);
+    act(() => {
+      jest.runAllTimers();
+    });
+
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.queryByTestId("ellipsified-tooltip")).not.toBeInTheDocument();
+  });
+
   it("renders pinned rows in a separate sticky section", () => {
     const pinnedTopRowsCount = 2;
     renderWithProviders(

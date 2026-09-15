@@ -2,7 +2,6 @@ import cx from "classnames";
 import { type ComponentPropsWithoutRef, forwardRef } from "react";
 
 import { Icon } from "metabase/ui";
-import { Ellipsified } from "metabase/ui/components/data-display/Ellipsified";
 
 import S from "./SortableHeaderPill.module.css";
 
@@ -22,7 +21,7 @@ export const SortableHeaderPill = forwardRef<
       className={cx(S.pill, className, { [S.alignRight]: align === "right" })}
       {...props}
     >
-      <Ellipsified tooltip={name}>{name}</Ellipsified>
+      <span className={S.name}>{name}</span>
       {sort && (
         <Icon
           name={sort === "asc" ? "chevronup" : "chevrondown"}
