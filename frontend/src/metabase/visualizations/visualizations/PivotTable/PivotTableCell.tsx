@@ -149,7 +149,7 @@ export const TopHeaderCell = ({
   getCellClickHandler,
   onResize,
 }: TopHeaderCellProps) => {
-  const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
+  const { value, clicked, isSubtotal, maxDepthBelow, span } = item;
 
   const tc = useTranslateContent();
 
@@ -159,8 +159,8 @@ export const TopHeaderCell = ({
         ...style,
       }}
       value={tc(value)}
+      isEmphasized
       isBorderedHeader={maxDepthBelow === 0}
-      isEmphasized={hasChildren}
       isBold={isSubtotal}
       onClick={getCellClickHandler(clicked)}
       onResize={span < 2 ? onResize : undefined}
