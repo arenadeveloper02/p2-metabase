@@ -85,6 +85,16 @@ export function AppColorSchemeProvider({
         },
       };
 
+  useEffect(() => {
+    if (isEmbeddingSdk()) {
+      return;
+    }
+    document.documentElement.classList.toggle(
+      "dark",
+      resolvedColorScheme === "dark",
+    );
+  }, [resolvedColorScheme]);
+
   return (
     <ColorSchemeContext.Provider value={value}>
       {children}

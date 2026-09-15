@@ -2,35 +2,24 @@
 
 import type { ChartColorV2 } from "../types";
 
-import { getBaseColorsForThemeDefinitionOnly } from "./base-colors";
+import { DS_CHART_SERIES_DARK, DS_CHART_SERIES_LIGHT, ds } from "./arena-ds";
 
-const baseColors = getBaseColorsForThemeDefinitionOnly();
-
-export const DEFAULT_ACCENT_COLORS: ChartColorV2[] = [
-  "#509EE3", // accent0 - blue
-  "#88BF4D", // accent1 - green
-  "#A989C5", // accent2 - purple
-  "#EF8C8C", // accent3 - red
-  "#F9D45C", // accent4 - yellow
-  "#F2A86F", // accent5 - orange
-  "#98D9D9", // accent6 - cyan
-  "#7172AD", // accent7 - indigo
-];
+export const DEFAULT_ACCENT_COLORS: ChartColorV2[] = [...DS_CHART_SERIES_LIGHT];
 
 export const LIGHT_THEME_ACCENT_COLORS: ChartColorV2[] = [
-  ...DEFAULT_ACCENT_COLORS,
+  ...DS_CHART_SERIES_LIGHT,
   {
-    base: baseColors.orion[10],
-    tint: baseColors.orion[5],
-    shade: baseColors.orion[20],
+    base: ds.grey[200],
+    tint: ds.grey[50],
+    shade: ds.grey[300],
   },
 ];
 
 export const DARK_THEME_ACCENT_COLORS: ChartColorV2[] = [
-  ...DEFAULT_ACCENT_COLORS,
+  ...DS_CHART_SERIES_DARK,
   {
-    base: baseColors.orion[80],
-    tint: baseColors.orion[80],
-    shade: baseColors.orion[110],
+    base: ds.grey[800],
+    tint: ds.grey[800],
+    shade: ds.grey[950],
   },
 ];

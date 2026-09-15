@@ -2,7 +2,7 @@
 
 import type { ColorSettings } from "metabase-types/api/settings";
 
-import { getBaseColorsForThemeDefinitionOnly } from "./constants/base-colors";
+import { ds } from "./constants/arena-ds";
 import { deriveFullMetabaseTheme } from "./derive-theme";
 import type { MetabaseColorKey } from "./types/color-keys";
 
@@ -12,8 +12,6 @@ const tokenFeatures = win.MetabaseBootstrap?.["token-features"] ?? {};
 const shouldWhitelabel = !!tokenFeatures["whitelabel"];
 const whitelabelColors =
   (shouldWhitelabel && win.MetabaseBootstrap?.["application-colors"]) || {};
-
-const baseColors = getBaseColorsForThemeDefinitionOnly();
 
 export const getColors = (whitelabelColors?: ColorSettings) =>
   deriveFullMetabaseTheme({ colorScheme: "light", whitelabelColors }).colors;
@@ -31,7 +29,7 @@ export const mutateColors = (whitelabelColors: ColorSettings) => {
 };
 
 export const staticVizOverrides = {
-  "text-primary": baseColors.orion[80],
-  "text-secondary": baseColors.orion[60],
-  "text-disabled": baseColors.orion[40],
+  "text-primary": ds.grey[900],
+  "text-secondary": ds.grey[700],
+  "text-disabled": ds.grey[300],
 };

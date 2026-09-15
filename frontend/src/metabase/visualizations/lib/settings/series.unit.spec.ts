@@ -18,7 +18,7 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        "The card": "#7172AD",
+        "The card": "#6D717F",
       });
     });
 
@@ -36,7 +36,7 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        count: "#509EE3",
+        count: "#1A73E8",
       });
     });
 
@@ -86,7 +86,7 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        COLUMN_2: "#509EE3", // This is the color for "count"
+        COLUMN_2: "#1A73E8", // This is the color for "count"
       });
     });
   });

@@ -13,7 +13,8 @@ describe("charts", () => {
     expect(newMapping).toEqual({
       count: color("accent1"), // existing colors are not changed
       profit: color("feedback-positive"), // a preferred color
-      sum_2: color("accent6"), // only accent colors are used for other keys
+      // accent6 is the same hex as feedback-positive (Arena green-600)
+      sum_2: color("accent7"),
     });
   });
 
@@ -27,7 +28,8 @@ describe("charts", () => {
       count: color("accent1"), // existing colors are not changed
       profit: color("feedback-positive"), // a preferred color
       distinct: color("accent4"), // some color based on the hash
-      sum_2: color("accent6"), // the same color is used despite different keys count
+      // accent6 is the same hex as feedback-positive (Arena green-600)
+      sum_2: color("accent7"),
     });
   });
 
@@ -64,7 +66,7 @@ describe("charts", () => {
       S2: color("accent1-light"),
       S3: color("accent1-dark"),
       S4: color("accent2"),
-      S28: color("accent2"), // we have 24 colors in the palette, that's why they would repeat after 24 keys
+      S28: color("accent2-light"),
     });
   });
 });
