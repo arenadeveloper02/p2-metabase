@@ -140,7 +140,7 @@ export function getLeftHeaderWidths({
         ...(cellValues[depthIndex]?.values?.map(
           (value) =>
             measureText(value, {
-              weight: "normal",
+              weight: "bold",
               family: fontFamily,
               size: fontSize,
             }).width +

@@ -142,10 +142,15 @@
             (when-let [[tag _opts & args] (when (vector? x) x)]
               (or (lib.hierarchy/isa? tag hierarchy-tag)
                   ;; Case has shape [:case opts [[cond expr]...] default-expr?].
-                  ;; `:if` is an alias for `:case`.
+                  ;; `:if` is an alias for `:case`. Then/default branches may be
+                  ;; scalar literals, so walk each form rather than seqing it.
                   (if (#{:case :if} tag)
-                    (or (some walk (ffirst args))
-                        (some walk (fnext args)))
+                    (let [[pairs default] args]
+                      (or (some (fn [pair]
+                                  (when (sequential? pair)
+                                    (some walk pair)))
+                                pairs)
+                          (walk default)))
                     (some walk args)))))]
     (walk x)))
 

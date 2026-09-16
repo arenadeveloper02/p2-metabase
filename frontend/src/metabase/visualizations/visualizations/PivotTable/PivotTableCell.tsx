@@ -20,6 +20,7 @@ interface CellProps {
   isBody?: boolean;
   isBold?: boolean;
   isEmphasized?: boolean;
+  isGrandTotal?: boolean;
   isBorderedHeader?: boolean;
   isTransparent?: boolean;
   hasTopBorder?: boolean;
@@ -82,6 +83,7 @@ export function Cell({
   isBody = false,
   isBold,
   isEmphasized,
+  isGrandTotal,
   isBorderedHeader,
   isTransparent,
   hasTopBorder,
@@ -95,8 +97,10 @@ export function Cell({
     <PivotTableCell
       data-allow-page-break-after
       data-testid="pivot-table-cell"
+      data-is-grand-total={isGrandTotal || undefined}
       isBold={isBold}
       isEmphasized={isEmphasized}
+      isGrandTotal={isGrandTotal}
       isBorderedHeader={isBorderedHeader}
       hasTopBorder={hasTopBorder}
       isTransparent={isTransparent}
@@ -149,7 +153,7 @@ export const TopHeaderCell = ({
   getCellClickHandler,
   onResize,
 }: TopHeaderCellProps) => {
-  const { value, clicked, isSubtotal, maxDepthBelow, span } = item;
+  const { value, clicked, isGrandTotal, maxDepthBelow, span } = item;
 
   const tc = useTranslateContent();
 
@@ -160,8 +164,9 @@ export const TopHeaderCell = ({
       }}
       value={tc(value)}
       isEmphasized
+      isGrandTotal={isGrandTotal}
       isBorderedHeader={maxDepthBelow === 0}
-      isBold={isSubtotal}
+      isBold
       onClick={getCellClickHandler(clicked)}
       onResize={span < 2 ? onResize : undefined}
     />
@@ -183,7 +188,8 @@ export const LeftHeaderCell = ({
   onUpdateVisualizationSettings,
   onResize,
 }: LeftHeaderCellProps) => {
-  const { value, isSubtotal, hasSubtotal, depth, path, clicked } = item;
+  const { value, isSubtotal, isGrandTotal, hasSubtotal, depth, path, clicked } =
+    item;
 
   return (
     <Cell
@@ -193,7 +199,8 @@ export const LeftHeaderCell = ({
       }}
       value={value}
       isEmphasized={isSubtotal}
-      isBold={isSubtotal}
+      isGrandTotal={isGrandTotal}
+      isBold
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
       icon={
@@ -230,7 +237,10 @@ export const BodyCell = ({
   return (
     <div style={style} className={CS.flex}>
       {rowSection.map(
-        ({ value, isSubtotal, clicked, backgroundColor }, index) => {
+        (
+          { value, isSubtotal, isGrandTotal, clicked, backgroundColor },
+          index,
+        ) => {
           return (
             <Cell
               key={index}
@@ -239,6 +249,7 @@ export const BodyCell = ({
               }}
               value={value}
               isEmphasized={isSubtotal}
+              isGrandTotal={isGrandTotal}
               isBold={isSubtotal}
               showTooltip={showTooltip}
               isBody
