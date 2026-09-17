@@ -6,7 +6,8 @@
   display: flex;
   justify-content: flex-end;
   cursor: pointer;
-  border-bottom: 1px solid var(--mb-color-border-neutral-subtle);
+  border-bottom: 1px solid var(--mb-color-border-neutral);
+  border-right: 1px solid var(--mb-color-border-neutral);
 }
 
 .rowNumber {

@@ -30,20 +30,22 @@ describe.each([
   });
 });
 
-describe("Arena DS semantic mapping", () => {
-  it("uses Arena grey-900 text and white page in light", () => {
-    expect(METABASE_LIGHT_THEME.colors["text-primary"]).toBe("#2C2D33");
+describe("Sim DS semantic mapping", () => {
+  it("uses Sim neutrals and Metabase default brand in light", () => {
+    expect(METABASE_LIGHT_THEME.colors["text-primary"]).toBe("#1A1A1A");
     expect(METABASE_LIGHT_THEME.colors["background_page-primary"]).toBe(
-      "#FFFFFF",
+      "#FEFEFE",
     );
-    expect(METABASE_LIGHT_THEME.colors.brand).toBe("#1A73E8");
+    expect(METABASE_LIGHT_THEME.colors["border-neutral"]).toBe("#DEDEDE");
+    expect(METABASE_LIGHT_THEME.colors.brand).toBe("hsla(208, 72%, 60%, 1.00)");
   });
 
-  it("uses Arena grey-50 text and grey-950 page in dark", () => {
-    expect(METABASE_DARK_THEME.colors["text-primary"]).toBe("#F7F8F9");
+  it("uses Sim neutrals and Metabase default brand in dark", () => {
+    expect(METABASE_DARK_THEME.colors["text-primary"]).toBe("#E6E6E6");
     expect(METABASE_DARK_THEME.colors["background_page-primary"]).toBe(
-      "#16171A",
+      "#1B1B1B",
     );
-    expect(METABASE_DARK_THEME.colors.brand).toBe("#488FED");
+    expect(METABASE_DARK_THEME.colors["border-neutral"]).toBe("#444444");
+    expect(METABASE_DARK_THEME.colors.brand).toBe("hsla(208, 72%, 60%, 1.00)");
   });
 });

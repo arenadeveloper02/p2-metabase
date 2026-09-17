@@ -29,7 +29,7 @@ export const mutateColors = (whitelabelColors: ColorSettings) => {
 };
 
 export const staticVizOverrides = {
-  "text-primary": ds.grey[900],
-  "text-secondary": ds.grey[700],
-  "text-disabled": ds.grey[300],
+  "text-primary": ds.light.textPrimary,
+  "text-secondary": ds.light.textSecondary,
+  "text-disabled": ds.light.textMuted,
 };

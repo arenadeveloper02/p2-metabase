@@ -429,7 +429,14 @@
     (testing "window-function aggregation nested inside an arithmetic clause is not compatible"
       (let [total (meta/field-metadata :orders :total)
             diff  (lib/expression-clause :- [(lib/sum total) (lib/offset (lib/sum total) -1)] nil)]
-        (is (not (qp.pivot/native-pivot-compatible? (lib/aggregate base diff)))))))
+        (is (not (qp.pivot/native-pivot-compatible? (lib/aggregate base diff))))))
+    (testing "case aggregations with integer then/default branches are compatible"
+      (let [total   (meta/field-metadata :orders :total)
+            case-ag (lib/sum (lib.options/ensure-uuid
+                              [:case {}
+                               [[(lib/> total 0) total]]
+                               0]))]
+        (is (qp.pivot/native-pivot-compatible? (lib/aggregate base case-ag))))))
   (testing "nested-field (e.g. JSON-unfolded) breakouts are compatible"
     (let [json-mp (lib.tu/mock-metadata-provider
                    {:database (assoc meta/database :id 1)

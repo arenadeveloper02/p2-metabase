@@ -269,6 +269,17 @@ describe("DataGrid", () => {
     expect(nameSortIcon).toBeDefined();
   });
 
+  it("uses a brighter default background for the header than the body", () => {
+    renderWithProviders(<TestDataGrid />);
+    act(() => {
+      jest.runAllTimers();
+    });
+
+    expect(screen.getByTestId("table-header")).toHaveStyle({
+      backgroundColor: "var(--mb-color-background_page-secondary)",
+    });
+  });
+
   it("renders header labels without ellipsis tooltips", () => {
     renderWithProviders(<TestDataGrid />);
     act(() => {

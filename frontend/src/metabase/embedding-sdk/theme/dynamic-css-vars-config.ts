@@ -25,7 +25,7 @@ export const DYNAMIC_CSS_VARIABLES: DynamicCssVarConfig = {
     dark: { source: "border" },
   },
   "--mb-color-table-border": {
-    light: { source: "border", alpha: 0.5 },
-    dark: { source: "border", alpha: 0.15 },
+    light: { source: "border" },
+    dark: { source: "border" },
   },
 };

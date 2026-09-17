@@ -201,6 +201,49 @@ describe("Visualizations > PivotTable > PivotTable", () => {
         });
       });
 
+      it("should mark grand total cells", () => {
+        setupPivotTable({ isDashboard: testCase.isDashboard });
+
+        const grandTotalCell = screen
+          .getAllByTestId("pivot-table-cell")
+          .find((cell) => within(cell).queryByText("Grand totals"));
+
+        expect(grandTotalCell).toHaveAttribute("data-is-grand-total", "true");
+        expect(grandTotalCell).toHaveStyle({
+          backgroundColor: "var(--mb-color-border-neutral)",
+        });
+      });
+
+      it("should render all header cells, including leaves, in bold", () => {
+        setupPivotTable({ isDashboard: testCase.isDashboard });
+
+        const headerCell = (label: string) =>
+          screen
+            .getAllByTestId("pivot-table-cell")
+            .find((cell) => within(cell).queryByText(label));
+
+        expect(headerCell("field-123")).toHaveStyle({ fontWeight: "bold" });
+        expect(headerCell("foo1")).toHaveStyle({ fontWeight: "bold" });
+        expect(headerCell("baz1")).toHaveStyle({ fontWeight: "bold" });
+        expect(headerCell("aggregation-1")).toHaveStyle({
+          fontWeight: "bold",
+        });
+        expect(headerCell("111")).toHaveStyle({ fontWeight: "normal" });
+      });
+
+      it("should use theme tokens for header text and background", () => {
+        setupPivotTable({ isDashboard: testCase.isDashboard });
+
+        const headerCell = screen
+          .getAllByTestId("pivot-table-cell")
+          .find((cell) => within(cell).queryByText("aggregation-1"));
+
+        expect(headerCell).toHaveStyle({
+          color: "var(--mb-color-text-primary)",
+          backgroundColor: "var(--mb-color-border-neutral)",
+        });
+      });
+
       it("should collapse columns", () => {
         const hiddenSettings = createMockVisualizationSettings({
           ...settings,

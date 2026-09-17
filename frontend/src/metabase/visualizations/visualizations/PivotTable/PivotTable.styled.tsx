@@ -4,7 +4,7 @@ import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 
 import type { MantineTheme } from "metabase/ui";
-import { adjustBrightness, alpha, color, lighten } from "metabase/ui/colors";
+import { color } from "metabase/ui/colors";
 
 import { CELL_HEIGHT, RESIZE_HANDLE_WIDTH } from "./constants";
 
@@ -22,14 +22,19 @@ export const RowToggleIconRoot = styled.div`
 
 function getRowToggleStyle({ theme }: { theme: MantineTheme }) {
   const { textColor, backgroundColor } = theme.other.pivotTable.rowToggle;
-  const hoverColor = adjustBrightness(backgroundColor, 0.2, 0.2);
+  const resolvedText = color(textColor);
+  const resolvedBackground = color(backgroundColor);
 
   return css`
-    color: ${color(textColor)};
-    background-color: ${color(backgroundColor)};
+    color: ${resolvedText};
+    background-color: ${resolvedBackground};
 
     &:hover {
-      background-color: ${color(hoverColor)};
+      background-color: color-mix(
+        in srgb,
+        ${resolvedBackground} 80%,
+        var(--mb-color-text-primary) 20%
+      );
     }
   `;
 }
@@ -37,62 +42,55 @@ function getRowToggleStyle({ theme }: { theme: MantineTheme }) {
 interface PivotTableCellProps {
   isBold?: boolean;
   isEmphasized?: boolean;
+  isGrandTotal?: boolean;
   isBorderedHeader?: boolean;
   hasTopBorder?: boolean;
   isTransparent?: boolean;
 }
 
+const GRID_LINE = "var(--mb-color-border-neutral)";
+
 const getCellBackgroundColor = ({
   theme,
   isEmphasized,
+  isGrandTotal,
   isTransparent,
 }: Partial<PivotTableCellProps> & { theme: MantineTheme }) => {
   const backgroundColor = theme.other.table.cell.backgroundColor;
-  const isDarkMode = theme.other.colorScheme === "dark";
 
   if (isTransparent) {
     return "transparent";
   }
 
-  if (isEmphasized) {
-    if (isDarkMode) {
-      return lighten("background_page-primary-inverse", 0.65);
-    }
-
-    if (backgroundColor) {
-      return adjustBrightness(backgroundColor, 0.15, 0.05);
-    }
-
-    return alpha("border-neutral", 0.25);
+  if (isGrandTotal || isEmphasized) {
+    return "var(--mb-color-border-neutral)";
   }
 
-  if (isDarkMode) {
-    return alpha("background_page-primary-inverse", 0.1);
-  }
-
-  return color(backgroundColor ?? "background_page-primary");
+  return backgroundColor
+    ? color(backgroundColor)
+    : "var(--mb-color-background_page-primary)";
 };
 
 const getCellHoverBackground = (
   props: PivotTableCellProps & { theme: MantineTheme },
 ) => {
+  const backgroundColor = getCellBackgroundColor(props);
+
+  if (props.isEmphasized || props.isGrandTotal) {
+    return `color-mix(in srgb, ${backgroundColor} 88%, transparent)`;
+  }
+
   const { cell: cellTheme } = props.theme.other.table;
 
   if (!cellTheme.backgroundColor) {
     return "var(--mb-color-border-neutral)";
   }
 
-  const backgroundColor = getCellBackgroundColor(props);
-
-  return adjustBrightness(backgroundColor, 0.15, 0.1);
+  return `color-mix(in srgb, ${backgroundColor} 85%, var(--mb-color-text-primary) 15%)`;
 };
 
 const getColor = ({ theme }: PivotTableCellProps & { theme: MantineTheme }) => {
-  if (theme.other.colorScheme === "dark") {
-    return color("text-primary-inverse");
-  }
-
-  return color(theme.other.table.cell.textColor);
+  return theme.other.table.cell.textColor;
 };
 
 const borderRight = css`
@@ -102,7 +100,7 @@ const borderRight = css`
     top: 0;
     right: 0;
     height: 100%;
-    border-right: 1px solid ${color("border-neutral-subtle")};
+    border-right: 1px solid ${GRID_LINE};
   }
 `;
 
@@ -117,18 +115,14 @@ export const PivotTableCell = styled.div<PivotTableCellProps>`
   cursor: ${(props) => (props.onClick ? "pointer" : "default")};
   color: ${getColor};
   ${borderRight}
-  border-bottom: 1px solid
-    ${(props) =>
-    props.isBorderedHeader
-      ? "var(--mb-color-border-neutral)"
-      : "var(--mb-color-table-border)"};
+  border-bottom: 1px solid ${GRID_LINE};
   background-color: ${getCellBackgroundColor};
   ${(props) =>
     props.hasTopBorder &&
     css`
       /* compensate the top border */
       line-height: ${CELL_HEIGHT - 1}px;
-      border-top: 1px solid ${color("border-neutral-subtle")};
+      border-top: 1px solid ${GRID_LINE};
     `}
 
   &:hover {
@@ -163,7 +157,7 @@ export const PivotTableRoot = styled.div<PivotTableRootProps>`
   ${(props) =>
     props.isDashboard
       ? css`
-          border-top: 1px solid ${color("border-neutral-subtle")};
+          border-top: 1px solid ${GRID_LINE};
         `
       : null}
 

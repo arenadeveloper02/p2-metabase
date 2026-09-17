@@ -16,6 +16,19 @@ describe("tableThemeToDataGridTheme", () => {
     },
   };
 
+  it("defaults stickyBackgroundColor when the table theme omits it", () => {
+    const themeWithoutSticky = {
+      ...mockTableTheme,
+      stickyBackgroundColor: undefined,
+    };
+
+    const result = tableThemeToDataGridTheme(themeWithoutSticky);
+
+    expect(result.stickyBackgroundColor).toBe(
+      "var(--mb-color-background_page-secondary)",
+    );
+  });
+
   it("converts table theme to data grid theme", () => {
     const result = tableThemeToDataGridTheme(mockTableTheme);
 

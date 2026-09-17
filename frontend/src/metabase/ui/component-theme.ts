@@ -62,7 +62,7 @@ export type MetabaseComponentTheme = {
 
   /** Data tables **/
   table: {
-    /** Background color of the table header that stays fixed while scrolling. Defaults to `white` if no cell background color is set */
+    /** Background color of the table header that stays fixed while scrolling. Defaults to `background_page-secondary` */
     stickyBackgroundColor?: string;
 
     cell: {
@@ -238,6 +238,7 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
   },
 
   table: {
+    stickyBackgroundColor: "var(--mb-color-background_page-secondary)",
     cell: {
       fontSize: FONT_SIZES.tableCell.px,
       textColor: "var(--mb-color-text-primary)",
@@ -251,8 +252,8 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
       fontSize: FONT_SIZES.pivotTableCell.px,
     },
     rowToggle: {
-      textColor: "text-primary-inverse",
-      backgroundColor: "text-disabled", // TODO: should it be "background_page-tertiary-inverse" ?
+      textColor: "var(--mb-color-text-primary-inverse)",
+      backgroundColor: "var(--mb-color-text-disabled)",
     },
   },
   cartesian: {

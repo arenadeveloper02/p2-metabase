@@ -1,123 +1,81 @@
-/* eslint-disable metabase/no-color-literals -- Arena DS primitives */
+/* eslint-disable metabase/no-color-literals -- Sim DS primitives */
 
 /**
- * Arena design-system color primitives.
- * Hex source: arena-v3 `src/components/ds/tokens.css`.
+ * Sim (p2-sim) neutrals for Metabase light/dark themes.
+ * Hex source: arena-v3 `src/components/sim/tokens.css`.
  * Opaque colors are hex; alpha tokens are hsla so static viz / PDF can parse them.
+ *
+ * Surfaces, borders, and body text map to these tokens. Brand, focus, and
+ * status colors stay on Metabase defaults (`base-colors.ts`).
  */
 export const ds = {
   white: "#FFFFFF",
   black: "#000000",
 
-  grey: {
-    50: "#F7F8F9",
-    200: "#E2E3E5",
-    300: "#C5C6CC",
-    400: "#A7AAB2",
-    500: "#8A8D99",
-    600: "#6D717F",
-    700: "#575A66",
-    800: "#41444C",
-    900: "#2C2D33",
-    950: "#16171A",
+  light: {
+    bg: "#FEFEFE",
+    surface1: "#FBFBFB",
+    surface2: "#FFFFFF",
+    surface3: "#F7F7F7",
+    surface4: "#F5F5F5",
+    surface5: "#F3F3F3",
+    surface6: "#E5E5E5",
+    surfaceHover: "#F2F2F2",
+    surfaceActive: "#ECECEC",
+    surfaceInverted: "#1B1B1B",
+    surfaceInvertedHover: "#363636",
+
+    textPrimary: "#1A1A1A",
+    textSecondary: "#525252",
+    textMuted: "#707070",
+    textBody: "#3B3B3B",
+    textIcon: "#525252",
+    textInverse: "#FFFFFF",
+    textTertiary: "#5C5C5C",
+    textIconMuted: "#5C5C5C",
+    textMutedInverse: "#A0A0A0",
+
+    border: "#DEDEDE",
+    border1: "#E0E0E0",
+    borderInverted: "#363636",
+
+    overlay: "hsla(0, 0%, 11%, 0.72)",
+    shadow: "hsla(220, 39%, 18%, 0.1)",
   },
 
-  blue: {
-    50: "#F3F8FE",
-    200: "#D1E3FA",
-    300: "#A3C7F6",
-    400: "#76ABF1",
-    500: "#488FED",
-    600: "#1A73E8",
-    700: "#155CBA",
-    800: "#10458B",
-    900: "#0A2E5D",
-  },
+  dark: {
+    bg: "#1B1B1B",
+    surface1: "#1E1E1E",
+    surface2: "#181818",
+    surface3: "#1A1A1A",
+    surface4: "#1C1C1C",
+    surface5: "#222222",
+    surface6: "#2A2A2A",
+    surfaceHover: "#202020",
+    surfaceActive: "#242424",
+    surfaceInverted: "#242424",
+    surfaceInvertedHover: "#363636",
 
-  pink: {
-    400: "#FB97BC",
-    600: "#F8528F",
-  },
+    textPrimary: "#E6E6E6",
+    textSecondary: "#CCCCCC",
+    textMuted: "#A3A3A3",
+    textBody: "#C1C1C1",
+    textIcon: "#B3B3B3",
+    textInverse: "#1B1B1B",
+    textTertiary: "#B3B3B3",
+    textIconMuted: "#949494",
+    textMutedInverse: "#B3B3B3",
 
-  purple: {
-    400: "#D1A2E7",
-    600: "#B364D7",
-  },
+    border: "#444444",
+    border1: "#444444",
+    borderInverted: "#3D3D3D",
 
-  seaBlue: {
-    400: "#66CAE6",
-    600: "#00A7D6",
-  },
-
-  yellow: {
-    400: "#ECDD71",
-    600: "#DFC612",
-  },
-
-  green: {
-    400: "#89DEB5",
-    600: "#3BC884",
-  },
-
-  success: {
-    50: "#F5FCF9",
-    300: "#B1E9CE",
-    400: "#89DEB5",
-    600: "#3BC884",
-    700: "#2FA06A",
-    800: "#23784F",
-  },
-
-  warning: {
-    50: "#FFF9F5",
-    300: "#FDCDB5",
-    400: "#FDB38F",
-    600: "#FB8145",
-    700: "#C96737",
-    800: "#974D29",
-  },
-
-  error: {
-    50: "#FFF3F3",
-    300: "#FAA3A3",
-    400: "#F87676",
-    600: "#F31A1A",
-    700: "#C21515",
-    800: "#921010",
-  },
-
-  overlay: {
-    light: "hsla(231, 7%, 19%, 0.72)",
-    dark: "hsla(0, 0%, 0%, 0.72)",
-  },
-
-  focusRing: {
-    light: "hsla(214, 82%, 51%, 0.3)",
-    dark: "hsla(214, 82%, 61%, 0.4)",
-  },
-
-  brandSurface: {
-    dark: "hsla(214, 82%, 51%, 0.16)",
-  },
-
-  interactiveSelected: {
-    dark: "hsla(214, 82%, 51%, 0.2)",
-  },
-
-  statusSurface: {
-    successDark: "hsla(151, 56%, 51%, 0.16)",
-    warningDark: "hsla(20, 96%, 63%, 0.16)",
-    errorDark: "hsla(0, 90%, 53%, 0.16)",
-    infoDark: "hsla(214, 82%, 51%, 0.16)",
-  },
-
-  shadow: {
-    light: "hsla(231, 7%, 19%, 0.1)",
-    dark: "hsla(0, 0%, 0%, 0.45)",
+    overlay: "hsla(0, 0%, 0%, 0.72)",
+    shadow: "hsla(0, 0%, 0%, 0.3)",
   },
 } as const;
 
-/** Arena chart series at 600 (light) / 400 (dark). Uppercase hex matches Color().hex(). */
+/** Chart series kept as a distinct palette; Sim tokens do not define series colors. */
 export const DS_CHART_SERIES_LIGHT = [
   "#1A73E8",
   "#FB8145",

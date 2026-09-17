@@ -98,11 +98,12 @@ export const DataGrid = function DataGrid<TData>({
   const rowsCount = table.getRowModel().rows.length;
   const backgroundColor =
     theme?.cell?.backgroundColor ?? "var(--mb-color-background_page-primary)";
-  const stickyElementsBackgroundColor =
-    theme?.stickyBackgroundColor ??
-    (backgroundColor == null || backgroundColor === "transparent"
+  const headerBackgroundColor =
+    theme?.stickyBackgroundColor ?? "var(--mb-color-background_page-secondary)";
+  const stickyBodyBackgroundColor =
+    backgroundColor == null || backgroundColor === "transparent"
       ? "var(--mb-color-background_page-primary)"
-      : backgroundColor);
+      : backgroundColor;
 
   const centerRows = getCenterRows();
   const pinnedRows = getPinnedRows();
@@ -158,7 +159,7 @@ export const DataGrid = function DataGrid<TData>({
     <DataGridHeader
       headerGroup={headerGroup}
       columns={columns}
-      backgroundColor={backgroundColor}
+      backgroundColor={headerBackgroundColor}
       onHeaderCellClick={onHeaderCellClick}
       isColumnReorderingDisabled={isColumnReorderingDisabled}
       styles={styles}
@@ -186,7 +187,10 @@ export const DataGrid = function DataGrid<TData>({
           style={{
             width: pinnedPanelWidth,
             minHeight,
-            backgroundColor: stickyElementsBackgroundColor,
+            backgroundColor:
+              rowsSection === "header"
+                ? headerBackgroundColor
+                : stickyBodyBackgroundColor,
           }}
         >
           {pinnedContent}
@@ -198,7 +202,8 @@ export const DataGrid = function DataGrid<TData>({
         style={{
           minHeight,
           width: `${columnVirtualizer.getTotalSize()}px`,
-          backgroundColor,
+          backgroundColor:
+            rowsSection === "header" ? headerBackgroundColor : backgroundColor,
         }}
       >
         {centerContent}
@@ -257,7 +262,7 @@ export const DataGrid = function DataGrid<TData>({
               role="rowgroup"
               className={cx(S.headerContainer, classNames?.headerContainer)}
               style={{
-                backgroundColor: stickyElementsBackgroundColor,
+                backgroundColor: headerBackgroundColor,
                 ...styles?.headerContainer,
               }}
             >
@@ -298,7 +303,7 @@ export const DataGrid = function DataGrid<TData>({
                   <div
                     className={S.pinnedRowsSection}
                     style={{
-                      backgroundColor: stickyElementsBackgroundColor,
+                      backgroundColor: stickyBodyBackgroundColor,
                       top: `${headerHeight}px`,
                     }}
                   >

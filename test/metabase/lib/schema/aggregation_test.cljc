@@ -153,3 +153,25 @@
                       true]]
                     1]]]]
         (is (mr/validate ::lib.schema.aggregation/aggregation expr))))))
+
+(deftest ^:parallel window-aggregation-expression?-case-with-integer-branches-test
+  (testing "integer then/default branches must not throw"
+    (doseq [tag [:case :if]]
+      (let [expr [tag {:lib/uuid "00000000-0000-0000-0000-000000000000"}
+                  [[[:= {:lib/uuid "00000000-0000-0000-0000-000000000001"}
+                     [:field {:lib/uuid "00000000-0000-0000-0000-000000000002"} 1]
+                     0]
+                    0]]
+                  1]]
+        (is (not (lib.schema.aggregation/window-aggregation-expression? expr))
+            tag))))
+  (testing "a window aggregation nested in a case then-branch is detected"
+    (let [expr [:case {:lib/uuid "00000000-0000-0000-0000-000000000000"}
+                [[[:= {:lib/uuid "00000000-0000-0000-0000-000000000001"}
+                   [:field {:lib/uuid "00000000-0000-0000-0000-000000000002"} 1]
+                   0]
+                  [:offset {:lib/uuid "00000000-0000-0000-0000-000000000003"}
+                   [:count {:lib/uuid "00000000-0000-0000-0000-000000000004"}]
+                   -1]]]
+                0]]
+      (is (lib.schema.aggregation/window-aggregation-expression? expr)))))
