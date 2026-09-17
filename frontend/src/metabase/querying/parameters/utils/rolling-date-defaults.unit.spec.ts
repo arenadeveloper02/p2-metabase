@@ -6,18 +6,16 @@ import {
 } from "./rolling-date-defaults";
 
 describe("rolling-date-defaults", () => {
-  const locale = dayjs.locale();
-  const previousWeekStart = dayjs.Ls[locale]?.weekStart;
-
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2025-03-12T15:00:00"));
-    dayjs.updateLocale(locale, { weekStart: 1 });
+    // Sunday week start must not affect rolling week ranges.
+    dayjs.updateLocale(dayjs.locale(), { weekStart: 0 });
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    dayjs.updateLocale(locale, { weekStart: previousWeekStart });
+    dayjs.updateLocale(dayjs.locale(), { weekStart: 1 });
   });
 
   describe("resolveRollingDateParameterValue", () => {

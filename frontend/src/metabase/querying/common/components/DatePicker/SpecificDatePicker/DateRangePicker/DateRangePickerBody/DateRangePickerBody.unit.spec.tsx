@@ -54,6 +54,44 @@ describe("DateRangePickerBody", () => {
     ]);
   });
 
+  it("should highlight the new range when value is updated externally", () => {
+    const onChange = jest.fn();
+    const { rerender } = render(
+      <DateRangePickerBody
+        value={[new Date(2020, 0, 5), new Date(2020, 1, 20)]}
+        hasTime={false}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByLabelText("5 January 2020")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.getByLabelText("20 February 2020")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+
+    rerender(
+      <DateRangePickerBody
+        value={[new Date(2020, 1, 1), new Date(2020, 1, 28)]}
+        hasTime={false}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByLabelText("1 February 2020")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.getByLabelText("28 February 2020")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.queryByLabelText("5 January 2020")).not.toBeInTheDocument();
+  });
+
   describe("text input synchronization with calendar navigation", () => {
     it("should navigate calendar with start date input (metabase#64602)", async () => {
       setup({

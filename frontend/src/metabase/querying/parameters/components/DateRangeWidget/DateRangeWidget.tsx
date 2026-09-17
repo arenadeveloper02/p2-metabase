@@ -13,6 +13,10 @@ import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
+import {
+  findRollingDateDefault,
+  resolveRollingDateParameterValue,
+} from "metabase/querying/parameters/utils/rolling-date-defaults";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
@@ -31,11 +35,29 @@ export function DateRangeWidget({
   onChange,
 }: DateRangeWidgetProps) {
   const [pickerValue, setPickerValue] = useState(
-    () => getPickerValue(value) ?? getPickerDefaultValue(),
+    () => getInitialPickerValue(value),
+  );
+  const [selectedShortcut, setSelectedShortcut] = useState(
+    () => findRollingDateDefault("date/range", value)?.value ?? null,
   );
 
+  const handleShortcutChange = (token: string) => {
+    const shortcut = findRollingDateDefault("date/range", token);
+    if (shortcut == null) {
+      return;
+    }
+
+    setPickerValue(getInitialPickerValue(shortcut.resolve()));
+    setSelectedShortcut(token);
+  };
+
+  const handlePickerChange = (nextValue: DateRangePickerValue) => {
+    setPickerValue(nextValue);
+    setSelectedShortcut(null);
+  };
+
   const handleSubmit = () => {
-    onChange(getWidgetValue(pickerValue));
+    onChange(selectedShortcut ?? getWidgetValue(pickerValue));
   };
 
   return (
@@ -43,8 +65,8 @@ export function DateRangeWidget({
       {showRollingDefaults && (
         <RollingDateDefaultShortcuts
           parameterType="date/range"
-          value={value}
-          onChange={onChange}
+          value={selectedShortcut}
+          onChange={handleShortcutChange}
         />
       )}
       <DateRangePicker
@@ -55,11 +77,18 @@ export function DateRangeWidget({
             {submitButtonLabel}
           </Button>
         )}
-        onChange={setPickerValue}
+        onChange={handlePickerChange}
         onSubmit={handleSubmit}
       />
     </>
   );
+}
+
+function getInitialPickerValue(
+  value: ParameterValueOrArray | null | undefined,
+): DateRangePickerValue {
+  const resolved = resolveRollingDateParameterValue("date/range", value);
+  return getPickerValue(resolved) ?? getPickerDefaultValue();
 }
 
 function getPickerValue(

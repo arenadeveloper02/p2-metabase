@@ -41,9 +41,23 @@ describe("DateSingleWidget", () => {
     expect(screen.queryByText("Yesterday")).not.toBeInTheDocument();
   });
 
-  it("should set a rolling default token", async () => {
+  it("should fill the date and wait for Apply before committing a rolling default", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2025-03-12T15:00:00"));
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     const { onChange } = setup({ showRollingDefaults: true });
-    await userEvent.click(screen.getByText("Yesterday"));
+
+    await user.click(screen.getByText("Yesterday"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Date")).toHaveValue("March 11, 2025");
+    expect(screen.getByLabelText("11 March 2025")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+
+    await user.click(screen.getByText("Apply"));
     expect(onChange).toHaveBeenCalledWith("yesterday");
+
+    jest.useRealTimers();
   });
 });
