@@ -2,12 +2,13 @@ import { useCallback } from "react";
 import { t } from "ttag";
 
 import { useGetNativeDatasetQuery } from "metabase/api";
-import { DelayedLoadingSpinner } from "metabase/common/components/EntityPicker/components/LoadingSpinner";
-import { getEngineNativeType } from "metabase/lib/engine";
-import { CodeMirrorEditor as Editor } from "metabase/query_builder/components/NativeQueryEditor/CodeMirrorEditor";
+import { DelayedLoadingSpinner } from "metabase/common/components/DelayedLoading";
+import { getEngineNativeType } from "metabase/databases/utils/engine";
 import { Box, Button, Flex, Icon, rem } from "metabase/ui";
 import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
+
+import { CodeMirrorEditor as Editor } from "../../../components/CodeMirrorEditor";
 
 import { createNativeQuestion } from "./utils";
 
@@ -34,6 +35,8 @@ type NotebookNativePreviewProps = {
   title?: string;
   buttonTitle?: string;
   onConvertClick: (newQuestion: Question) => void;
+  readOnly?: boolean;
+  disableConvert?: boolean;
 };
 
 export const NotebookNativePreview = ({
@@ -41,6 +44,8 @@ export const NotebookNativePreview = ({
   title,
   buttonTitle,
   onConvertClick,
+  readOnly,
+  disableConvert,
 }: NotebookNativePreviewProps) => {
   const database = question.database();
   const engine = database?.engine;
@@ -62,7 +67,7 @@ export const NotebookNativePreview = ({
   const getErrorMessage = (error: unknown) =>
     typeof error === "string" ? error : undefined;
 
-  const borderStyle = "1px solid var(--mb-color-border)";
+  const borderStyle = "1px solid var(--mb-color-border-neutral)";
 
   const handleConvertClick = useCallback(() => {
     if (newQuestion) {
@@ -76,13 +81,13 @@ export const NotebookNativePreview = ({
       data-testid="native-query-preview-sidebar"
       w="100%"
       h="100%"
-      bg="bg-white"
+      bg="background_page-primary"
       display="flex"
       style={{ flexDirection: "column" }}
     >
       <Box
         component="header"
-        c="text-dark"
+        c="text-primary"
         fz={rem(20)}
         lh={rem(24)}
         fw="bold"
@@ -104,23 +109,25 @@ export const NotebookNativePreview = ({
         {showEmptySidebar}
         {showError && (
           <Flex align="center" justify="center" h="100%" direction="column">
-            <Icon name="warning" size="2rem" c="error" />
+            <Icon name="warning" size="2rem" c="feedback-negative" />
             {t`Error generating the query.`}
             <Box mt="sm">{getErrorMessage(error)}</Box>
           </Flex>
         )}
         {showQuery && newQuery != null && <Editor query={newQuery} readOnly />}
       </Flex>
-      <Box ta="end" p="1.5rem">
-        <Button
-          variant="subtle"
-          p={0}
-          onClick={handleConvertClick}
-          disabled={!showQuery}
-        >
-          {buttonTitle ?? BUTTON_TITLE[engineType]}
-        </Button>
-      </Box>
+      {!readOnly && (
+        <Box ta="end" p="1.5rem">
+          <Button
+            variant="subtle"
+            p={0}
+            onClick={handleConvertClick}
+            disabled={!showQuery || disableConvert}
+          >
+            {buttonTitle ?? BUTTON_TITLE[engineType]}
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 };

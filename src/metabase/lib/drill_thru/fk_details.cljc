@@ -74,13 +74,13 @@
   (when-let [fk-column-id (or (:fk-target-field-id column)
                               (do
                                 (log/warnf "Cannot apply :fk-details drill because column is missing :fk-target-field-id: %s"
-                                           (pr-str column))
+                                           (pr-str (:id column)))
                                 nil))]
     (when-let [fk-column (lib.metadata/field query fk-column-id)]
       (when-let [fk-column-table (lib.metadata/table query (:table-id fk-column))]
         (let [other-fk-filters (for [filter-clause (lib.filter/filters query stage-number)
                                      :let [parts (lib.filter/filter-parts query stage-number filter-clause)]
-                                     :when (= (:short (:operator parts)) :=)
+                                     :when (= (:operator parts) :=)
                                      :let [other-fk-target (some->> parts
                                                                     :column
                                                                     :fk-target-field-id

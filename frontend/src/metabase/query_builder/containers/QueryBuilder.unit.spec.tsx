@@ -12,7 +12,7 @@ import {
   waitForLoaderToBeRemoved,
   within,
 } from "__support__/ui";
-import registerVisualizations from "metabase/visualizations/register";
+import { registerVisualizations } from "metabase/visualizations/register";
 import { createMockCard, createMockDataset } from "metabase-types/api/mocks";
 
 import {
@@ -129,7 +129,7 @@ describe("QueryBuilder", () => {
         });
 
         const [runButton] = screen.getAllByTestId("run-button");
-        userEvent.click(runButton);
+        await userEvent.click(runButton);
         await waitForLoaderToBeRemoved();
 
         const executionTime = await screen.findByTestId("execution-time");
@@ -223,6 +223,7 @@ describe("QueryBuilder", () => {
       const calls = fetchMock.callHistory.calls("path:/api/dataset/csv");
       const lastCall = calls[calls.length - 1];
       const body = await Promise.resolve(lastCall.options?.body);
+      // Unjustified type cast. FIXME
       const urlSearchParams = new URLSearchParams(body as string);
       expect(lastCall.url).toEqual(expect.stringContaining("/api/dataset/csv"));
       const query =

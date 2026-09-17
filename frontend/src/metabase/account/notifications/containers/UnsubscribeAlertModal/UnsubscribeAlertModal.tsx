@@ -1,16 +1,17 @@
 import { t } from "ttag";
 
-import { navigateToArchive } from "metabase/account/notifications/actions";
+import { getArchiveUrl } from "metabase/account/notifications/actions";
 import {
   skipToken,
   useGetNotificationQuery,
   useUnsubscribeFromNotificationMutation,
 } from "metabase/api";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import { useDispatch, useSelector } from "metabase/lib/redux";
+import { useToast } from "metabase/common/hooks/use-toast";
+import { getUser } from "metabase/current-user";
 import { UnsubscribeConfirmModal } from "metabase/notifications/modals/UnsubscribeConfirmModal";
-import { addUndo } from "metabase/redux/undo";
-import { getUser } from "metabase/selectors/user";
+import { useSelector } from "metabase/redux";
+import { useNavigate } from "metabase/router";
 import type { Notification, User } from "metabase-types/api";
 
 import { getAlertId } from "../../selectors";
@@ -29,7 +30,8 @@ export const UnsubscribeAlertModal = ({
   const id = getAlertId(params?.alertId);
   const user = useSelector(getUser);
 
-  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [sendToast] = useToast();
 
   const {
     data: notification,
@@ -42,21 +44,19 @@ export const UnsubscribeAlertModal = ({
     const result = await unsubscribe(alert.id);
 
     if (result.error) {
-      dispatch(
-        addUndo({
-          icon: "warning",
-          toastColor: "error",
-          message: t`An error occurred`,
-        }),
-      );
+      sendToast({
+        icon: "warning",
+        toastColor: "feedback-negative",
+        message: t`An error occurred`,
+      });
       return;
     }
 
-    dispatch(addUndo({ message: t`Successfully unsubscribed.` }));
+    sendToast({ message: t`Successfully unsubscribed.` });
 
     if (isCreator(alert, user)) {
       onClose();
-      dispatch(navigateToArchive(alert, "question-notification", true));
+      navigate(getArchiveUrl(alert, "question-notification", true));
     } else {
       onClose();
     }

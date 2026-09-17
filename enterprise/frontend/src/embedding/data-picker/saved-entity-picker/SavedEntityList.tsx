@@ -2,49 +2,52 @@ import { Fragment } from "react";
 import { t } from "ttag";
 
 import { skipToken, useListCollectionItemsQuery } from "metabase/api";
-import EmptyState from "metabase/common/components/EmptyState";
+import { PERSONAL_COLLECTIONS } from "metabase/common/collections/constants";
+import { EmptyState } from "metabase/common/components/EmptyState";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import SelectList from "metabase/common/components/SelectList";
-import { PERSONAL_COLLECTIONS } from "metabase/entities/collections/constants";
+import { SelectList } from "metabase/common/components/SelectList";
+import { useTranslateContent } from "metabase/content-translation/hooks";
 import { PLUGIN_MODERATION } from "metabase/plugins";
 import { Box } from "metabase/ui";
 import { getQuestionVirtualTableId } from "metabase-lib/v1/metadata/utils/saved-questions";
-import type { CardType, Collection, DatabaseId } from "metabase-types/api";
-import { SortDirection } from "metabase-types/api/sorting";
+import type { CollectionId, DatabaseId, TableId } from "metabase-types/api";
+
+import type { SavedEntityType } from "../types";
 
 import SavedEntityListS from "./SavedEntityList.module.css";
 import { CARD_INFO } from "./constants";
 
 interface SavedEntityListProps {
-  type: Extract<CardType, "model" | "question">;
-  selectedId: string;
-  databaseId: DatabaseId;
-  collection?: Collection;
+  type: SavedEntityType;
+  selectedId?: TableId;
+  databaseId?: DatabaseId | null;
+  collectionId?: CollectionId;
   onSelect: (tableOrModelId: string) => void;
 }
 
-const SavedEntityList = ({
+export const SavedEntityList = ({
   type,
   selectedId,
   databaseId,
-  collection,
+  collectionId,
   onSelect,
 }: SavedEntityListProps): JSX.Element => {
+  const tc = useTranslateContent();
   const emptyState = (
     <Box m="7.5rem 0">
       <EmptyState message={t`Nothing here`} />
     </Box>
   );
 
-  const isVirtualCollection = collection?.id === PERSONAL_COLLECTIONS.id;
+  const isVirtualCollection = collectionId === PERSONAL_COLLECTIONS.id;
 
   const { data, error, isFetching } = useListCollectionItemsQuery(
-    collection && !isVirtualCollection
+    collectionId != null && !isVirtualCollection
       ? {
-          id: collection.id,
+          id: collectionId,
           models: [CARD_INFO[type].model],
           sort_column: "name",
-          sort_direction: SortDirection.Asc,
+          sort_direction: "asc",
         }
       : skipToken,
   );
@@ -59,7 +62,7 @@ const SavedEntityList = ({
       <SelectList className={SavedEntityListS.SavedEntityListRoot}>
         <LoadingAndErrorWrapper
           className={SavedEntityListS.LoadingWrapper}
-          loading={!collection || isFetching}
+          loading={collectionId == null || isFetching}
           error={error}
         >
           <Fragment>
@@ -77,13 +80,15 @@ const SavedEntityList = ({
                   id={id}
                   isSelected={selectedId === virtualTableId}
                   size="small"
-                  name={name}
+                  name={tc(name)}
                   icon={{
                     name: CARD_INFO[type].icon,
                     size: 16,
                   }}
                   onSelect={() => onSelect(virtualTableId)}
-                  rightIcon={PLUGIN_MODERATION.getStatusIcon(moderated_status)}
+                  rightIcon={PLUGIN_MODERATION.getStatusIcon(
+                    moderated_status ?? undefined,
+                  )}
                 />
               );
             })}
@@ -95,6 +100,3 @@ const SavedEntityList = ({
     </Box>
   );
 };
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default SavedEntityList;

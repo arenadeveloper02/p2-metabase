@@ -3,21 +3,19 @@
   (:require
    [clojure.string :as str]
    [clojure.test :as t]
+   [metabase-enterprise.remote-sync.source :as source]
    [metabase-enterprise.remote-sync.source.protocol :as source.p]
+   [metabase-enterprise.serialization.v2.ingest :as ingest]
+   [metabase-enterprise.transforms-python.core :as transforms-python]
+   [metabase.test.util.thread-local :as tu.thread-local]
    [metabase.util :as u]
    [toucan2.core :as t2]))
 
 (defn generate-collection-yaml
-  "Generates YAML content for a collection.
-
-  Args:
-    entity-id: The unique identifier for the collection.
-    name: The name of the collection.
-    parent-id: Optional parent collection ID.
-
-  Returns:
-    A string containing the YAML representation of the collection."
-  [entity-id name & {:keys [parent-id]}]
+  "Generate YAML content for a collection with the given `entity-id` and `name`.
+  Optionally accepts `:parent-id` for nested collections and `:namespace` for
+  namespace collections (e.g., \"transforms\" or \"snippets\")."
+  [entity-id name & {:keys [parent-id namespace]}]
   (format "name: %s
 description: null
 entity_id: %s
@@ -27,7 +25,7 @@ archived: false
 type: null
 parent_id: %s
 personal_owner_id: null
-namespace: null
+namespace: %s
 authority_level: null
 serdes/meta:
 - id: %s
@@ -38,23 +36,13 @@ archived_directly: null
 is_sample: false
 "
           name entity-id (str/replace (u/lower-case-en name) #"\s+" "_")
-          (or parent-id "null") entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
+          (or parent-id "null") (or namespace "null") entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
 
 (defn generate-v57-collection-yaml
-  "Generates YAML content for a collection in v57 format.
-
-  In v57, remote-synced collections used `type: remote-synced` instead of
-  `is_remote_synced: true`. This helper is used to test backward compatibility
-  when importing exports from v57 Metabase instances.
-
-  Args:
-    entity-id: The unique identifier for the collection.
-    name: The name of the collection.
-    parent-id: Optional parent collection ID.
-    type: Optional type value (e.g., \"remote-synced\" for v57 remote-synced collections).
-
-  Returns:
-    A string containing the v57-format YAML representation of the collection."
+  "Generate YAML content for a collection in v57 format. In v57, remote-synced collections
+  used `type: remote-synced` instead of `is_remote_synced: true`. Used to test backward
+  compatibility when importing exports from v57 Metabase instances. Optionally accepts
+  `:parent-id` and `:type` (e.g., `\"remote-synced\"`)."
   [entity-id name & {:keys [parent-id type]}]
   (format "name: %s
 description: null
@@ -79,16 +67,9 @@ is_sample: false
           (or type "null") (or parent-id "null") entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
 
 (defn generate-card-yaml
-  "Generates YAML content for a card.
-
-  Args:
-    entity-id: The unique identifier for the card.
-    name: The name of the card.
-    collection-id: The ID of the collection containing this card.
-
-  Returns:
-    A string containing the YAML representation of the card."
-  [entity-id name collection-id]
+  "Generate YAML content for a card with the given `entity-id`, `name`, and `collection-id`.
+  Optionally accepts a `type` (defaults to `\"question\"`)."
+  [entity-id name collection-id & [type]]
   (format "name: %s
 description: null
 entity_id: %s
@@ -119,24 +100,15 @@ serdes/meta:
   model: Card
 archived_directly: false
 dashboard_id: null
-metabase_version: v1.54.4-SNAPSHOT (c6780bb)
 source_card_id: null
-type: question
+type: %s
 document_id: null
 "
-          name entity-id collection-id entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
+          name entity-id collection-id entity-id (str/replace (u/lower-case-en name) #"\s+" "_") (or type "question")))
 
 (defn generate-dashboard-yaml
-  "Generates YAML content for a dashboard.
-
-  Args:
-    entity-id: The unique identifier for the dashboard.
-    name: The name of the dashboard.
-    collection-id: The ID of the collection containing this dashboard.
-    dashcards: Optional collection of dashboard cards to include.
-
-  Returns:
-    A string containing the YAML representation of the dashboard."
+  "Generate YAML content for a dashboard with the given `entity-id`, `name`, and `collection-id`.
+  Optionally accepts `:dashcards` to include dashboard cards."
   [entity-id name collection-id & {:keys [dashcards]}]
   (let [dashcards-yaml (if dashcards
                          (str/join "\n" (map (fn [dc]
@@ -193,7 +165,13 @@ width: fixed
 "
             name entity-id collection-id entity-id (str/replace (u/lower-case-en name) #"\s+" "_") dashcards-yaml)))
 
-(defrecord MockSourceSnapshot [source-id base-url branch fail-mode files-atom]
+(defn- top-level-dir
+  "Extracts the first path segment from a file path."
+  [path]
+  (when-let [idx (str/index-of path "/")]
+    (subs path 0 idx)))
+
+(defrecord MockSourceSnapshot [source-id base-url branch fail-mode files-atom managed-dirs]
   source.p/SourceSnapshot
   (list-files [_this]
     (case fail-mode
@@ -205,6 +183,10 @@ width: fixed
       ;; Default success case - return files from atom
       (keys (get @files-atom branch {}))))
 
+  ;; Derived from `list-files` (which propagates this mock's failure modes), as the non-git snapshots do.
+  (list-dir [this path]
+    (source/paths->children (source.p/list-files this) path))
+
   (read-file [_this path]
     (case fail-mode
       :read-file-error (throw (Exception. "Failed to read file"))
@@ -212,36 +194,47 @@ width: fixed
       :auth-error (throw (Exception. "Authentication failed"))
       :repo-not-found (throw (Exception. "Repository not found"))
       :branch-error (throw (Exception. "Invalid branch specified"))
-      ;; Default success case - return file content from atom
-      (get-in @files-atom [branch path] "")))
+      ;; Default success case - return file content from atom, or nil if absent (matches the real
+      ;; git read-file contract).
+      (get-in @files-atom [branch path])))
 
-  (write-files! [_this _message files]
-    (case fail-mode
-      :write-files-error (throw (Exception. "Failed to write files"))
-      :store-error (throw (Exception. "Store failed"))
-      :network-error (throw (java.net.UnknownHostException. "Remote host not found"))
-      ;; Default success case - handle both writes and removals
-      (let [write-entries (remove #(or (:remove? %) (str/blank? (:path %))) files)
-            removal-prefixes (into #{} (comp (filter :remove?)
-                                             (map :path)
-                                             (remove str/blank?))
+  (open-commit [_this]
+    (let [upserts      (atom [])
+          deletes      (atom #{})
+          replace-all? (atom false)
+          apply-staged (fn [current]
+                         (let [managed (if @replace-all? (set managed-dirs) #{})]
+                           (as-> (or current {}) files
+                             (into {} (remove (fn [[p _]] (or (managed (top-level-dir p))
+                                                              (contains? @deletes p))))
                                    files)
-            current-files (get @files-atom branch {})
-            ;; Remove files matching removal prefixes
-            after-removals (into {}
-                                 (remove (fn [[path _]]
-                                           (some #(or (= path %) (str/starts-with? path %))
-                                                 removal-prefixes))
-                                         current-files))
-            ;; Add new files
-            final-files (into after-removals (map (juxt :path :content) write-entries))]
-        (swap! files-atom assoc branch final-files)))
-    "write-files-version")
+                             (into files (comp (remove #(str/blank? (:path %))) (map (juxt :path :content)))
+                                   @upserts))))]
+      (reify source.p/CommitBuilder
+        (stage-upsert! [_ file-spec] (swap! upserts conj file-spec) nil)
+        (stage-delete! [_ path] (swap! deletes conj path) nil)
+        (replace-all! [_] (reset! replace-all? true) nil)
+        (empty-commit? [_]
+          (let [current (get @files-atom branch)]
+            (= current (apply-staged current))))
+        (finish-commit! [this _message]
+          (source.p/finish-commit! this _message nil))
+        (finish-commit! [_ _message report-progress]
+          (case fail-mode
+            :write-files-error   (throw (Exception. "Failed to write files"))
+            :store-error         (throw (Exception. "Store failed"))
+            :apply-changes-error (throw (Exception. "Failed to apply changes"))
+            :network-error       (throw (java.net.UnknownHostException. "Remote host not found"))
+            (swap! files-atom update branch apply-staged))
+          (when report-progress (report-progress 0.8))
+          ;; version string discriminates a wholesale replace (replace-all!) from an incremental patch
+          (if @replace-all? "write-files-version" "apply-changes-version"))
+        (abort-commit! [_] nil))))
 
   (version [_this]
     "mock-version"))
 
-(defrecord MockSource [source-id base-url branch fail-mode files-atom branches-atom]
+(defrecord MockSource [source-id base-url branch fail-mode files-atom branches-atom managed-dirs]
   source.p/Source
   (create-branch [_this branch _base]
     (swap! branches-atom conj [branch (str branch "-ref")]))
@@ -258,14 +251,20 @@ width: fixed
     "main")
 
   (snapshot [_this]
-    (->MockSourceSnapshot source-id base-url branch fail-mode files-atom)))
+    (->MockSourceSnapshot source-id base-url branch fail-mode files-atom managed-dirs))
+
+  (snapshot-at [_this _version]
+    ;; The mock is version-agnostic (always reports "mock-version"), so any historical snapshot is just
+    ;; the current view of the files.
+    (->MockSourceSnapshot source-id base-url branch fail-mode files-atom managed-dirs)))
 
 (defn create-mock-source
-  "Create a mock Source for testing"
-  [& {:keys [branch fail-mode initial-files]
+  "Create a mock Source for testing. Optionally accepts `:branch`, `:fail-mode`, `:initial-files`, and `:managed-dirs`."
+  [& {:keys [branch fail-mode initial-files managed-dirs]
       :or {branch "main"
            fail-mode nil
-           initial-files nil}}]
+           initial-files nil
+           managed-dirs ingest/legal-top-level-paths}}]
   (let [default-files {"main" {"collections/M-Q4pcV0qkiyJ0kiSWECl_some_collection/M-Q4pcV0qkiyJ0kiSWECl_some_collection.yaml"
                                (generate-collection-yaml "M-Q4pcV0qkiyJ0kiSWECl" "Some Collection")
 
@@ -284,10 +283,79 @@ width: fixed
 
         files-atom (atom (or initial-files default-files))
         branches-atom (atom #{["main" "main-ref"] ["develop" "develop-ref"]})]
-    (->MockSource "test-source" "https://test.example.com" branch fail-mode files-atom branches-atom)))
+    (->MockSource "test-source" "https://test.example.com" branch fail-mode files-atom branches-atom managed-dirs)))
+
+(defn versioned-source
+  "A fake Source for exercising the `async-import!`/`async-export!` base-snapshot resolution end-to-end.
+
+  Unlike [[create-mock-source]] (which always reports \"mock-version\"), this lets a test control
+  versions: `:current` is the version `snapshot` reports, and `:trees` maps version -> {path content}.
+  `snapshot-at` returns a snapshot for a version present in `trees`, or nil for an unknown version (to
+  model a base orphaned by a force-push/rebase). Committing (via `open-commit`) records the written set
+  under a fresh version, advances `:current`, and returns the new version so an export can fast-forward onto it."
+  [& {:keys [current trees branch managed-dirs]
+      :or   {current "v-remote" branch "main" managed-dirs ingest/legal-top-level-paths}}]
+  (let [managed     (set managed-dirs)
+        state       (atom {:current current :trees (or trees {}) :counter 0})
+        diff-trees  (fn [old-tree new-tree]
+                      (let [oks (set (keys old-tree)) nks (set (keys new-tree))]
+                        {:added    (into #{} (remove oks) nks)
+                         :deleted  (into #{} (remove nks) oks)
+                         :modified (into #{} (filter #(and (contains? old-tree %) (not= (old-tree %) (new-tree %)))) nks)}))
+        mk-snapshot (fn mk-snapshot [version]
+                      (reify
+                        source.p/Diffable
+                        ;; In-memory mirror of git's tree diff: nil when the base version is unknown (models
+                        ;; a base orphaned by force-push), so the importer falls back to a full import.
+                        (changed-files* [_ from-version]
+                          (let [trees (:trees @state)]
+                            (when (and (contains? trees from-version) (contains? trees version))
+                              (diff-trees (get trees from-version) (get trees version)))))
+
+                        source.p/SourceSnapshot
+                        (list-files [_] (vec (keys (get-in @state [:trees version] {}))))
+                        (list-dir [_ path]
+                          (source/paths->children (keys (get-in @state [:trees version] {})) path))
+                        (read-file [_ path] (get-in @state [:trees version path]))
+                        (open-commit [_]
+                          (let [staged-upserts (atom [])
+                                staged-deletes (atom #{})
+                                replace-all?   (atom false)
+                                staged-tree    (fn []
+                                                 (let [replace-dirs (if @replace-all? managed #{})] ; `managed` = (set managed-dirs)
+                                                   (as-> (get-in @state [:trees version] {}) t
+                                                     (into {} (remove (fn [[p _]] (or (replace-dirs (top-level-dir p))
+                                                                                      (contains? @staged-deletes p)))) t)
+                                                     (into t (comp (remove #(str/blank? (:path %)))
+                                                                   (map (juxt :path :content)))
+                                                           @staged-upserts))))]
+                            (reify source.p/CommitBuilder
+                              (stage-upsert! [_ file-spec] (swap! staged-upserts conj file-spec) nil)
+                              (stage-delete! [_ path] (swap! staged-deletes conj path) nil)
+                              (replace-all! [_] (reset! replace-all? true) nil)
+                              (empty-commit? [_]
+                                (= (get-in @state [:trees version] {}) (staged-tree)))
+                              (finish-commit! [this _message]
+                                (source.p/finish-commit! this _message nil))
+                              (finish-commit! [_ _message report-progress]
+                                (let [n           (:counter (swap! state update :counter inc))
+                                      new-version (str "written-" n)
+                                      tree        (staged-tree)]
+                                  (swap! state #(-> % (assoc-in [:trees new-version] tree) (assoc :current new-version)))
+                                  (when report-progress (report-progress 0.8))
+                                  new-version))
+                              (abort-commit! [_] nil))))
+                        (version [_] version)))]
+    (reify source.p/Source
+      (branches [_] [branch])
+      (create-branch [_ _ _] nil)
+      (default-branch [_] branch)
+      (snapshot [_] (mk-snapshot (:current @state)))
+      (snapshot-at [_ v] (when (contains? (:trees @state) v) (mk-snapshot v))))))
 
 (defn clean-object
-  "Reset the object table before running tests to prevent existing extries from affecting dirty state checks"
+  "Test fixture that resets the RemoteSyncObject table before running tests to prevent existing
+  entries from affecting dirty state checks."
   [f]
   (let [old-models (t2/select :model/RemoteSyncObject)]
     (try
@@ -299,12 +367,12 @@ width: fixed
           (t2/insert! :model/RemoteSyncObject old-models))))))
 
 (defmacro with-clean-object
-  "Macro to wrap a body to execute in a clean change log table"
+  "Execute `body` with a clean RemoteSyncObject table."
   [& body]
   `(clean-object (fn [] ~@body)))
 
 (defn clean-task-table
-  "Reset the task table to an empty state before running tests."
+  "Test fixture that resets the RemoteSyncTask table to an empty state before running tests."
   [f]
   (let [old-models (t2/select :model/RemoteSyncTask)]
     (try
@@ -315,6 +383,415 @@ width: fixed
         (when (seq old-models)
           (t2/insert! :model/RemoteSyncTask old-models))))))
 
+(def ^:private builtin-python-library
+  "The built-in PythonLibrary created by migration. Recreated by fixture after cleanup."
+  {:path "common.py" :source "" :entity_id transforms-python/builtin-entity-id})
+
+(defn- ensure-builtin-python-library!
+  "Ensures the built-in common.py PythonLibrary exists, creating it if missing."
+  []
+  (when-not (t2/exists? :model/PythonLibrary :path (:path builtin-python-library))
+    (t2/insert! :model/PythonLibrary builtin-python-library)))
+
+(defn clean-optional-feature-models
+  "Test fixture that cleans Transform, TransformTag, PythonLibrary, and namespace collection
+  tables to prevent conflict detection during first-import tests. Preserves built-in TransformTags
+  and recreates the built-in common.py PythonLibrary after cleanup."
+  [f]
+  (let [old-transforms (t2/select :model/Transform)
+        old-tags (t2/select :model/TransformTag :built_in_type nil)
+        old-libs (t2/select :model/PythonLibrary)
+        old-ns-colls (t2/select :model/Collection :namespace [:in ["transforms" "snippets"]])]
+    (try
+      (t2/delete! :model/TransformTag :built_in_type nil)
+      (t2/delete! :model/Transform)
+      (t2/delete! :model/PythonLibrary)
+      (t2/delete! :model/Collection :namespace [:in ["transforms" "snippets"]])
+      (f)
+      (finally
+        (t2/delete! :model/TransformTag :built_in_type nil)
+        (t2/delete! :model/Transform)
+        (t2/delete! :model/PythonLibrary)
+        (t2/delete! :model/Collection :namespace [:in ["transforms" "snippets"]])
+        (when (seq old-transforms) (t2/insert! :model/Transform old-transforms))
+        (when (seq old-tags) (t2/insert! :model/TransformTag old-tags))
+        (when (seq old-libs) (t2/insert! :model/PythonLibrary old-libs))
+        (when (seq old-ns-colls) (t2/insert! :model/Collection old-ns-colls))
+        (ensure-builtin-python-library!)))))
+
 (def clean-remote-sync-state
-  "Fixture to make sure sync state is clean"
-  (t/compose-fixtures clean-object clean-task-table))
+  "Composed test fixture that ensures RemoteSyncObject, RemoteSyncTask, and optional feature
+  model tables (Transform, TransformTag, PythonLibrary) are clean."
+  (t/compose-fixtures clean-object (t/compose-fixtures clean-task-table clean-optional-feature-models)))
+
+(defn commit-with-temp
+  "Test fixture (`:each`) that makes `with-temp` COMMIT its rows instead of wrapping the test body in a
+  `:rollback-only` transaction (by binding `*thread-local*` false).
+
+  Required by remote-sync tests that call `import!`: the import reports progress on a separate pool
+  connection (`wrap-progress-ingestable`), and on MySQL that connection blocks on the uncommitted
+  `RemoteSyncTask` row for the full 50s `innodb_lock_wait_timeout` — once per ingested entity — turning
+  each such test into minutes (and timing out the EE MySQL app-db job). Committing the temp rows avoids
+  the cross-connection lock wait. Safe because these tests are non-parallel and clean up via other
+  fixtures. No effect on H2 (same-connection/MVCC). Compose after `clean-remote-sync-state`."
+  [thunk]
+  (binding [tu.thread-local/*thread-local* false]
+    (thunk)))
+
+(defn generate-table-yaml
+  "Generate YAML content for a table with the given `table-name` and `db-name`.
+  Optionally accepts `:schema`, `:is-published` (defaults to true), and `:description`."
+  [table-name db-name & {:keys [schema is-published description]
+                         :or {is-published true
+                              description nil}}]
+  (format "name: %s
+description: %s
+entity_type: entity/GenericTable
+active: true
+display_name: %s
+visibility_type: null
+schema: %s
+points_of_interest: null
+caveats: null
+show_in_getting_started: false
+field_order: database
+initial_sync_status: complete
+is_upload: false
+database_require_filter: false
+is_defective_duplicate: false
+is_writable: false
+data_authority: unconfigured
+data_source: null
+owner_email: null
+owner_user_id: null
+is_published: %s
+created_at: '2024-08-28T09:46:18.671622Z'
+archived_at: null
+deactivated_at: null
+data_layer: null
+db_id: %s
+collection_id: null
+serdes/meta:
+- id: %s
+  model: Database
+%s- id: %s
+  model: Table
+"
+          table-name
+          (or description "null")
+          (str/replace (u/upper-case-en table-name) #"_" " ")
+          (or schema "null")
+          is-published
+          db-name
+          db-name
+          (if schema (format "- id: %s\n  model: Schema\n" schema) "")
+          table-name))
+
+(defn generate-field-yaml
+  "Generate YAML content for a field with the given `field-name`, `table-name`, and `db-name`.
+  Optionally accepts `:schema`, `:base-type`, `:description`, and `:database-type`."
+  [field-name table-name db-name & {:keys [schema base-type description database-type]
+                                    :or {base-type "type/Text"
+                                         database-type "VARCHAR"
+                                         description nil}}]
+  (format "name: %s
+display_name: %s
+description: %s
+created_at: '2024-08-28T09:46:18.671622Z'
+active: true
+visibility_type: normal
+table_id:
+- %s
+- %s
+- %s
+database_type: %s
+base_type: %s
+effective_type: null
+semantic_type: null
+database_is_auto_increment: false
+database_required: false
+fk_target_field_id: null
+dimensions: []
+json_unfolding: false
+parent_id: null
+coercion_strategy: null
+preview_display: true
+position: 1
+custom_position: 0
+database_position: 0
+has_field_values: null
+settings: null
+caveats: null
+points_of_interest: null
+nfc_path: null
+serdes/meta:
+- id: %s
+  model: Database
+%s- id: %s
+  model: Table
+- id: %s
+  model: Field
+database_default: null
+database_indexed: null
+database_is_generated: null
+database_is_nullable: null
+database_is_pk: null
+database_partitioned: null
+"
+          field-name
+          (str/replace (u/upper-case-en field-name) #"_" " ")
+          (or description "null")
+          db-name
+          (or schema "null")
+          table-name
+          database-type
+          base-type
+          db-name
+          (if schema (format "- id: %s\n  model: Schema\n" schema) "")
+          table-name
+          field-name))
+
+(defn generate-segment-yaml
+  "Generate YAML content for a segment with the given `segment-name`, `table-name`, and `db-name`.
+  Optionally accepts `:schema`, `:description`, `:entity-id`, and `:filter-field-name`."
+  [segment-name table-name db-name & {:keys [schema description entity-id filter-field-name]
+                                      :or {description "Test segment"
+                                           filter-field-name "Some Field"}}]
+  (let [eid (or entity-id segment-name)]
+    (format "archived: false
+caveats: null
+created_at: '2024-08-28T09:46:18.671622Z'
+creator_id: rasta@metabase.com
+definition:
+  database: %s
+  query:
+    filter:
+    - <
+    - - field
+      - - %s
+        - %s
+        - %s
+        - %s
+      - null
+    - 18
+    source-table:
+    - %s
+    - %s
+    - %s
+  type: query
+description: %s
+entity_id: %s
+name: %s
+points_of_interest: null
+show_in_getting_started: false
+table_id:
+- %s
+- %s
+- %s
+serdes/meta:
+- id: %s
+  label: %s
+  model: Segment
+"
+            db-name
+            db-name
+            (or schema "null")
+            table-name
+            filter-field-name
+            db-name
+            (or schema "null")
+            table-name
+            description
+            eid
+            segment-name
+            db-name
+            (or schema "null")
+            table-name
+            eid
+            (str/replace (u/lower-case-en segment-name) #"\s+" "_"))))
+
+(defn generate-action-yaml
+  "Generate YAML content for an action with the given `entity-id`, `name`, and `model-id`.
+  Optionally accepts `:type` (defaults to `\"implicit\"`) and `:kind` (defaults to `\"row/create\"`)."
+  [entity-id name model-id & {:keys [type kind]
+                              :or {type "implicit"
+                                   kind "row/create"}}]
+  (format "name: %s
+description: null
+entity_id: %s
+created_at: '2024-08-28T09:46:24.692002Z'
+creator_id: rasta@metabase.com
+archived: false
+model_id: %s
+type: %s
+parameters: []
+parameter_mappings: []
+visualization_settings:
+  column_settings: null
+public_uuid: null
+made_public_by_id: null
+%s
+serdes/meta:
+- id: %s
+  label: %s
+  model: Action
+"
+          name
+          entity-id
+          model-id
+          type
+          (if (= type "implicit")
+            (format "implicit:\n- kind: %s\n" kind)
+            "")
+          entity-id
+          (str/replace (u/lower-case-en name) #"\s+" "_")))
+
+(defn generate-python-transform-yaml
+  "Generate YAML content for a python transform with old map-format source-tables.
+  Used to test backward compatibility when importing legacy format data.
+  `source-tables-yaml` should be a YAML string representing the source-tables map,
+  e.g. \"{orders: 123, products: 456}\"."
+  [entity-id name db-name source-tables-yaml & {:keys [collection-id]}]
+  (format "name: %s
+description: null
+entity_id: %s
+collection_id: %s
+created_at: '2024-08-28T09:46:18.671622Z'
+creator_id: rasta@metabase.com
+source_database_id: %s
+source:
+  type: python
+  body: 'import pandas as pd'
+  source-tables: %s
+target:
+  type: table
+  database: %s
+  name: test_output
+  schema: PUBLIC
+serdes/meta:
+- id: %s
+  label: %s
+  model: Transform
+"
+          name entity-id (or collection-id "null") db-name source-tables-yaml db-name
+          entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
+
+(defn generate-transform-yaml
+  "Generate YAML content for a transform with the given `entity-id` and `name`.
+  Optionally accepts `:collection-id` for transforms inside a collection."
+  [entity-id name & {:keys [collection-id]}]
+  (format "name: %s
+description: null
+entity_id: %s
+collection_id: %s
+created_at: '2024-08-28T09:46:18.671622Z'
+creator_id: rasta@metabase.com
+source_database_id: test-data (h2)
+source:
+  type: query
+  query:
+    database: test-data (h2)
+    type: query
+    query:
+      source-table:
+      - test-data (h2)
+      - PUBLIC
+      - VENUES
+target:
+  type: table
+  name: test_output
+  schema: PUBLIC
+serdes/meta:
+- id: %s
+  label: %s
+  model: Transform
+"
+          name entity-id (or collection-id "null") entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
+
+(defn generate-measure-yaml
+  "Generate YAML content for a measure with the given `measure-name`, `table-name`, and `db-name`.
+  Optionally accepts `:schema`, `:description`, `:entity-id`, and `:agg-field-name`."
+  [measure-name table-name db-name & {:keys [schema description entity-id agg-field-name]
+                                      :or {description "Test measure"
+                                           agg-field-name "Some Field"}}]
+  (let [eid (or entity-id measure-name)]
+    (format "archived: false
+created_at: '2024-08-28T09:46:18.671622Z'
+creator_id: rasta@metabase.com
+definition:
+  database: %s
+  query:
+    aggregation:
+    - - sum
+      - - field
+        - - %s
+          - %s
+          - %s
+          - %s
+        - null
+    source-table:
+    - %s
+    - %s
+    - %s
+  type: query
+description: %s
+entity_id: %s
+name: %s
+table_id:
+- %s
+- %s
+- %s
+serdes/meta:
+- id: %s
+  label: %s
+  model: Measure
+"
+            db-name
+            db-name
+            (or schema "null")
+            table-name
+            agg-field-name
+            db-name
+            (or schema "null")
+            table-name
+            description
+            eid
+            measure-name
+            db-name
+            (or schema "null")
+            table-name
+            eid
+            (str/replace (u/lower-case-en measure-name) #"\s+" "_"))))
+
+(defn generate-snippet-yaml
+  "Generates YAML content for a NativeQuerySnippet."
+  [entity-id name content & {:keys [collection-id]}]
+  (format "name: %s
+description: null
+entity_id: %s
+content: '%s'
+archived: false
+template_tags: null
+created_at: '2024-08-28T09:46:18.671622Z'
+creator_id: rasta@metabase.com
+collection_id: %s
+serdes/meta:
+- id: %s
+  label: %s
+  model: NativeQuerySnippet
+"
+          name entity-id content (or collection-id "null")
+          entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))
+
+(defn generate-transform-tag-yaml
+  "Generates YAML content for a TransformTag with the given `entity-id` and `name`."
+  [entity-id name]
+  (format "created_at: '2024-08-28T09:46:18.671622Z'
+entity_id: %s
+name: %s
+serdes/meta:
+- id: %s
+  label: %s
+  model: TransformTag
+"
+          entity-id name entity-id (str/replace (u/lower-case-en name) #"\s+" "_")))

@@ -12,7 +12,7 @@ describe("scenarios > reference > databases", () => {
 
   it("should see the listing", () => {
     cy.visit("/reference/databases");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Sample Database");
   });
 
@@ -30,9 +30,9 @@ describe("scenarios > reference > databases", () => {
     cy.button(/Edit/).trigger("click");
     // Q - is there any cleaner way to get a nearby element without having to know the DOM?
     cy.findByPlaceholderText("No description yet").type("A pretty ok store");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Save").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("A pretty ok store");
   });
 
@@ -45,9 +45,9 @@ describe("scenarios > reference > databases", () => {
     cy.findByPlaceholderText("Nothing interesting yet").type(
       "Turns out it's not",
     );
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Cancel").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Turns out").should("have.length", 0);
   });
 
@@ -60,9 +60,9 @@ describe("scenarios > reference > databases", () => {
     cy.findByPlaceholderText("Sample Database")
       .clear()
       .type("My definitely profitable business");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Save").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("My definitely profitable business");
   });
 
@@ -72,18 +72,6 @@ describe("scenarios > reference > databases", () => {
         cy.addSQLiteDatabase({ name });
       });
     });
-
-    it(
-      "should sort data reference database list (metabase#15598)",
-      { tags: "@skip" },
-      () => {
-        cy.visit("/browse");
-        checkReferenceDatabasesOrder();
-
-        cy.visit("/reference/databases/");
-        checkReferenceDatabasesOrder();
-      },
-    );
 
     it("should sort databases in new UI based question data selection popover", () => {
       H.startNewQuestion();
@@ -99,14 +87,6 @@ describe("scenarios > reference > databases", () => {
         });
       });
     });
-
-    it(
-      "should sort databases in new native question data selection popover",
-      { tags: "@skip" },
-      () => {
-        checkQuestionSourceDatabasesOrder("Native query");
-      },
-    );
   });
 
   describe("x-ray", () => {
@@ -155,25 +135,3 @@ describe("scenarios > reference > databases", () => {
     });
   });
 });
-
-function checkReferenceDatabasesOrder() {
-  cy.get("[class*=Card]").as("databaseCard").first().should("have.text", "a");
-  // eslint-disable-next-line no-unsafe-element-filtering
-  cy.get("@databaseCard").last().should("have.text", "Sample Database");
-}
-
-function checkQuestionSourceDatabasesOrder() {
-  // Last item is "Saved Questions" for UI based questions so we have to check for the one before that (-2), and the last one for "Native" (-1)
-  const lastDatabaseIndex = -1;
-  const selector = "[data-element-id=list-item]-title";
-
-  H.startNewQuestion();
-  H.popover().within(() => {
-    cy.findByText("Raw Data").click();
-    cy.get(selector).as("databaseName").eq(1).should("have.text", "a");
-    // eslint-disable-next-line no-unsafe-element-filtering
-    cy.get("@databaseName")
-      .eq(lastDatabaseIndex)
-      .should("have.text", "Sample Database");
-  });
-}

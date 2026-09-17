@@ -16,6 +16,19 @@ describe("tableThemeToDataGridTheme", () => {
     },
   };
 
+  it("defaults stickyBackgroundColor when the table theme omits it", () => {
+    const themeWithoutSticky = {
+      ...mockTableTheme,
+      stickyBackgroundColor: undefined,
+    };
+
+    const result = tableThemeToDataGridTheme(themeWithoutSticky);
+
+    expect(result.stickyBackgroundColor).toBe(
+      "var(--mb-color-background_page-secondary)",
+    );
+  });
+
   it("converts table theme to data grid theme", () => {
     const result = tableThemeToDataGridTheme(mockTableTheme);
 
@@ -41,7 +54,9 @@ describe("tableThemeToDataGridTheme", () => {
 
     const result = tableThemeToDataGridTheme(themeWithoutCellBg);
 
-    expect(result.cell?.backgroundColor).toBe("var(--mb-color-background)");
+    expect(result.cell?.backgroundColor).toBe(
+      "var(--mb-color-background_page-primary)",
+    );
   });
 
   it("prefers cell.backgroundColor over provided backgroundColor", () => {
@@ -62,5 +77,22 @@ describe("tableThemeToDataGridTheme", () => {
       backgroundColor: undefined,
       textColor: undefined,
     });
+  });
+
+  it("resolves em fontSize to px when baseFontSize is provided", () => {
+    const themeWithEmFontSize = {
+      ...mockTableTheme,
+      cell: { ...mockTableTheme.cell, fontSize: "0.893em" },
+    };
+
+    const result = tableThemeToDataGridTheme(themeWithEmFontSize, "14px");
+
+    expect(result.fontSize).toBe("12.5px");
+  });
+
+  it("keeps px fontSize unchanged when baseFontSize is provided", () => {
+    const result = tableThemeToDataGridTheme(mockTableTheme, "14px");
+
+    expect(result.fontSize).toBe("14px");
   });
 });

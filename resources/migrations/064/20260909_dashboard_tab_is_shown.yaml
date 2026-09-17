@@ -1,0 +1,28 @@
+## Add is_shown so dashboard tabs can be hidden in view mode without deleting them.
+
+databaseChangeLog:
+  - changeSet:
+      id: v64.dtabsh
+      author: royce.c
+      comment: Add is_shown column to dashboard_tab
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - columnExists:
+                tableName: dashboard_tab
+                columnName: is_shown
+      changes:
+        - addColumn:
+            tableName: dashboard_tab
+            columns:
+              - column:
+                  name: is_shown
+                  type: ${boolean.type}
+                  remarks: Whether a dashboard tab should be shown in view mode
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+      rollback:
+        - dropColumn:
+            tableName: dashboard_tab
+            columnName: is_shown

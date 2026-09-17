@@ -1,14 +1,9 @@
-import type { ResizableBoxProps } from "react-resizable";
-
-import { useSelector } from "metabase/lib/redux";
-import { PLUGIN_METABOT } from "metabase/plugins";
-import NativeQueryEditor from "metabase/query_builder/components/NativeQueryEditor";
-import type {
-  SelectionRange,
-  SidebarFeatures,
-} from "metabase/query_builder/components/NativeQueryEditor/types";
-import type { QueryModalType } from "metabase/query_builder/constants";
+import { useInlineSQLPrompt } from "metabase/metabot/components/MetabotInlineSQLPrompt";
 import { getHighlightedNativeQueryLineNumbers } from "metabase/query_builder/selectors";
+import { NativeQueryEditor } from "metabase/querying/components/NativeQueryEditor";
+import type { QueryModalType } from "metabase/querying/constants";
+import type { SelectionRange } from "metabase/querying/editor/types";
+import { useSelector } from "metabase/redux";
 import { Box } from "metabase/ui";
 import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
@@ -32,7 +27,6 @@ interface ViewNativeQueryEditorProps {
 
   nativeEditorSelectedText?: string;
   modalSnippet?: NativeQuerySnippet;
-  viewHeight: number;
   highlightedLineNumbers?: number[];
 
   isInitiallyOpen?: boolean;
@@ -47,12 +41,7 @@ interface ViewNativeQueryEditorProps {
 
   readOnly?: boolean;
   canChangeDatabase?: boolean;
-  hasTopBar?: boolean;
-  hasParametersList?: boolean;
-  hasEditingSidebar?: boolean;
-  sidebarFeatures?: SidebarFeatures;
   resizable?: boolean;
-  resizableBoxProps?: Partial<Omit<ResizableBoxProps, "axis">>;
 
   editorContext?: "question";
 
@@ -77,17 +66,18 @@ interface ViewNativeQueryEditorProps {
   cancelQuery?: () => void;
   closeSnippetModal: () => void;
   onSetDatabaseId?: (id: DatabaseId) => void;
+  availableHeight?: number;
 }
 
 export const ViewNativeQueryEditor = (props: ViewNativeQueryEditorProps) => {
-  const { question, height, isNativeEditorOpen, card, onSetDatabaseId } = props;
+  const { question, isNativeEditorOpen, onSetDatabaseId } = props;
 
   const legacyNativeQuery = question.legacyNativeQuery();
   const highlightedLineNumbers = useSelector(
     getHighlightedNativeQueryLineNumbers,
   );
 
-  const inlineSQLPrompt = PLUGIN_METABOT.useInlineSQLPrompt(question, "qb");
+  const inlineSQLPrompt = useInlineSQLPrompt(question, "qb");
 
   // Normally, when users open native models,
   // they open an ad-hoc GUI question using the model as a data source
@@ -97,7 +87,7 @@ export const ViewNativeQueryEditor = (props: ViewNativeQueryEditorProps) => {
   // This check makes it hide the editor in this particular case
   // More details: https://github.com/metabase/metabase/pull/20161
   const { isEditable } = Lib.queryDisplayInfo(question.query());
-  if (question.type() === "model" && !isEditable) {
+  if ((question.type() === "model" && !isEditable) || !legacyNativeQuery) {
     return null;
   }
 
@@ -106,16 +96,23 @@ export const ViewNativeQueryEditor = (props: ViewNativeQueryEditorProps) => {
       <NativeQueryEditor
         {...props}
         query={legacyNativeQuery}
-        viewHeight={height}
         highlightedLineNumbers={highlightedLineNumbers}
         isInitiallyOpen={isNativeEditorOpen}
-        datasetQuery={card && card.dataset_query}
         onSetDatabaseId={onSetDatabaseId}
         extensions={inlineSQLPrompt?.extensions}
         proposedQuestion={inlineSQLPrompt?.proposedQuestion}
         onAcceptProposed={inlineSQLPrompt?.handleAcceptProposed}
         onRejectProposed={inlineSQLPrompt?.handleRejectProposed}
-      />
+        isPromptInputOpen={inlineSQLPrompt?.isPromptOpen}
+        onTogglePromptInput={inlineSQLPrompt?.togglePrompt}
+      >
+        <NativeQueryEditor.TopBar>
+          <NativeQueryEditor.ParametersList />
+          <NativeQueryEditor.Sidebar />
+          <NativeQueryEditor.VisibilityToggler />
+        </NativeQueryEditor.TopBar>
+        <NativeQueryEditor.RunButton />
+      </NativeQueryEditor>
       {inlineSQLPrompt?.portalElement}
     </Box>
   );

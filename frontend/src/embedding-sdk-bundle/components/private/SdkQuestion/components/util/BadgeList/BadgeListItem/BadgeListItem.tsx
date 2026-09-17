@@ -18,7 +18,7 @@ const _BadgeListItem = (
 ) => (
   <Badge
     ref={ref}
-    size="lg"
+    size="sm"
     tt="capitalize"
     variant="light"
     classNames={{
@@ -27,6 +27,7 @@ const _BadgeListItem = (
     }}
     pr={0}
     pl="sm"
+    color="brand"
     rightSection={
       <ActionIcon
         radius="xl"
@@ -39,7 +40,7 @@ const _BadgeListItem = (
         className={S.BadgeListRemoveButton}
         data-testid="badge-remove-button"
       >
-        <Icon name="close" c="var(--mb-color-text-brand)" size={10} />
+        <Icon name="close" c="text-brand" size={10} />
       </ActionIcon>
     }
     {...rest}

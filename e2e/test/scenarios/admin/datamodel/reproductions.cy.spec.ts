@@ -34,7 +34,7 @@ describe("issue 17768", () => {
     H.openReviewsTable({ mode: "notebook" });
 
     H.summarize({ mode: "notebook" });
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Pick a column to group by").click();
 
     H.popover().within(() => {
@@ -133,8 +133,7 @@ describe("issue 15542", () => {
 
   function openOrdersProductIdSettings() {
     // Navigate without reloading the page
-    H.appBar().icon("gear").click();
-    H.popover().findByText("Admin settings").click();
+    H.goToAdmin();
 
     H.appBar().findByText("Table Metadata").click();
     H.DataModel.TablePicker.getTable("Orders").click();
@@ -161,7 +160,7 @@ describe("issue 15542", () => {
 
     cy.wait("@fieldDimensionUpdate");
 
-    cy.findByRole("link", { name: "Exit admin" }).click();
+    H.goToMainApp();
     openOrdersTable();
 
     H.tableHeaderClick("Product ID");
@@ -177,7 +176,7 @@ describe("issue 15542", () => {
     H.DataModel.FieldSection.getDisplayValuesInput().click();
     H.popover().findByText("Use original value").click();
 
-    cy.findByRole("link", { name: "Exit admin" }).click();
+    H.goToMainApp();
     openOrdersTable();
 
     H.tableHeaderClick("Product ID");
@@ -192,6 +191,8 @@ describe("issue 15542", () => {
 
 describe("issue 52411", { tags: "@external" }, () => {
   beforeEach(() => {
+    cy.intercept("GET", "/api/database/*/schema/*").as("getSchema");
+    cy.intercept("GET", "/api/database").as("getDatabases");
     H.restore("postgres-writable");
     H.resetTestTable({ type: "postgres", table: "multi_schema" });
     cy.signInAsAdmin();
@@ -200,8 +201,10 @@ describe("issue 52411", { tags: "@external" }, () => {
 
   it("should be able to select a table in a database with multiple schemas on segments list page when there are multiple databases and there is a saved question (metabase#52411)", () => {
     cy.visit("/admin/datamodel/segments");
+    cy.wait(["@getDatabases", "@getSchema"]);
     cy.findByTestId("segment-list-table").findByText("Filter by table").click();
     H.popover().within(() => {
+      cy.icon("chevronleft").click(); // go back
       cy.findByText("Writable Postgres12").click();
       cy.findByText("Wild").click();
       cy.findByText("Birds").click();
@@ -244,11 +247,13 @@ describe("issues 55617, 55618", () => {
     cy.intercept("GET", "/api/segment").as("getSegments");
     H.createSegment({
       name: "My segment",
-      table_id: ORDERS_ID,
       definition: {
-        "source-table": ORDERS_ID,
-        aggregation: [["count"]],
-        filter: ["<", ["field", ORDERS.TOTAL, null], 100],
+        database: SAMPLE_DB_ID,
+        type: "query",
+        query: {
+          "source-table": ORDERS_ID,
+          filter: ["<", ["field", ORDERS.TOTAL, null], 100],
+        },
       },
     }).then(({ body: segment }) => {
       cy.wrap(segment.id).as("segmentId");

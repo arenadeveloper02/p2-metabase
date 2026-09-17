@@ -1,9 +1,9 @@
 import cx from "classnames";
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import { match } from "ts-pattern";
 import { t } from "ttag";
 
+import { Link } from "metabase/common/components/Link";
 import type { UtmProps } from "metabase/selectors/settings";
 import {
   Alert,
@@ -97,7 +97,7 @@ export const StepperWithCards = ({ steps }: { steps: StepperStep[] }) => {
                 <Grid>
                   {step.cards.map((card) => {
                     const onClick =
-                      card.clickAction?.type === "click"
+                      card.clickAction?.type === "click" && !card.locked
                         ? card.clickAction.onClick
                         : undefined;
 
@@ -116,9 +116,8 @@ export const StepperWithCards = ({ steps }: { steps: StepperStep[] }) => {
                               [S.lockedStepCard]: card.locked,
                               [S.nextStepCard]: isNextCard,
                             })}
-                            component={onClick ? "button" : undefined}
                             onClick={onClick}
-                            disabled={card.locked}
+                            aria-disabled={card.locked}
                             data-testid={`step-card-${card.id}`}
                             data-next-step={isNextCard}
                           >
@@ -129,18 +128,14 @@ export const StepperWithCards = ({ steps }: { steps: StepperStep[] }) => {
                                   fw="bold"
                                   c={
                                     card.done
-                                      ? "var(--mb-color-text-secondary)"
-                                      : "var(--mb-color-text-primary)"
+                                      ? "text-secondary"
+                                      : "text-primary"
                                   }
                                 >
                                   {card.title}
                                 </Text>
 
-                                <Text
-                                  c="var(--mb-color-text-secondary)"
-                                  size="sm"
-                                  lh="lg"
-                                >
+                                <Text c="text-secondary" size="sm" lh="lg">
                                   {card.description}
                                 </Text>
                               </Stack>
@@ -152,12 +147,12 @@ export const StepperWithCards = ({ steps }: { steps: StepperStep[] }) => {
                                       <Group gap="xs">
                                         <Icon
                                           name="check"
-                                          c="var(--mb-color-success-darker)"
+                                          c="feedback-positive-selected"
                                           size={12}
                                         />
                                         <Text
                                           size="sm"
-                                          c="var(--mb-color-success-darker)"
+                                          c="feedback-positive-selected"
                                         >
                                           {t`Done`}
                                         </Text>
@@ -167,23 +162,17 @@ export const StepperWithCards = ({ steps }: { steps: StepperStep[] }) => {
                                       <Group gap="xs">
                                         <Icon
                                           name="lock"
-                                          c="var(--mb-color-text-secondary)"
+                                          c="text-secondary"
                                           size={12}
                                         />
 
-                                        <Text
-                                          c="var(--mb-color-text-secondary)"
-                                          fz={12}
-                                        >
+                                        <Text c="text-secondary" fz={12}>
                                           {t`Complete the other steps to unlock`}
                                         </Text>
                                       </Group>
                                     ))
                                     .with({ optional: true }, () => (
-                                      <Text
-                                        size="sm"
-                                        c="var(--mb-color-text-secondary)"
-                                      >
+                                      <Text size="sm" c="text-secondary">
                                         {t`Optional`}
                                       </Text>
                                     ))
@@ -248,22 +237,11 @@ const StepAlert = ({
   message: string;
 }) => (
   <Alert
-    icon={
-      <Icon
-        size={14}
-        name={type === "success" ? "check" : "info"}
-        c={type === "success" ? "success" : "text-secondary"}
-      />
-    }
+    size="compact"
+    icon={<Icon name={type === "success" ? "check" : "info"} />}
     mt="xl"
-    bg={type === "success" ? "background-success" : "brand-light"}
-    bd={type === "success" ? "1px solid var(--mb-color-success)" : undefined}
-    lh="lg"
-    classNames={{
-      wrapper: S.infoAlertWrapper,
-      icon: S.infoAlertIcon,
-      message: S.infoAlertMessage,
-    }}
+    color={type === "info" ? "core-brand" : type}
+    classNames={{ message: S.infoAlertMessage }}
   >
     {message}
   </Alert>

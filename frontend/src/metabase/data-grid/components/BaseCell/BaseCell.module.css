@@ -1,13 +1,12 @@
 .root {
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
-  min-height: 100%;
-  height: auto;
+  height: 100%;
   width: 100%;
   cursor: default;
-  border-bottom: 1px solid #c5c6cc;
-  /* border-right: 1px solid #c5c6cc; */
+  border-bottom: 1px solid var(--mb-color-border-neutral);
+  border-right: 1px solid var(--mb-color-border-neutral);
   padding: 0 12px;
   background-color: var(--cell-bg-color);
 }

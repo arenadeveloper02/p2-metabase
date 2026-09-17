@@ -3,6 +3,7 @@ import type {
   Collection,
   CollectionEssentials,
   CollectionItem,
+  LastEditInfo,
 } from "metabase-types/api";
 
 import { createMockEntityId } from "./entity-id";
@@ -47,7 +48,9 @@ export const createMockCollectionItemFromCollection = (
 ): CollectionItem =>
   createMockCollectionItem({
     ...opts,
+    // Unjustified type cast. FIXME
     id: opts?.id as number,
+    // Unjustified type cast. FIXME
     entity_id: opts?.entity_id as BaseEntityId,
     model: "collection",
     type: undefined,
@@ -61,3 +64,44 @@ export const createMockCollectionEssential = (
   name: `Collection ${opts?.id || 1}`,
   ...opts,
 });
+
+export const createMockLibraryCollection = (
+  opts?: Partial<Collection>,
+): Collection =>
+  createMockCollection({
+    id: 1,
+    name: "Library",
+    type: "library",
+    ...opts,
+  });
+
+export const createMockTransformsCollection = (
+  opts?: Partial<Collection>,
+): Collection =>
+  createMockCollection({
+    id: 100,
+    name: "Transforms",
+    namespace: "transforms",
+    ...opts,
+  });
+
+export const createMockLastEditInfo = (
+  opts?: Partial<LastEditInfo>,
+): LastEditInfo => ({
+  id: 1,
+  email: "user@metabase.test",
+  first_name: "Testy",
+  last_name: "Tableton",
+  timestamp: "2024-01-01T00:00:00Z",
+  ...opts,
+});
+
+export const createMockSnippetsCollection = (
+  opts?: Partial<Collection>,
+): Collection =>
+  createMockCollection({
+    id: 101,
+    name: "Snippets",
+    namespace: "snippets",
+    ...opts,
+  });

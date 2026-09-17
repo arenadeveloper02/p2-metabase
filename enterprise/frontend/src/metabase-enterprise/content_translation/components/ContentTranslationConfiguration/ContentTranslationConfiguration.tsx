@@ -13,8 +13,8 @@ import { c, msgid, ngettext, t } from "ttag";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
 import { SettingsSection } from "metabase/admin/components/SettingsSection";
-import ExternalLink from "metabase/common/components/ExternalLink";
-import Markdown from "metabase/common/components/Markdown";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
+import { Markdown } from "metabase/common/components/Markdown";
 import { UploadInput } from "metabase/common/components/upload";
 import { useConfirmation, useDocsUrl, useToast } from "metabase/common/hooks";
 import CS from "metabase/css/core/index.css";
@@ -24,7 +24,6 @@ import {
   FormSubmitButton,
   useFormContext,
 } from "metabase/forms";
-import { openSaveDialog } from "metabase/lib/dom";
 import {
   Button,
   Group,
@@ -35,6 +34,7 @@ import {
   Text,
   Title,
 } from "metabase/ui";
+import { openSaveDialog } from "metabase/utils/dom";
 import { useUploadContentTranslationDictionaryMutation } from "metabase-enterprise/api";
 
 import { contentTranslationEndpoints } from "../../constants";
@@ -53,7 +53,7 @@ const maxContentDictionarySizeInBytes =
   maxContentDictionarySizeInMiB * 1024 * 1024;
 
 export const ContentTranslationConfiguration = () => {
-  // eslint-disable-next-line no-unconditional-metabase-links-render -- This is used in admin settings
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- This is used in admin settings
   const availableLocalesDocsUrl = useDocsUrl(
     "configuring-metabase/localization",
     { anchor: "supported-languages" },
@@ -106,16 +106,20 @@ export const ContentTranslationConfiguration = () => {
         timeout = setTimeout(() => setShowDownloadingIndicator(true), DELAY);
       } else {
         setShowDownloadingIndicator(false);
-        timeout && clearTimeout(timeout);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
       }
       return () => {
-        timeout && clearTimeout(timeout);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
       };
     },
     [isDownloadInProgress],
   );
 
-  // eslint-disable-next-line no-literal-metabase-strings -- This string only shows for admins.
+  // eslint-disable-next-line metabase/no-literal-metabase-strings -- This string only shows for admins.
   const uploadDescription = t`Upload a translation dictionary to translate strings both in Metabase content (like dashboard titles) and in the data itself (like column names and values). The dictionary must be a CSV with these columns: **Locale Code**, **String**, **Translation**.`;
 
   return (
@@ -153,7 +157,7 @@ export const ContentTranslationConfiguration = () => {
               onClick={triggerDownload}
               leftSection={
                 showDownloadingIndicator ? null : (
-                  <Icon name="download" c="brand" />
+                  <Icon name="download" c="core-brand" />
                 )
               }
               miw="calc(50% - 0.5rem)"
@@ -178,13 +182,13 @@ export const ContentTranslationConfiguration = () => {
             </FormProvider>
           </Group>
           {downloadErrorMessage && (
-            <Text role="alert" c="danger">
+            <Text role="alert" c="feedback-negative">
               {downloadErrorMessage}
             </Text>
           )}
           {!!uploadErrorMessages.length && (
             <Stack gap="xs">
-              <Text role="alert" c="error">
+              <Text role="alert" c="feedback-negative">
                 {ngettext(
                   msgid`We couldn't upload the file due to this error:`,
                   `We couldn't upload the file due to these errors:`,
@@ -193,7 +197,11 @@ export const ContentTranslationConfiguration = () => {
               </Text>
               <List withPadding>
                 {uploadErrorMessages.map((errorMessage) => (
-                  <List.Item key={errorMessage} role="alert" c="danger">
+                  <List.Item
+                    key={errorMessage}
+                    role="alert"
+                    c="feedback-negative"
+                  >
                     {errorMessage}
                   </List.Item>
                 ))}
@@ -333,7 +341,7 @@ const UploadForm = ({
         disabled={status === "pending"}
         label={
           <Group gap="sm">
-            <Icon name="upload" c="brand" />
+            <Icon name="upload" c="core-brand" />
             <Text
               c="inherit"
               fw="normal"
@@ -342,13 +350,13 @@ const UploadForm = ({
         }
         successLabel={
           <Group gap="sm" role="alert">
-            <Icon name="check" c="success" />
+            <Icon name="check" c="feedback-positive" />
             <Text c="inherit">{t`Dictionary uploaded`}</Text>
           </Group>
         }
         failedLabel={
           <Group gap="sm" role="alert">
-            <Icon name="warning" c="danger" />
+            <Icon name="warning" c="feedback-negative" />
             <Text c="inherit">{t`Could not upload dictionary`}</Text>
           </Group>
         }

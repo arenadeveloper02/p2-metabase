@@ -8,6 +8,7 @@ import {
 import { CommonSdkStoryWrapper } from "embedding-sdk-bundle/test/CommonSdkStoryWrapper";
 import { Box, Button, Modal, Stack } from "metabase/ui";
 
+// Unjustified type cast. FIXME
 const QUESTION_ID = (window as any).QUESTION_ID || 12;
 
 export default {
@@ -20,7 +21,7 @@ export default {
 };
 
 export const Default = {
-  render(args: SdkQuestionProps) {
+  render: function Render(args: SdkQuestionProps) {
     const [isSaveModalOpen, { toggle, close }] = useDisclosure(false);
 
     const [isBeforeSaveCalled, setBeforeSaveCalled] = useState(false);

@@ -1,51 +1,93 @@
 import { flexRender } from "@tanstack/react-table";
 import cx from "classnames";
-import { memo } from "react";
 
 import { Flex } from "metabase/ui";
 
+import { SelectionCheckbox } from "../SelectionCheckbox";
 import { CHECKBOX_COLUMN_WIDTH } from "../constants";
-import type { TreeNodeData, TreeTableHeaderProps } from "../types";
+import type {
+  SelectionState,
+  TreeNodeData,
+  TreeTableHeaderProps,
+} from "../types";
 import { getColumnStyle } from "../utils";
 
 import { HeaderCell } from "./HeaderCell";
 import S from "./TreeTableHeader.module.css";
 
-function TreeTableHeaderInner<TData extends TreeNodeData>({
+export function TreeTableHeader<TData extends TreeNodeData>({
   table,
   columnWidths,
   showCheckboxes,
   classNames,
   styles,
   isMeasured = true,
-  totalContentWidth,
   headerVariant = "pill",
+  getSelectionState,
+  onHeaderCheckboxClick,
+  headerCheckboxAriaLabel,
 }: TreeTableHeaderProps<TData>) {
   const headerGroups = table.getHeaderGroups();
+  const rows = table.getRowModel().rows;
+
+  const headerSelectionState: SelectionState = (() => {
+    if (rows.length === 0) {
+      return "none";
+    }
+    if (getSelectionState) {
+      const states = rows.map(getSelectionState);
+      if (states.every((s) => s === "all")) {
+        return "all";
+      }
+      if (states.some((s) => s !== "none")) {
+        return "some";
+      }
+      return "none";
+    }
+    if (table.getIsAllRowsSelected()) {
+      return "all";
+    }
+    if (table.getIsSomeRowsSelected()) {
+      return "some";
+    }
+    return "none";
+  })();
 
   return (
     <Flex
       className={cx(S.header, classNames?.header, {
         [S.measuring]: !isMeasured,
       })}
-      pos="sticky"
-      top={0}
       style={styles?.header}
     >
       {headerGroups.map((headerGroup) => (
         <Flex
           key={headerGroup.id}
-          className={classNames?.headerRow}
+          className={cx(S.headerRow, classNames?.headerRow)}
           w="100%"
-          style={{ minWidth: totalContentWidth, ...styles?.headerRow }}
+          style={styles?.headerRow}
         >
           {showCheckboxes && (
             <Flex
               className={cx(S.cell, classNames?.headerCell)}
               align="center"
-              p="0.75rem"
-              style={{ width: CHECKBOX_COLUMN_WIDTH, ...styles?.headerCell }}
-            />
+              pl="0.75rem"
+              style={{
+                width: CHECKBOX_COLUMN_WIDTH,
+                flexShrink: 0,
+                ...styles?.headerCell,
+              }}
+            >
+              {onHeaderCheckboxClick && (
+                <SelectionCheckbox
+                  isSelected={headerSelectionState === "all"}
+                  isSomeSelected={headerSelectionState === "some"}
+                  onClick={onHeaderCheckboxClick}
+                  ariaLabel={headerCheckboxAriaLabel}
+                  className={classNames?.checkbox}
+                />
+              )}
+            </Flex>
           )}
           {headerGroup.headers.map((header, index) => {
             const column = header.column;
@@ -54,6 +96,7 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
             const isFirstColumn = index === 0;
 
             const columnStyle = {
+              padding: "0.75rem",
               ...getColumnStyle(columnWidths, column.id, isFirstColumn),
               ...styles?.headerCell,
             };
@@ -68,22 +111,22 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
                   key={header.id}
                   className={cx(S.cell, classNames?.headerCell)}
                   align="center"
-                  p="0.75rem"
                   style={columnStyle}
                 />
               );
             }
 
             const sortValue = sortDirection || undefined;
+            const toggleSorting = column.getToggleSortingHandler();
 
             return (
               <Flex
                 key={header.id}
                 className={cx(S.cell, classNames?.headerCell)}
                 align="center"
-                p="0.75rem"
                 style={columnStyle}
-                role={isSortable ? "columnheader" : undefined}
+                role="columnheader"
+                tabIndex={isSortable ? 0 : undefined}
                 aria-sort={
                   sortDirection
                     ? sortDirection === "asc"
@@ -91,8 +134,17 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
                       : "descending"
                     : undefined
                 }
-                onClick={
-                  isSortable ? column.getToggleSortingHandler() : undefined
+                onClick={isSortable ? toggleSorting : undefined}
+                onKeyDown={
+                  isSortable
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          toggleSorting?.(event);
+                        }
+                      }
+                    : undefined
                 }
               >
                 {typeof headerContent === "string" ? (
@@ -112,9 +164,3 @@ function TreeTableHeaderInner<TData extends TreeNodeData>({
     </Flex>
   );
 }
-
-export const TreeTableHeader = memo(TreeTableHeaderInner) as <
-  TData extends TreeNodeData,
->(
-  props: TreeTableHeaderProps<TData>,
-) => JSX.Element;

@@ -23,14 +23,15 @@ import {
 } from "metabase/visualizations/shared/utils/sizes";
 import type {
   ComputedVisualizationSettings,
+  VisualizationDefinition,
   VisualizationProps,
 } from "metabase/visualizations/types";
 import type { DatasetData, RawSeries } from "metabase-types/api";
 
-Object.assign(Heatmap, {
+export const HEATMAP_CHART_DEFINITION: VisualizationDefinition = {
   getUiName: () => t`Heatmap`,
   identifier: "heatmap",
-  iconName: "heatmap",
+  iconName: "grid",
   noun: t`heatmap`,
   minSize: getMinSize("heatmap"),
   defaultSize: getDefaultSize("heatmap"),
@@ -54,11 +55,11 @@ Object.assign(Heatmap, {
     }
 
     if (cols.length < 3) {
-      throw new MinColumnsError(3, cols.length);
+      throw new MinColumnsError(3);
     }
 
     if (rows.length < 1) {
-      throw new MinRowsError(1, rows.length);
+      throw new MinRowsError(rows.length);
     }
 
     if (
@@ -77,21 +78,21 @@ Object.assign(Heatmap, {
   settings: {
     ...columnSettings(),
     ...dimensionSetting("heatmap.xDimension", {
-      section: t`Data`,
+      getSection: () => t`Data`,
       title: t`X-axis`,
       dashboard: false,
       useRawSeries: true,
       showColumnSetting: false,
     }),
     ...dimensionSetting("heatmap.yDimension", {
-      section: t`Data`,
+      getSection: () => t`Data`,
       title: t`Y-axis`,
       dashboard: false,
       useRawSeries: true,
       showColumnSetting: false,
     }),
     ...metricSetting("heatmap.value", {
-      section: t`Data`,
+      getSection: () => t`Data`,
       title: t`Value`,
       dashboard: false,
       useRawSeries: true,
@@ -116,65 +117,9 @@ Object.assign(Heatmap, {
       default: "bottom",
     },
   },
+};
 
-  placeholderSeries: [
-    {
-      card: {
-        display: "heatmap",
-        visualization_settings: {
-          "heatmap.xDimension": "Hour",
-          "heatmap.yDimension": "Day",
-          "heatmap.value": "Count",
-        },
-        dataset_query: { type: "null" },
-      },
-      data: {
-        rows: [
-          ["12a", "Saturday", 5],
-          ["1a", "Saturday", 1],
-          ["2a", "Saturday", 0],
-          ["12a", "Friday", 7],
-          ["1a", "Friday", 0],
-          ["2a", "Friday", 0],
-          ["12a", "Thursday", 1],
-          ["1a", "Thursday", 1],
-          ["2a", "Thursday", 0],
-          ["12a", "Wednesday", 7],
-          ["1a", "Wednesday", 3],
-          ["2a", "Wednesday", 0],
-        ],
-        cols: [
-          {
-            name: "Hour",
-            display_name: "Hour",
-            base_type: "type/Text",
-            effective_type: "type/Text",
-            semantic_type: null,
-            source: "breakout",
-          },
-          {
-            name: "Day",
-            display_name: "Day",
-            base_type: "type/Text",
-            effective_type: "type/Text",
-            semantic_type: null,
-            source: "breakout",
-          },
-          {
-            name: "Count",
-            display_name: "Count",
-            base_type: "type/Integer",
-            effective_type: "type/Integer",
-            semantic_type: "type/Quantity",
-            source: "aggregation",
-          },
-        ],
-      },
-    },
-  ],
-});
-
-export function Heatmap(props: VisualizationProps) {
+function HeatmapComponent(props: VisualizationProps) {
   const {
     headerIcon,
     settings,
@@ -213,3 +158,5 @@ export function Heatmap(props: VisualizationProps) {
     </div>
   );
 }
+
+export const Heatmap = Object.assign(HeatmapComponent, HEATMAP_CHART_DEFINITION);

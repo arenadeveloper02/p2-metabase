@@ -1,9 +1,10 @@
 import type { MantineThemeOverride } from "@mantine/core";
 import { rem } from "@mantine/core";
 
-import { DEFAULT_METABASE_COMPONENT_THEME } from "metabase/embedding-sdk/theme";
+import type { ColorSettings } from "metabase-types/api";
 
 import Styles from "./Theme.module.css";
+import { DEFAULT_METABASE_COMPONENT_THEME } from "./component-theme";
 import {
   accordionOverrides,
   actionIconOverrides,
@@ -37,16 +38,19 @@ import {
   numberInputOverrides,
   overlayOverrides,
   paperOverrides,
+  passwordInputOverrides,
   pillOverrides,
   pillsInputOverrides,
   popoverOverrides,
   portalOverrides,
   progressOverrides,
   radioOverrides,
+  ringProgressOverrides,
   scrollAreaOverrides,
   segmentedControlOverrides,
   selectOverrides,
   skeletonOverrides,
+  sliderOverrides,
   switchOverrides,
   tabsOverrides,
   textInputOverrides,
@@ -57,7 +61,7 @@ import {
   titleOverrides,
   tooltipOverrides,
 } from "./components";
-import { getThemeColors } from "./utils/colors";
+import { getMantineThemeColors } from "./utils/colors";
 
 export const breakpoints = {
   xs: "23em",
@@ -70,11 +74,12 @@ export type BreakpointName = keyof typeof breakpoints;
 
 export const getThemeOverrides = (
   colorScheme: "light" | "dark" = "light",
+  whitelabelColors?: ColorSettings | null,
 ): MantineThemeOverride => ({
   focusClassName: Styles.focus,
   breakpoints,
-  colors: getThemeColors(colorScheme),
-  primaryColor: "brand",
+  colors: getMantineThemeColors(colorScheme, whitelabelColors),
+  primaryColor: "core-brand",
   primaryShade: 0,
   // Store colorScheme in other property for access later
   other: {
@@ -82,9 +87,11 @@ export const getThemeOverrides = (
     colorScheme,
   },
   shadows: {
-    // eslint-disable-next-line no-color-literals
+    // eslint-disable-next-line metabase/no-color-literals
+    xs: "0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 1px 3px 0 rgba(0, 0, 0, 0.07)",
+    // eslint-disable-next-line metabase/no-color-literals
     sm: "0px 1px 4px 2px rgba(0, 0, 0, 0.08)",
-    // eslint-disable-next-line no-color-literals
+    // eslint-disable-next-line metabase/no-color-literals
     md: "0px 4px 20px 0px rgba(0, 0, 0, 0.05)",
   },
   spacing: {
@@ -142,7 +149,7 @@ export const getThemeOverrides = (
       },
     },
   },
-  fontFamily: "var(--mb-default-font-family), sans-serif",
+  fontFamily: "var(--mb-default-font-family)",
   fontFamilyMonospace: "Monaco, monospace",
   components: {
     ...accordionOverrides,
@@ -176,15 +183,18 @@ export const getThemeOverrides = (
     ...radioOverrides,
     ...overlayOverrides,
     ...paperOverrides,
+    ...passwordInputOverrides,
     ...pillOverrides,
     ...pillsInputOverrides,
     ...popoverOverrides,
     ...portalOverrides,
     ...progressOverrides,
+    ...ringProgressOverrides,
     ...scrollAreaOverrides,
     ...segmentedControlOverrides,
     ...skeletonOverrides,
     ...selectOverrides,
+    ...sliderOverrides,
     ...switchOverrides,
     ...tabsOverrides,
     ...textareaOverrides,

@@ -1,7 +1,7 @@
 import type { EChartsOption } from "echarts";
 import type React from "react";
 
-import { formatValue } from "metabase/lib/formatting";
+import { formatValue } from "metabase/value-formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 import { getHeatmapTooltipOption } from "./tooltip";

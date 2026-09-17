@@ -1,31 +1,11 @@
-import { autoUpdate, useFloating } from "@floating-ui/react";
 import type { NodeViewProps } from "@tiptap/core";
-import { Heading } from "@tiptap/extension-heading";
-import {
-  NodeViewContent,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from "@tiptap/react";
-import cx from "classnames";
-import { useEffect, useMemo, useState } from "react";
-
-import { useListCommentsQuery } from "metabase/api";
-import { getTargetChildCommentThreads } from "metabase/comments/utils";
-import { CommentsMenu } from "metabase/documents/components/Editor/CommentsMenu";
-import {
-  getChildTargetId,
-  getCurrentDocument,
-  getHoveredChildTargetId,
-} from "metabase/documents/selectors";
-import { getListCommentsQuery } from "metabase/documents/utils/api";
-import { isTopLevel } from "metabase/documents/utils/editorNodeUtils";
-import { isWithinIframe } from "metabase/lib/dom";
-import { useSelector } from "metabase/lib/redux";
+import { Heading, type HeadingOptions } from "@tiptap/extension-heading";
+import { NodeViewContent, ReactNodeViewRenderer } from "@tiptap/react";
 
 import { createIdAttribute, createProseMirrorPlugin } from "../NodeIds";
-import S from "../extensions.module.css";
+import { type BlockNodeOptions, DefaultBlockShell } from "../shared/BlockShell";
 
-export const CustomHeading = Heading.extend({
+export const CustomHeading = Heading.extend<HeadingOptions & BlockNodeOptions>({
   addAttributes() {
     return {
       level: {
@@ -58,65 +38,24 @@ const levelNodeMap: Record<Level, ElementType> = {
   6: "h6",
 };
 
-export const HeadingNodeView = ({ node, editor, getPos }: NodeViewProps) => {
-  const childTargetId = useSelector(getChildTargetId);
-  const hoveredChildTargetId = useSelector(getHoveredChildTargetId);
-  const document = useSelector(getCurrentDocument);
-  const { data: commentsData } = useListCommentsQuery(
-    getListCommentsQuery(document),
-  );
-  const comments = commentsData?.comments;
-  const [hovered, setHovered] = useState(false);
-  const [rendered, setRendered] = useState(false); // floating ui wrongly positions things without this
-  const { _id, level } = node.attrs;
-  const isOpen = childTargetId === _id;
-  const isHovered = hoveredChildTargetId === _id;
-  const threads = useMemo(
-    () => getTargetChildCommentThreads(comments, _id),
-    [comments, _id],
-  );
-  const { refs, floatingStyles } = useFloating({
-    placement: "right-start",
-    whileElementsMounted: autoUpdate,
-    strategy: "fixed",
-    open: rendered,
-  });
-
-  useEffect(() => {
-    if (!rendered) {
-      setRendered(true);
-    }
-  }, [rendered]);
+export const HeadingNodeView = ({
+  node,
+  editor,
+  getPos,
+  extension,
+}: NodeViewProps) => {
+  const { level } = node.attrs;
+  const BlockShell = extension.options.blockShell ?? DefaultBlockShell;
 
   return (
-    <>
-      <NodeViewWrapper
-        aria-expanded={isOpen}
-        className={cx(S.root, {
-          [S.open]: isOpen || isHovered,
-        })}
-        ref={refs.setReference}
-        onMouseOver={() => setHovered(true)}
-        onMouseOut={() => setHovered(false)}
-      >
-        <NodeViewContent<ElementType>
-          as={levelNodeMap[level as Level] ?? "h1"}
-        />
-      </NodeViewWrapper>
-
-      {document &&
-        rendered &&
-        isTopLevel({ editor, getPos }) &&
-        !isWithinIframe() && (
-          <CommentsMenu
-            active={isOpen}
-            href={`/document/${document.id}/comments/${_id}`}
-            ref={refs.setFloating}
-            show={isOpen || hovered}
-            threads={threads}
-            style={floatingStyles}
-          />
-        )}
-    </>
+    <BlockShell
+      node={node}
+      editor={editor}
+      getPos={getPos}
+      hideMenus={extension.options.editorContext === "comments"}
+    >
+      {/* Unjustified type cast. FIXME */}
+      <NodeViewContent<ElementType> as={levelNodeMap[level as Level] ?? "h1"} />
+    </BlockShell>
   );
 };

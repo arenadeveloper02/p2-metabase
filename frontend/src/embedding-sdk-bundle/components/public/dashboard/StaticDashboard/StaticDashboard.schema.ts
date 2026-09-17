@@ -20,6 +20,8 @@ const propsSchema: Yup.SchemaOf<StaticDashboardProps> = Yup.object({
     .noUnknown(),
   hiddenParameters: Yup.mixed().optional(),
   initialParameters: Yup.mixed().optional(),
+  parameters: Yup.mixed().optional(),
+  onParametersChange: Yup.mixed().optional(),
   onLoad: Yup.mixed().optional(),
   onLoadWithoutCards: Yup.mixed().optional(),
   plugins: Yup.object({
@@ -29,6 +31,7 @@ const propsSchema: Yup.SchemaOf<StaticDashboardProps> = Yup.object({
     .optional()
     .noUnknown(),
   style: Yup.mixed().optional(),
+  autoRefreshInterval: Yup.mixed().optional(),
   withCardTitle: Yup.mixed().optional(),
   withDownloads: Yup.mixed().optional(),
   withSubscriptions: Yup.mixed().optional(),

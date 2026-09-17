@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { c, t } from "ttag";
 import * as Yup from "yup";
 
-import ExternalLink from "metabase/common/components/ExternalLink";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { useStoreUrl } from "metabase/common/hooks";
 import { useDebouncedValue } from "metabase/common/hooks/use-debounced-value";
 import {
@@ -12,7 +12,6 @@ import {
   FormSubmitButton,
   FormTextarea,
 } from "metabase/forms";
-import { SEARCH_DEBOUNCE_DURATION } from "metabase/lib/constants";
 import {
   Box,
   Card,
@@ -28,6 +27,7 @@ import {
   Text,
   UnstyledButton,
 } from "metabase/ui";
+import { SEARCH_DEBOUNCE_DURATION } from "metabase/utils/constants";
 import type {
   PreviewDatabaseReplicationResponse,
   TableInfo,
@@ -168,6 +168,7 @@ export const DatabaseReplicationForm = ({
                 label={t`Select schemas to replicate`}
                 onChange={(value) =>
                   setSchemaFiltersType(
+                    // Unjustified type cast. FIXME
                     value as typeof initialValues.schemaFiltersType,
                   )
                 }
@@ -194,7 +195,7 @@ export const DatabaseReplicationForm = ({
                     }
                   />
                   {previewResponse?.errors?.invalidSchemaFiltersPattern && (
-                    <Text c="error" fz="sm" mt="xs">
+                    <Text c="feedback-negative" fz="sm" mt="xs">
                       {t`Invalid schema filters pattern`}
                     </Text>
                   )}
@@ -203,7 +204,7 @@ export const DatabaseReplicationForm = ({
 
               <Card
                 radius="md"
-                bg="var(--mb-color-bg-light)"
+                bg="background_page-secondary"
                 p={0}
                 shadow="none"
               >
@@ -225,7 +226,7 @@ export const DatabaseReplicationForm = ({
                       variant="subtle"
                       size="xs"
                       onClick={() => setShowNoSyncTables(!showNoSyncTables)}
-                      c="brand"
+                      c="core-brand"
                       fz="md"
                       h="auto"
                       mt="xs"
@@ -239,7 +240,7 @@ export const DatabaseReplicationForm = ({
                         justify="flex-start"
                         wrap="nowrap"
                       >
-                        <Text span c="brand">
+                        <Text span c="core-brand">
                           {showNoSyncTables
                             ? t`Hide tables (${noSyncTables.length})`
                             : t`Show tables (${noSyncTables.length})`}
@@ -272,16 +273,16 @@ export const DatabaseReplicationForm = ({
                             <Text fz="md">
                               <Text
                                 span
-                                c="text-dark"
+                                c="text-primary"
                                 display="inline"
                                 fw="500"
                               >
                                 {table.tableSchema}
                               </Text>
-                              <Text span c="text-medium" display="inline">
+                              <Text span c="text-secondary" display="inline">
                                 .{table.tableName}
                               </Text>{" "}
-                              <Text span c="text-light" display="inline">
+                              <Text span c="text-disabled" display="inline">
                                 {noSyncReason(table)}
                               </Text>
                             </Text>
@@ -295,7 +296,7 @@ export const DatabaseReplicationForm = ({
 
               <Card
                 radius="md"
-                bg="var(--mb-color-bg-light)"
+                bg="background_page-secondary"
                 p={0}
                 shadow="none"
               >
@@ -318,7 +319,7 @@ export const DatabaseReplicationForm = ({
                       onClick={() =>
                         setShowReplicatedTables(!showReplicatedTables)
                       }
-                      c="brand"
+                      c="core-brand"
                       fz="md"
                       h="auto"
                       mt="xs"
@@ -332,7 +333,7 @@ export const DatabaseReplicationForm = ({
                         justify="flex-start"
                         wrap="nowrap"
                       >
-                        <Text span c="brand">
+                        <Text span c="core-brand">
                           {showReplicatedTables
                             ? t`Hide tables (${replicatedTables.length})`
                             : t`Show tables (${replicatedTables.length})`}
@@ -367,13 +368,13 @@ export const DatabaseReplicationForm = ({
                             <Text fz="md">
                               <Text
                                 span
-                                c="text-dark"
+                                c="text-primary"
                                 display="inline"
                                 fw="500"
                               >
                                 {table.tableSchema}
                               </Text>
-                              <Text span c="text-medium" display="inline">
+                              <Text span c="text-secondary" display="inline">
                                 .{table.tableName}
                               </Text>
                             </Text>
@@ -387,7 +388,7 @@ export const DatabaseReplicationForm = ({
 
               <Card
                 radius="md"
-                bg="var(--mb-color-bg-light)"
+                bg="background_page-secondary"
                 p="md"
                 my="sm"
                 shadow="none"
@@ -395,7 +396,7 @@ export const DatabaseReplicationForm = ({
                 <Stack>
                   <Group justify="space-between">
                     <Box ta="left">
-                      <Text c="text-light">{database.name}</Text>
+                      <Text c="text-disabled">{database.name}</Text>
                       {!previewResponseLoading &&
                       typeof previewResponse?.totalEstimatedRowCount ===
                         "number" ? (
@@ -410,7 +411,7 @@ export const DatabaseReplicationForm = ({
                     {previewResponseLoading && <Loader />}
 
                     <Box ta="right">
-                      <Text c="text-light">{t`Available Cloud Storage`}</Text>
+                      <Text c="text-disabled">{t`Available Cloud Storage`}</Text>
                       {!previewResponseLoading &&
                       typeof previewResponse?.freeQuota === "number" ? (
                         <Text fw="bold" w="100%">

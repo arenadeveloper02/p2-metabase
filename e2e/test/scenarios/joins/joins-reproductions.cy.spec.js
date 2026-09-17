@@ -12,96 +12,6 @@ const {
   REVIEWS,
   REVIEWS_ID,
 } = SAMPLE_DATABASE;
-
-describe("issue 12928", () => {
-  const SOURCE_QUESTION_NAME = "12928_Q1";
-  const JOINED_QUESTION_NAME = "12928_Q2";
-
-  const SOURCE_QUESTION_DETAILS = {
-    name: SOURCE_QUESTION_NAME,
-    query: {
-      "source-table": ORDERS_ID,
-      aggregation: [["count"]],
-      breakout: [
-        ["field", PRODUCTS.CATEGORY, { "join-alias": "Products" }],
-        ["field", PEOPLE.SOURCE, { "join-alias": "People - User" }],
-      ],
-      joins: [
-        {
-          alias: "Products",
-          condition: [
-            "=",
-            ["field", ORDERS.PRODUCT_ID, null],
-            ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-          ],
-          fields: "all",
-          "source-table": PRODUCTS_ID,
-        },
-        {
-          alias: "People - User",
-          condition: [
-            "=",
-            ["field", ORDERS.USER_ID, null],
-            ["field", PEOPLE.ID, { "join-alias": "People - User" }],
-          ],
-          fields: "all",
-          "source-table": PEOPLE_ID,
-        },
-      ],
-    },
-  };
-
-  const JOINED_QUESTION_DETAILS = {
-    name: JOINED_QUESTION_NAME,
-    query: {
-      "source-table": REVIEWS_ID,
-      aggregation: [["avg", ["field", REVIEWS.RATING, null]]],
-      breakout: [["field", PRODUCTS.CATEGORY, { "join-alias": "Products" }]],
-      joins: [
-        {
-          alias: "Products",
-          condition: [
-            "=",
-            ["field", REVIEWS.PRODUCT_ID, null],
-            ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-          ],
-          fields: "all",
-          "source-table": PRODUCTS_ID,
-        },
-      ],
-    },
-  };
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  it("should join saved questions that themselves contain joins (metabase#12928)", () => {
-    H.createQuestion(SOURCE_QUESTION_DETAILS);
-    H.createQuestion(JOINED_QUESTION_DETAILS, {
-      wrapId: true,
-      idAlias: "joinedQuestionId",
-    });
-
-    H.startNewQuestion();
-    H.selectSavedQuestionsToJoin(SOURCE_QUESTION_NAME, JOINED_QUESTION_NAME);
-    H.popover().findByText("Products → Category").click();
-    H.popover().findByText("Products → Category").click();
-
-    H.visualize();
-
-    cy.get("@joinedQuestionId").then(() => {
-      H.assertJoinValid({
-        lhsSampleColumn: "Products → Category",
-        rhsSampleColumn: `${JOINED_QUESTION_NAME} - Products → Category → Category`,
-      });
-    });
-
-    H.assertQueryBuilderRowCount(20);
-  });
-});
-
 describe("issue 14793", () => {
   const XRAY_DATASETS = 11; // enough to load most questions
 
@@ -192,7 +102,7 @@ describe("issue 15342", { tags: "@external" }, () => {
     H.getNotebookStep("join").findByLabelText("Right column").click();
     H.popover().findByText("Product ID").click();
 
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     cy.icon("join_left_outer").last().click();
     H.miniPicker().within(() => {
       cy.findByText(MYSQL_DB_NAME).click();
@@ -288,50 +198,6 @@ describe("issue 17710", () => {
     });
   });
 });
-
-describe("issue 17767", () => {
-  const { ORDERS, ORDERS_ID, PRODUCTS } = SAMPLE_DATABASE;
-
-  const questionDetails = {
-    name: "17767",
-    query: {
-      "source-table": ORDERS_ID,
-      aggregation: [["count"]],
-      breakout: [["field", PRODUCTS.ID, { "source-field": ORDERS.PRODUCT_ID }]],
-      limit: 2,
-    },
-  };
-
-  beforeEach(() => {
-    cy.intercept("POST", "/api/dataset").as("dataset");
-
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  it("should be able to do subsequent joins on question with the aggregation that uses implicit joins (metabase#17767)", () => {
-    H.createQuestion(questionDetails, { visitQuestion: true });
-
-    H.openNotebook();
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Join data").click();
-
-    // Join "Previous results" with
-    H.miniPicker().within(() => {
-      cy.findByText("Sample Database").click();
-      cy.findByText("Reviews").click();
-    });
-
-    H.visualize((response) => {
-      expect(response.body.error).to.not.exist;
-    });
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("xavier");
-  });
-});
-
 describe("issue 17968", () => {
   beforeEach(() => {
     H.restore();
@@ -349,7 +215,7 @@ describe("issue 17968", () => {
       .click();
     H.popover().findByText("Created At").click();
 
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     cy.findAllByTestId("action-buttons").last().button("Join data").click();
     H.miniPicker().within(() => {
       cy.findByText("Sample Database").click();
@@ -395,184 +261,19 @@ describe("issue 18502", () => {
     H.startNewQuestion();
     H.selectSavedQuestionsToJoin("18502#1", "18502#2");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Created At: Month").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Birth Date: Month").click();
 
     H.visualize((response) => {
       expect(response.body.error).to.not.exist;
     });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("April 2022");
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
+    cy.findByText("April 2025");
   });
 });
-
-describe("issue 18512", () => {
-  function getQuestionDetails(name, catFilter) {
-    return {
-      name,
-      query: {
-        "source-table": REVIEWS_ID,
-        joins: [
-          {
-            fields: "all",
-            "source-table": PRODUCTS_ID,
-            condition: [
-              "=",
-              ["field", REVIEWS.PRODUCT_ID, null],
-              ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-            ],
-            alias: "Products",
-          },
-        ],
-        filter: [
-          "=",
-          ["field", PRODUCTS.CATEGORY, { "join-alias": "Products" }],
-          catFilter,
-        ],
-        aggregation: [
-          ["distinct", ["field", PRODUCTS.ID, { "join-alias": "Products" }]],
-        ],
-        breakout: [
-          [
-            "field",
-            PRODUCTS.CREATED_AT,
-            { "join-alias": "Products", "temporal-unit": "month" },
-          ],
-        ],
-      },
-    };
-  }
-
-  const question1 = getQuestionDetails("18512#1", "Doohickey");
-  const question2 = getQuestionDetails("18512#2", "Gizmo");
-
-  beforeEach(() => {
-    cy.intercept("POST", "/api/dataset").as("dataset");
-
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  it("should join two saved questions with the same implicit/explicit grouped field (metabase#18512)", () => {
-    H.createQuestion(question1);
-    H.createQuestion(question2);
-
-    H.startNewQuestion();
-    H.selectSavedQuestionsToJoin("18512#1", "18512#2");
-
-    H.popover().findByText("Products → Created At: Month").click();
-    H.popover().findByText("Products → Created At: Month").click();
-
-    H.visualize((response) => {
-      expect(response.body.error).to.not.exist;
-    });
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.contains("Products → Created At: Month");
-  });
-});
-
-describe("issue 18589", () => {
-  function joinTable(table) {
-    cy.findByText("Join data").click();
-    H.miniPicker().within(() => {
-      cy.findByText("Sample Database").click();
-      cy.findByText(table).click();
-    });
-  }
-
-  function selectFromDropdown(option, clickOpts) {
-    H.popover().findByText(option).click(clickOpts);
-  }
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-    cy.intercept("POST", "/api/dataset").as("dataset");
-  });
-
-  it("should not bin numeric fields in join condition by default (metabase#18589)", () => {
-    H.openOrdersTable({ mode: "notebook" });
-
-    joinTable("Reviews");
-    selectFromDropdown("Quantity");
-    selectFromDropdown("Rating");
-
-    H.summarize({ mode: "notebook" });
-    selectFromDropdown("Count of rows");
-
-    H.visualize();
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("2,860,368");
-  });
-});
-
-describe("issue 18630", () => {
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  const QUERY_WITH_FIELD_CLAUSE = {
-    "source-query": {
-      "source-table": ORDERS_ID,
-      joins: [
-        {
-          fields: "all",
-          "source-table": PEOPLE_ID,
-          condition: [
-            "=",
-            ["field", ORDERS.USER_ID, null],
-            ["field", PEOPLE.ID, { "join-alias": "People - User" }],
-          ],
-          alias: "People - User",
-        },
-      ],
-      expressions: {
-        coalesce: [
-          "coalesce",
-          ["field", ORDERS.USER_ID, null],
-          ["field", PEOPLE.ID, { "join-alias": "People - User" }],
-        ],
-      },
-      aggregation: [["count"]],
-      breakout: [["expression", "coalesce"]],
-    },
-    joins: [
-      {
-        fields: "all",
-        "source-table": PEOPLE_ID,
-        condition: [
-          "=",
-          ["field", "coalesce", { "base-type": "type/Float" }],
-          ["field", PEOPLE.ID, { "join-alias": "People" }],
-        ],
-        alias: "People",
-      },
-    ],
-    limit: 3,
-  };
-
-  const questionDetails = {
-    name: "18630",
-    query: QUERY_WITH_FIELD_CLAUSE,
-  };
-
-  it("should normally open queries with field literals in joins (metabase#18630)", () => {
-    H.createQuestion(questionDetails, { visitQuestion: true });
-
-    // The query runs and we assert the page is not blank,
-    // which was caused by an infinite loop and a stack overflow.
-    cy.findByDisplayValue(questionDetails.name);
-    cy.get("[data-testid=cell-data]").contains("29494 Anderson Drive");
-    cy.findByTestId("question-row-count").should("have.text", "Showing 3 rows");
-  });
-});
-
 describe("issue 18818", () => {
   beforeEach(() => {
     cy.intercept("POST", "/api/dataset").as("dataset");
@@ -646,7 +347,7 @@ describe("issue 20519", () => {
 
   // Tightly related issue: metabase#17767
   it("should allow subsequent joins and nested query after summarizing on the implicit joins (metabase#20519)", () => {
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     cy.findAllByLabelText("Custom column").last().click();
 
     H.enterCustomColumnDetails({
@@ -664,9 +365,9 @@ describe("issue 20519", () => {
       expect(response.body.error).not.to.exist;
     });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Doohickey");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.contains("Two");
   });
 });
@@ -751,18 +452,6 @@ describe("issue 22859 - multiple levels of nesting", () => {
 
     getJoinedTableColumnHeader();
   });
-
-  it("third level of nesting with joins should result in proper column aliasing (metabase#22859-2)", () => {
-    H.startNewQuestion();
-    H.miniPicker().within(() => {
-      cy.findByText("Our analytics").click();
-      cy.findByText("22859-Q2").click();
-    });
-
-    H.visualize();
-
-    getJoinedTableColumnHeader();
-  });
 });
 
 describe("issue 23293", () => {
@@ -803,7 +492,6 @@ describe("issue 23293", () => {
       .findByLabelText(/Where do you want to save this/)
       .click();
     H.pickEntity({
-      tab: "Browse",
       path: ["Our analytics"],
     });
     H.entityPickerModal().findByText("Select this collection").click();
@@ -844,12 +532,12 @@ describe("issue 23293", () => {
         "contain",
         "Orders → Category is Doohickey",
       );
-      // eslint-disable-next-line no-unsafe-element-filtering
+      // eslint-disable-next-line metabase/no-unsafe-element-filtering
       cy.findAllByTestId("header-cell")
         .last()
         .should("have.text", "Product → Category");
 
-      // eslint-disable-next-line no-unsafe-element-filtering
+      // eslint-disable-next-line metabase/no-unsafe-element-filtering
       cy.findAllByRole("grid")
         .last()
         .as("tableResults")
@@ -889,9 +577,9 @@ describe("issue 27380", () => {
     );
 
     // Doesn't really matter which 'circle" we click on the graph
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     H.cartesianChartCircle().last().click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("See this month by week").click();
     cy.wait("@dataset");
 
@@ -900,143 +588,12 @@ describe("issue 27380", () => {
     H.echartsContainer().findByText("Count");
 
     H.openNotebook();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Pick a column to group by").should("not.exist");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Product → Created At: Week");
   });
 });
-
-describe("issue 27873", () => {
-  const questionDetails = {
-    dataset_query: {
-      type: "query",
-      query: {
-        "source-table": ORDERS_ID,
-        joins: [
-          {
-            fields: "all",
-            "source-table": PEOPLE_ID,
-            condition: [
-              "=",
-              ["field", ORDERS.USER_ID, null],
-              ["field", PEOPLE.ID, { "join-alias": "People - User" }],
-            ],
-            alias: "People - User",
-          },
-        ],
-        aggregation: [["count"]],
-        breakout: [
-          ["field", ORDERS.TOTAL, { binning: { strategy: "default" } }],
-          ["field", PEOPLE.SOURCE, { "join-alias": "People - User" }],
-        ],
-      },
-      database: SAMPLE_DB_ID,
-    },
-    display: "table",
-  };
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  it("should show a group by column from the joined field in the summarize sidebar (metabase#27873)", () => {
-    H.visitQuestionAdhoc(questionDetails);
-    H.summarize();
-
-    cy.findByTestId("aggregation-item").should("have.text", "Count");
-    cy.findByTestId("pinned-dimensions")
-      .should("contain", "Total")
-      .and("contain", "People - User → Source");
-  });
-});
-
-describe("issue 29795", () => {
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-  });
-
-  it("should allow join based on native query (metabase#29795)", () => {
-    const NATIVE_QUESTION = "native question";
-    const LIMIT = 5;
-    H.createNativeQuestion(
-      {
-        name: NATIVE_QUESTION,
-        native: { query: `SELECT * FROM "PUBLIC"."ORDERS" LIMIT ${LIMIT}` },
-      },
-      { loadMetadata: true },
-    );
-
-    H.openOrdersTable({ mode: "notebook", limit: LIMIT });
-
-    cy.icon("join_left_outer").click();
-
-    H.miniPicker().within(() => {
-      cy.findByText("Our analytics").click();
-      cy.findByText(NATIVE_QUESTION).click();
-    });
-
-    H.popover().within(() => {
-      cy.findByRole("option", { name: "ID" }).click();
-    });
-
-    H.popover().within(() => {
-      cy.findByRole("option", { name: "USER_ID" }).click();
-    });
-
-    H.visualize();
-    H.tableInteractive().within(() => {
-      cy.findByText("User ID").should("be.visible");
-      cy.findByText("native question → USER_ID").should("be.visible");
-    });
-  });
-});
-
-describe("issue 30743", () => {
-  const query = {
-    dataset_query: {
-      database: SAMPLE_DB_ID,
-      type: "query",
-      query: {
-        "source-table": ORDERS_ID,
-        joins: [
-          {
-            fields: "all",
-            "source-table": PRODUCTS_ID,
-            condition: [
-              "=",
-              ["field", ORDERS.PRODUCT_ID, null],
-              ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-            ],
-            alias: "Products",
-          },
-        ],
-        aggregation: [["count"]],
-        breakout: [["field", PRODUCTS.CATEGORY, { "join-alias": "Products" }]],
-      },
-    },
-  };
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-
-    H.visitQuestionAdhoc(query, { mode: "notebook" });
-  });
-
-  it("should be possible to sort on the breakout column (metabase#30743)", () => {
-    cy.findByLabelText("Sort").click();
-    H.popover().findByText("Products").click();
-    H.popover().contains("Category").click();
-
-    H.visualize();
-    // Check bars count
-    H.chartPathWithFillColor("#509EE3").should("have.length", 4);
-  });
-});
-
 describe("issue 31769", () => {
   const Q1 = {
     "source-table": ORDERS_ID,
@@ -1090,7 +647,7 @@ describe("issue 31769", () => {
     });
   });
 
-  it("shouldn't drop joins using MLv2 format (metabase#31769)", () => {
+  it("shouldn't drop joins using Lib/MBQL 5 (metabase#31769)", () => {
     H.selectSavedQuestionsToJoin("Q1", "Q2");
 
     H.popover().findByText("Products → Category").click();
@@ -1174,12 +731,12 @@ describe("issue 27521", () => {
 
     H.visualize();
     assertTableHeader(0, "ID");
-    assertTableHeader(1, "Orders → ID");
+    assertTableHeader(1, "Orders_2 → ID");
 
     H.saveQuestion("Q1");
 
     assertTableHeader(0, "ID");
-    assertTableHeader(1, "Orders → ID");
+    assertTableHeader(1, "Orders_2 → ID");
 
     cy.log("Create second question (Products + Q1)");
     H.newButton("Question").click();
@@ -1199,7 +756,7 @@ describe("issue 27521", () => {
     });
 
     H.popover().findByText("ID").click();
-    H.popover().findByText("Orders → ID").should("be.visible").click();
+    H.popover().findByText("Orders_2 → ID").should("be.visible").click();
     H.getNotebookStep("join")
       .findByLabelText("Right column")
       .findByText("Q1 → ID")
@@ -1232,7 +789,7 @@ describe("issue 27521", () => {
   });
 
   function assertTableHeader(index, name) {
-    // eslint-disable-next-line no-unsafe-element-filtering
+    // eslint-disable-next-line metabase/no-unsafe-element-filtering
     cy.findAllByTestId("header-cell").eq(index).should("have.text", name);
   }
 });

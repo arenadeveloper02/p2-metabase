@@ -1,27 +1,44 @@
-import { createAction, createSlice } from "@reduxjs/toolkit";
+import {
+  createSlice,
+  isAnyOf,
+  isFulfilled,
+  isPending,
+  isRejected,
+} from "@reduxjs/toolkit";
 import { t } from "ttag";
 import _ from "underscore";
 
+import { datasetApi } from "metabase/api/dataset";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import api, { GET, POST } from "metabase/lib/api";
-import { isWithinIframe, openSaveDialog } from "metabase/lib/dom";
-import { createAsyncThunk } from "metabase/lib/redux";
-import { checkNotNull } from "metabase/lib/types";
-import * as Urls from "metabase/lib/urls";
-import { getTokenFeature } from "metabase/setup/selectors";
+import type { DownloadsState, State } from "metabase/redux/store";
+import { createAsyncThunk } from "metabase/redux/utils";
+import { getTokenFeature } from "metabase/settings";
+import * as Urls from "metabase/urls";
+import { getBasename } from "metabase/utils/basename";
+import { openSaveDialog, waitUntilNextFramePainted } from "metabase/utils/dom";
+import { isWithinIframe } from "metabase/utils/iframe";
+import { isJWT } from "metabase/utils/jwt";
+import { checkNotNull } from "metabase/utils/types";
+import { isUuid } from "metabase/utils/uuid";
 import { saveChartImage } from "metabase/visualizations/lib/save-chart-image";
+import {
+  DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID,
+  DASHBOARD_PDF_EXPORT_ROOT_ID,
+  saveDashboardPdf,
+} from "metabase/visualizations/lib/save-dashboard-pdf";
 import { getCardKey } from "metabase/visualizations/lib/utils";
 import type Question from "metabase-lib/v1/Question";
 import type {
   DashCardId,
+  Dashboard,
   DashboardId,
   Dataset,
   VisualizationSettings,
 } from "metabase-types/api";
+import { exportFormatPng } from "metabase-types/api";
 import type { EntityToken, EntityUuid } from "metabase-types/api/entity";
-import type { DownloadsState, State } from "metabase-types/store";
 
-import { trackDownloadResults } from "./downloads-analytics";
+import { trackDownloadResults, trackExportDashboardToPDF } from "./analytics";
 
 export interface DownloadQueryResultsOpts {
   type: string;
@@ -40,7 +57,7 @@ export interface DownloadQueryResultsOpts {
 }
 
 interface DownloadQueryResultsParams {
-  method: string;
+  method: "GET" | "POST";
   url: string;
   body?: Record<string, unknown>;
   params?: URLSearchParams | string;
@@ -138,71 +155,139 @@ const getDownloadedResourceType = ({
   };
 };
 
-export const DOWNLOAD_TO_IMAGE = "metabase/downloads/DOWNLOAD_TO_IMAGE";
-export const downloadToImage = createAction<boolean>(DOWNLOAD_TO_IMAGE);
+export const downloadToImage = createAsyncThunk(
+  "metabase/downloads/downloadToImage",
+  async (
+    {
+      opts: { question, dashcardId },
+      id,
+    }: { opts: DownloadQueryResultsOpts; id: number },
+    { getState },
+  ) => {
+    const isWhitelabeled = getTokenFeature(getState(), "whitelabel");
+    const includeBranding = !isWhitelabeled;
+    const fileName = getChartFileName(question, includeBranding);
+
+    const chartSelector =
+      dashcardId != null
+        ? `[data-dashcard-key='${dashcardId}']`
+        : `[data-card-key='${getCardKey(question.id())}']`;
+
+    // Long-running main thread blocking operation incoming; wait until the loader is painted.
+    await waitUntilNextFramePainted();
+
+    await saveChartImage({
+      selector: chartSelector,
+      fileName,
+      includeBranding,
+    });
+
+    return { id, fileName };
+  },
+);
+
+export const downloadDashboardToPdf = createAsyncThunk(
+  "metabase/downloads/downloadDashboardToPdf",
+  async (
+    { dashboard, id }: { dashboard: Dashboard; id: number },
+    { getState },
+  ) => {
+    const isWhitelabeled = getTokenFeature(getState(), "whitelabel");
+    const includeBranding = !isWhitelabeled;
+    const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
+    const fileName = getDashboardPdfFileName(dashboard, includeBranding);
+
+    // Long-running main thread blocking operation incoming; wait until the loader is painted.
+    await waitUntilNextFramePainted();
+
+    await saveDashboardPdf({
+      fileName,
+      selector: cardNodeSelector,
+      parametersNodeSelector: `#${DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}`,
+      dashboardName: dashboard.name,
+      includeBranding,
+    });
+
+    trackExportDashboardToPDF({
+      dashboardId: dashboard.id,
+      dashboardAccessedVia: getAccessedVia(
+        isUuid(dashboard.id),
+        isJWT(dashboard.id),
+      ),
+    });
+
+    return { id, fileName };
+  },
+);
 
 export const downloadQueryResults = createAsyncThunk(
   "metabase/downloads/downloadQueryResults",
-  async (opts: DownloadQueryResultsOpts, { dispatch, getState }) => {
+  async (opts: DownloadQueryResultsOpts, { dispatch }) => {
     const { resourceType, accessedVia } = getDownloadedResourceType(opts);
+
     trackDownloadResults({
       resourceType,
       accessedVia,
       exportType: opts.type,
     });
 
-    if (opts.type === Urls.exportFormatPng) {
-      dispatch(downloadToImage(true));
-
-      const isWhitelabeled = getTokenFeature(getState(), "whitelabel");
-      const includeBranding = !isWhitelabeled;
-      try {
-        await downloadChart({ opts, includeBranding });
-      } finally {
-        dispatch(downloadToImage(false));
-      }
+    if (opts.type === exportFormatPng) {
+      await dispatch(downloadToImage({ opts, id: Date.now() }));
     } else {
       await dispatch(downloadDataset({ opts, id: Date.now() }));
     }
   },
 );
 
-const downloadChart = async ({
-  opts,
-  includeBranding,
-}: {
-  opts: DownloadQueryResultsOpts;
-  includeBranding: boolean;
-}) => {
-  const { question, dashcardId } = opts;
-  const fileName = getChartFileName(question, includeBranding);
-  const chartSelector =
-    dashcardId != null
-      ? `[data-dashcard-key='${dashcardId}']`
-      : `[data-card-key='${getCardKey(question.id())}']`;
-  await saveChartImage({
-    selector: chartSelector,
-    fileName,
-    includeBranding,
-  });
+/**
+ * Read a download response body as a Blob. When a query fails *after* the
+ * download has started streaming, the server has already committed the HTTP
+ * status, so it signals the failure by aborting the connection. That truncates
+ * the response and makes `blob()` reject — surface a clean, localized error
+ * instead of a raw network error like "Failed to fetch", so the user knows the
+ * file did not download completely.
+ */
+export const readDownloadBlob = async (response: Response): Promise<Blob> => {
+  try {
+    return await response.blob();
+  } catch {
+    throw new Error(
+      t`The download was interrupted and the file may be incomplete. Please try again.`,
+    );
+  }
 };
 
 export const downloadDataset = createAsyncThunk(
   "metabase/downloads/downloadDataset",
-  async ({ opts, id }: { opts: DownloadQueryResultsOpts; id: number }) => {
+  async (
+    { opts, id }: { opts: DownloadQueryResultsOpts; id: number },
+    { dispatch },
+  ) => {
     const params = getDatasetParams(opts);
-    const response = await getDatasetResponse(params);
-    const name = getDatasetFileName(response.headers, opts.type);
-    const fileContent = await response.blob();
-    openSaveDialog(name, fileContent);
+    const promise = dispatch(
+      datasetApi.endpoints.downloadDataset.initiate({
+        method: params.method,
+        url: getDatasetDownloadUrl(params.url, params.params),
+        body: params.body,
+      }),
+    );
+    try {
+      const response = await promise.unwrap();
+      const fileName = getDatasetFileName(response.headers, opts.type);
+      const fileContent = await readDownloadBlob(response);
+      openSaveDialog(fileName, fileContent);
 
-    return { id, name };
+      return { id, fileName };
+    } finally {
+      promise.reset();
+    }
   },
 );
 
 type ExportParams = {
   format_rows: boolean;
   pivot_results: boolean;
+  csv_include_bom: boolean;
 };
 
 const getPublicDashcardParams = (
@@ -240,6 +325,7 @@ const getPublicQuestionParams = (
   uuid: string,
   type: string,
   result: Dataset,
+  exportParams: ExportParams,
 ): DownloadQueryResultsParams => {
   const parameters = (result?.json_query?.parameters ?? []).map((param) => ({
     id: param.id,
@@ -251,6 +337,7 @@ const getPublicQuestionParams = (
     url: Urls.publicQuestion({ uuid, type, includeSiteUrl: false }),
     params: new URLSearchParams({
       parameters: JSON.stringify(parameters),
+      ..._.mapObject(exportParams, (value) => String(value)),
     }),
   };
 };
@@ -271,34 +358,40 @@ const getEmbedDashcardParams = (
   }),
 });
 
+const convertSearchParamsToObject = (params: URLSearchParams) => {
+  const object: Record<string, string | string[]> = {};
+  for (const [key, value] of params.entries()) {
+    if (object[key]) {
+      // Unjustified type cast. FIXME
+      object[key] = ([] as string[]).concat(object[key], value);
+    } else {
+      object[key] = value;
+    }
+  }
+
+  return object;
+};
+
 const getEmbedQuestionParams = (
   token: EntityToken,
   type: string,
+  params: Record<string, unknown>,
   exportParams: ExportParams,
 ): DownloadQueryResultsParams => {
-  const params = new URLSearchParams(window.location.search);
-
-  const convertSearchParamsToObject = (params: URLSearchParams) => {
-    const object: Record<string, string | string[]> = {};
-    for (const [key, value] of params.entries()) {
-      if (object[key]) {
-        object[key] = ([] as string[]).concat(
-          object[key] as string | string[],
-          value,
-        );
-      } else {
-        object[key] = value;
-      }
-    }
-
-    return object;
-  };
+  // Guest Embed / Modular embedding SDK embeds receive parameter values via postMessage
+  // from the host page, so window.location.search does not reflect the active
+  // editable filter state. Fall back to the params provided by the caller.
+  // Static embed iframes encode filter values in the iframe URL, so read them
+  // from window.location.search.
+  const downloadParameters = isEmbeddingSdk()
+    ? params
+    : convertSearchParamsToObject(new URLSearchParams(window.location.search));
 
   return {
     method: "GET",
     url: Urls.embedCard(token, type),
     params: new URLSearchParams({
-      parameters: JSON.stringify(convertSearchParamsToObject(params)),
+      parameters: JSON.stringify(downloadParameters),
       ..._.mapObject(exportParams, (value) => String(value)),
     }),
   };
@@ -364,7 +457,7 @@ const getAdHocQuestionParams = (
   },
 });
 
-const getDatasetParams = ({
+export const getDatasetParams = ({
   type,
   question,
   dashboardId,
@@ -384,6 +477,7 @@ const getDatasetParams = ({
   const exportParams: ExportParams = {
     format_rows: enableFormatting,
     pivot_results: enablePivot,
+    csv_include_bom: true,
   };
 
   const { accessedVia, resourceType } = getDownloadedResourceType({
@@ -418,7 +512,7 @@ const getDatasetParams = ({
       );
     }
     if (resourceType === "question" && uuid) {
-      return getPublicQuestionParams(uuid, type, result);
+      return getPublicQuestionParams(uuid, type, result, exportParams);
     }
   }
 
@@ -435,7 +529,7 @@ const getDatasetParams = ({
       );
     }
     if (resourceType === "question" && token) {
-      return getEmbedQuestionParams(token, type, exportParams);
+      return getEmbedQuestionParams(token, type, params, exportParams);
     }
   }
 
@@ -483,50 +577,16 @@ export function getDatasetDownloadUrl(
   url: string,
   params?: URLSearchParams | string,
 ) {
-  url = url.replace(api.basename, ""); // make url relative if it's not
+  const basename = getBasename();
+  if (basename && url.startsWith(basename)) {
+    url = url.slice(basename.length); // make url relative if it's not
+  }
   if (params) {
     url += `?${params.toString()}`;
   }
 
   return url;
 }
-
-interface TransformResponseProps {
-  response?: Response;
-}
-
-const getDatasetResponse = ({
-  url,
-  method,
-  body,
-  params,
-}: DownloadQueryResultsParams) => {
-  const requestUrl = getDatasetDownloadUrl(url, params);
-
-  if (method === "POST") {
-    // BE expects the body to be form-encoded :(
-    const formattedBody = new URLSearchParams();
-    if (body != null) {
-      for (const key in body) {
-        formattedBody.append(key, JSON.stringify(body[key]));
-      }
-    }
-    return POST(requestUrl, {
-      formData: true,
-      fetch: true,
-      transformResponse: ({ response }: TransformResponseProps) =>
-        checkNotNull(response),
-    })({
-      formData: formattedBody,
-    });
-  } else {
-    return GET(requestUrl, {
-      fetch: true,
-      transformResponse: ({ response }: TransformResponseProps) =>
-        checkNotNull(response),
-    })();
-  }
-};
 
 const getDatasetFileName = (headers: Headers, type: string) => {
   const header = headers.get("Content-Disposition") ?? "";
@@ -543,8 +603,20 @@ export const getChartFileName = (question: Question, branded: boolean) => {
   const name = question.displayName() ?? t`New question`;
   const date = new Date().toLocaleString();
   const fileName = `${name}-${date}.png`;
-  // eslint-disable-next-line no-literal-metabase-strings -- Used explicitly in non-whitelabeled instances
+  // eslint-disable-next-line metabase/no-literal-metabase-strings -- Used explicitly in non-whitelabeled instances
   return branded ? `Metabase-${fileName}` : fileName;
+};
+
+export const getDashboardPdfFileName = (
+  dashboard: Dashboard,
+  branded: boolean,
+) => {
+  const originalFileName = `${dashboard.name}.pdf`;
+  const fileName = branded
+    ? // eslint-disable-next-line metabase/no-literal-metabase-strings -- Used explicitly in non-whitelabeled instances
+      `Metabase - ${originalFileName}`
+    : originalFileName;
+  return fileName;
 };
 
 export const getDownloads = (state: State) => state.downloads.datasetRequests;
@@ -570,38 +642,68 @@ const downloads = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(downloadDataset.pending, (state, action) => {
-        const title = t`Results for ${
-          action.meta.arg.opts.question.card().name
-        }`;
         state.datasetRequests.push({
           id: action.meta.arg.id,
-          title,
+          title: t`Results for ${action.meta.arg.opts.question.card().name}`,
           status: "in-progress",
         });
       })
-      .addCase(downloadDataset.fulfilled, (state, action) => {
-        const download = state.datasetRequests.find(
-          (item) => item.id === action.meta.arg.id,
-        );
-        if (download) {
-          download.status = "complete";
-          download.title = action.payload.name;
-        }
+      .addCase(downloadDashboardToPdf.pending, (state, action) => {
+        state.datasetRequests.push({
+          id: action.meta.arg.id,
+          title: t`Dashboard for ${action.meta.arg.dashboard.name}`,
+          status: "in-progress",
+        });
       })
-      .addCase(downloadDataset.rejected, (state, action) => {
-        const download = state.datasetRequests.find(
-          (item) => item.id === action.meta.arg.id,
-        );
-        if (download) {
-          download.status = "error";
-          download.error =
-            action.error.message ?? t`Could not download the file`;
-        }
-      });
+      .addCase(downloadToImage.pending, (state, action) => {
+        state.datasetRequests.push({
+          id: action.meta.arg.id,
+          title: t`Image for ${action.meta.arg.opts.question.card().name}`,
+          status: "in-progress",
+        });
+      })
+      .addMatcher(
+        isFulfilled(downloadDataset, downloadDashboardToPdf, downloadToImage),
+        (state, action) => {
+          const download = state.datasetRequests.find(
+            (item) => item.id === action.meta.arg.id,
+          );
+          if (download) {
+            download.status = "complete";
+            download.title = action.payload.fileName;
+          }
+        },
+      )
+      .addMatcher(
+        isRejected(downloadDataset, downloadDashboardToPdf, downloadToImage),
+        (state, action) => {
+          const download = state.datasetRequests.find(
+            (item) => item.id === action.meta.arg.id,
+          );
+          if (download) {
+            download.status = "error";
+            download.error =
+              action.error.message ?? t`Could not download the file`;
+          }
+        },
+      );
 
-    builder.addCase(downloadToImage, (state, action) => {
-      state.isDownloadingToImage = action.payload;
-    });
+    builder
+      .addMatcher(
+        isPending(downloadDashboardToPdf, downloadToImage),
+        (state) => {
+          state.isDownloadingToImage = true;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          isRejected(downloadDashboardToPdf, downloadToImage),
+          isFulfilled(downloadDashboardToPdf, downloadToImage),
+        ),
+        (state) => {
+          state.isDownloadingToImage = false;
+        },
+      );
   },
 });
 

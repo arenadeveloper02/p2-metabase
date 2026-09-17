@@ -127,7 +127,8 @@
 (defn listener-exists?
   "Returns true if there is a running listener with the given name"
   [listener-name]
-  (contains? @listeners listener-name))
+  (when-let [^ExecutorService executor (get @listeners listener-name)]
+    (not (.isTerminated executor))))
 
 (mu/defn- listener-thread [listener-name :- :string
                            queue :- (ms/InstanceOfClass BlockingQueue)
@@ -141,7 +142,6 @@
         (if (seq batch)
           (do
             (log/debugf "Listener %s processing batch of %d" listener-name (count batch))
-            (log/tracef "Listener %s processing batch: %s" listener-name batch)
             (let [timer (u/start-timer)
                   output (handler batch)
                   duration (u/since-ms timer)]
@@ -153,8 +153,28 @@
         (throw e))
       (catch Exception e
         (err-handler e listener-name)
-        (log/errorf e "Error in %s while processing batch" listener-name))))
+        (log/errorf "Error in %s while processing batch: %s" listener-name (ex-message e)))))
   (log/infof "Listener %s stopped" listener-name))
+
+(def ^:private ^:const max-restart-backoff-ms 30000)
+(def ^:private ^:const initial-restart-backoff-ms 500)
+
+(defn- listener-thread-with-restart
+  "Wraps `listener-thread` in a restart loop with exponential backoff.
+  If `listener-thread` exits unexpectedly (e.g. because the inner catch block itself throws),
+  this will restart it as long as the executor has not been shut down."
+  [listener-name queue handler options]
+  (loop [backoff-ms initial-restart-backoff-ms]
+    (try
+      (listener-thread listener-name queue handler options)
+      (catch InterruptedException _e
+        (log/debugf "Listener thread %s stopped" listener-name)
+        (throw (InterruptedException.)))
+      (catch Throwable e
+        (log/errorf "Listener thread %s crashed, restarting in %dms: %s" listener-name backoff-ms (ex-message e))))
+    (Thread/sleep ^long backoff-ms)
+    (when-not (.isShutdown ^ExecutorService (get @listeners listener-name))
+      (recur (min max-restart-backoff-ms (* 2 backoff-ms))))))
 
 (mu/defn listen!
   "Starts an async listener on the given queue. This should generally be called from `init-listener!` in a task namespace.
@@ -185,16 +205,14 @@
            max-next-ms        100}} :- ::listener-options]
   (if (listener-exists? listener-name)
     (log/errorf "Listener %s already exists" listener-name)
-
     (let [executor (cp/threadpool pool-size {:name (str "queue-" listener-name)})]
       (log/infof "Starting listener %s with %d threads %s" (u/format-color 'green listener-name) pool-size (u/emoji "\uD83C\uDFA7"))
       (dotimes [_ pool-size]
-        (cp/future executor (listener-thread listener-name queue handler
-                                             {:success-handler    success-handler
-                                              :err-handler        err-handler
-                                              :max-batch-messages max-batch-messages
-                                              :max-next-ms        max-next-ms})))
-
+        (cp/future executor (listener-thread-with-restart listener-name queue handler
+                                                          {:success-handler    success-handler
+                                                           :err-handler        err-handler
+                                                           :max-batch-messages max-batch-messages
+                                                           :max-next-ms        max-next-ms})))
       (swap! listeners assoc listener-name executor))))
 
 (mu/defn stop-listening!
@@ -207,7 +225,6 @@
       (cp/shutdown! executor)
       ;; wait up to 10 seconds for executor to stop. Largely for CI/tests FAIL in (listener-handler-test) (queue_test.clj:178)
       (.awaitTermination executor 10 TimeUnit/SECONDS)
-
       (swap! listeners dissoc listener-name)
       (log/infof "Stopping listener %s...done" listener-name))
     (log/infof "No running listener named %s" listener-name)))
@@ -233,7 +250,7 @@
     (try
       (f k)
       (catch Throwable e
-        (log/errorf e "Error initializing listener %s" k)))))
+        (log/errorf "Error initializing listener %s: %s" k (ex-message e))))))
 
 (defn stop-listeners!
   "Stops all running listeners"

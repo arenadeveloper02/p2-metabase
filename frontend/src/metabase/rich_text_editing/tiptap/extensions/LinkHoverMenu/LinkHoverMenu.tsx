@@ -7,9 +7,15 @@ import {
   useState,
 } from "react";
 
-import { Ellipsified } from "metabase/common/components/Ellipsified";
-import ExternalLink from "metabase/common/components/ExternalLink";
-import { ActionIcon, Box, Card, FixedSizeIcon, Flex } from "metabase/ui";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
+import {
+  ActionIcon,
+  Box,
+  Card,
+  Ellipsified,
+  FixedSizeIcon,
+  Flex,
+} from "metabase/ui";
 
 import S from "../PlainLink/PlainLink.module.css";
 
@@ -46,6 +52,7 @@ export const LinkHoverMenu = ({ editor, editable }: LinkHoverMenuProps) => {
     }
 
     const handleMouseOver = (event: MouseEvent) => {
+      // Unjustified type cast. FIXME
       const target = event.target as HTMLElement;
       if (target.tagName === "A" && target.classList.contains(S.plainLink)) {
         clearHoverTimeout();
@@ -54,6 +61,7 @@ export const LinkHoverMenu = ({ editor, editable }: LinkHoverMenuProps) => {
     };
 
     const handleMouseOut = (event: MouseEvent) => {
+      // Unjustified type cast. FIXME
       const target = event.target as HTMLElement;
       if (target.tagName === "A" && target.classList.contains(S.plainLink)) {
         startHoverTimeout();
@@ -103,8 +111,8 @@ export const LinkHoverMenu = ({ editor, editable }: LinkHoverMenuProps) => {
       onMouseLeave={() => startHoverTimeout()}
     >
       <Card
-        shadow="0 2px 8px var(--mb-color-shadow)"
-        bd="1px solid var(--mb-color-border)"
+        shadow="0 2px 8px var(--mb-color-shadow-default)"
+        bd="1px solid var(--mb-color-border-neutral)"
         bdrs="sm"
         px="sm"
         py="xs"
@@ -119,7 +127,7 @@ export const LinkHoverMenu = ({ editor, editable }: LinkHoverMenuProps) => {
           {editable && (
             <ActionIcon
               ml="sm"
-              c="var(--mb-color-text-secondary)"
+              c="text-secondary"
               onClick={() => {
                 editor.commands.focus();
                 const pos = editor.view.posAtDOM(hoveredLink, 0);

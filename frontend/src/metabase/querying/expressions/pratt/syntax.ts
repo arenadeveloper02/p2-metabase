@@ -15,27 +15,49 @@ import type { Node, NodeType } from "./node";
  *       that the lexer makes based on contextual information
  */
 
+// Unjustified type cast. FIXME
 export const FIELD = {} as NodeType;
+// Unjustified type cast. FIXME
 export const ADD = {} as NodeType;
+// Unjustified type cast. FIXME
 export const LOGICAL_AND = {} as NodeType;
+// Unjustified type cast. FIXME
 export const ARG_LIST = {} as NodeType;
+// Unjustified type cast. FIXME
 export const BAD_TOKEN = {} as NodeType;
+// Unjustified type cast. FIXME
 export const CALL = {} as NodeType;
+// Unjustified type cast. FIXME
 export const COMMA = {} as NodeType;
+// Unjustified type cast. FIXME
 export const END_OF_INPUT = {} as NodeType;
+// Unjustified type cast. FIXME
 export const EQUALITY = {} as NodeType;
+// Unjustified type cast. FIXME
 export const NUMBER = {} as NodeType;
+// Unjustified type cast. FIXME
 export const BOOLEAN = {} as NodeType;
+// Unjustified type cast. FIXME
 export const LOGICAL_NOT = {} as NodeType;
+// Unjustified type cast. FIXME
 export const NEGATIVE = {} as NodeType;
+// Unjustified type cast. FIXME
 export const LOGICAL_OR = {} as NodeType;
+// Unjustified type cast. FIXME
 export const COMPARISON = {} as NodeType;
+// Unjustified type cast. FIXME
 export const GROUP = {} as NodeType;
+// Unjustified type cast. FIXME
 export const GROUP_CLOSE = {} as NodeType;
+// Unjustified type cast. FIXME
 export const ROOT = {} as NodeType;
+// Unjustified type cast. FIXME
 export const MULDIV_OP = {} as NodeType;
+// Unjustified type cast. FIXME
 export const STRING = {} as NodeType;
+// Unjustified type cast. FIXME
 export const SUB = {} as NodeType;
+// Unjustified type cast. FIXME
 export const IDENTIFIER = {} as NodeType;
 
 function operand(leftOperands: number, rightOperands: number) {
@@ -117,7 +139,7 @@ setAttributes(
 
 /*
  * Child constraints govern how many children an AST node can have and where
- * thare placed relative to the node.
+ * there placed relative to the node.
  *
  * These are syntax rules, rather than semantic ones, since that is handled
  * later by a different pass. i.e. LOGICAL_AND and LOGICAL_OR rules don't check

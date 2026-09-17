@@ -3,8 +3,8 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import DashboardS from "metabase/css/dashboard.module.css";
-import { color } from "metabase/lib/colors";
-import { formatValue } from "metabase/lib/formatting";
+import { color } from "metabase/ui/colors/palette";
+import { formatValue } from "metabase/value-formatting";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
 import { columnSettings } from "metabase/visualizations/lib/settings/column";
 import { fieldSetting } from "metabase/visualizations/lib/settings/utils";
@@ -29,8 +29,8 @@ export class TextScalar extends Component<
   VisualizationProps & VisualizationPassThroughProps
 > {
   static getUiName = () => t`Text`;
-  static identifier = "textscalar";
-  static iconName = "string";
+  static identifier = "textscalar" as const;
+  static iconName = "string" as const;
   static canSavePng = false;
 
   static minSize = getMinSize("scalar");

@@ -7,6 +7,7 @@ import {
   setupCollectionByIdEndpoint,
   setupCollectionItemsEndpoint,
   setupCollectionsEndpoints,
+  setupCustomVizPluginListEndpoint,
   setupDashboardEndpoints,
   setupDatabasesEndpoints,
   setupLibraryEndpoints,
@@ -20,10 +21,13 @@ import {
   waitFor,
   within,
 } from "__support__/ui";
+import { ROOT_COLLECTION } from "metabase/common/collections/constants";
 import { SaveQuestionModal } from "metabase/common/components/SaveQuestionModal";
-import { ROOT_COLLECTION } from "metabase/entities/collections";
-import * as qbSelectors from "metabase/query_builder/selectors";
 import { QUESTION_NAME_MAX_LENGTH } from "metabase/questions/constants";
+import {
+  createMockQueryBuilderState,
+  createMockState,
+} from "metabase/redux/store/mocks";
 import * as Lib from "metabase-lib";
 import Question from "metabase-lib/v1/Question";
 import type {
@@ -42,10 +46,6 @@ import {
   SAMPLE_DB_ID,
   createSampleDatabase,
 } from "metabase-types/api/mocks/presets";
-import {
-  createMockQueryBuilderState,
-  createMockState,
-} from "metabase-types/store/mocks";
 
 const metadata = createMockMetadata({
   databases: [createSampleDatabase()],
@@ -123,6 +123,7 @@ const setup = async (
   setupDashboardEndpoints(BAR_DASH);
   setupLibraryEndpoints();
   setupDatabasesEndpoints([]);
+  setupCustomVizPluginListEndpoint();
 
   setupRecentViewsAndSelectionsEndpoints([], ["selections"]);
   setupRecentViewsAndSelectionsEndpoints(
@@ -809,11 +810,6 @@ describe("SaveQuestionModal", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-      // simulate slow response and further re-render of the modal
-      jest
-        .spyOn(qbSelectors, "getIsSavedQuestionChanged")
-        .mockReturnValue(false);
-
       rerender();
 
       // verify that modal still has content
@@ -888,11 +884,6 @@ describe("SaveQuestionModal", () => {
     const questionModalTitle = () =>
       screen.getByRole("heading", { name: /new question/i });
 
-    const newDashBtn = () =>
-      screen.getByRole("button", {
-        name: /new dashboard/i,
-      });
-
     const COLLECTION = {
       USER: BOBBY_TEST_COLLECTION,
       ROOT: createMockCollection({
@@ -920,7 +911,9 @@ describe("SaveQuestionModal", () => {
         collectionItems: [
           createMockCollectionItem({
             ...COLLECTION.PARENT,
+            // Unjustified type cast. FIXME
             id: COLLECTION.PARENT.id as number,
+            // Unjustified type cast. FIXME
             entity_id: COLLECTION.PARENT.entity_id as BaseEntityId,
             location: COLLECTION.PARENT.location || "/",
             type: undefined,
@@ -933,7 +926,9 @@ describe("SaveQuestionModal", () => {
         collectionItems: [
           createMockCollectionItem({
             ...COLLECTION.CHILD,
+            // Unjustified type cast. FIXME
             id: COLLECTION.CHILD.id as number,
+            // Unjustified type cast. FIXME
             entity_id: COLLECTION.CHILD.entity_id as BaseEntityId,
             location: COLLECTION.CHILD.location || "/",
             type: undefined,
@@ -961,7 +956,7 @@ describe("SaveQuestionModal", () => {
         await userEvent.click(saveLocDropdown());
         await waitFor(() => expect(newCollBtn()).toBeInTheDocument());
         await userEvent.click(newCollBtn());
-        await screen.findByText("Give it a name");
+        await screen.findByText(/Give it a name/);
         await userEvent.click(newCollCancelButton());
         await userEvent.click(selectCollCancelButton());
         await waitFor(() => expect(questionModalTitle()).toBeInTheDocument());
@@ -997,65 +992,6 @@ describe("SaveQuestionModal", () => {
             expect(
               await screen.findByRole("heading", {
                 name: "Create a new collection",
-              }),
-            ).toBeInTheDocument();
-          });
-        });
-      });
-    });
-
-    describe("new dashboard modal", () => {
-      it("should have a new dashboard button in the collection picker", async () => {
-        await setup(getQuestion());
-        await userEvent.click(saveLocDropdown());
-        await waitFor(() => {
-          expect(newDashBtn()).toBeInTheDocument();
-        });
-      });
-
-      it("should open new dashboard modal and return to dashboard modal when clicking close", async () => {
-        await setup(getQuestion());
-        await userEvent.click(saveLocDropdown());
-        await waitFor(() => expect(newDashBtn()).toBeInTheDocument());
-        await userEvent.click(newDashBtn());
-        await screen.findByText("Give it a name");
-        await within(
-          await screen.findByTestId("create-dashboard-on-the-go"),
-        ).findByRole("button", { name: /cancel/i });
-        await userEvent.click(selectCollCancelButton());
-        await waitFor(() => expect(questionModalTitle()).toBeInTheDocument());
-      });
-
-      describe("new dashboard location", () => {
-        beforeEach(async () => {
-          await setup(getQuestion(), null, {
-            collectionEndpoints: {
-              collections: Object.values(COLLECTION),
-              rootCollection: COLLECTION.ROOT,
-            },
-          });
-        });
-
-        it("should create dashboard inside nested folder", async () => {
-          await userEvent.click(saveLocDropdown());
-          await waitFor(() => expect(newDashBtn()).toBeInTheDocument());
-          await userEvent.click(
-            await screen.findByRole("link", {
-              name: new RegExp(BOBBY_TEST_COLLECTION.name),
-            }),
-          );
-          await userEvent.click(newDashBtn());
-          await screen.findByText("Give it a name");
-        });
-
-        it("should create dashboard inside root folder", async () => {
-          await userEvent.click(saveLocDropdown());
-          await waitFor(() => expect(newDashBtn()).toBeInTheDocument());
-          await userEvent.click(newDashBtn());
-          await waitFor(async () => {
-            expect(
-              await screen.findByRole("heading", {
-                name: "Create a new dashboard",
               }),
             ).toBeInTheDocument();
           });

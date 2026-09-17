@@ -1,6 +1,5 @@
 import type { XAXisOption, YAXisOption } from "echarts/types/dist/shared";
 
-import { DEFAULT_VISUALIZATION_THEME } from "metabase/visualizations/shared/utils/theme";
 import type { RenderingContext } from "metabase/visualizations/types";
 import type { RawSeries, SingleSeries } from "metabase-types/api";
 import {
@@ -10,7 +9,8 @@ import {
   createMockVisualizationSettings,
 } from "metabase-types/api/mocks";
 
-import { getChartMeasurements } from "../chart-measurements";
+import { DEFAULT_VISUALIZATION_THEME } from "../../../shared/utils/theme";
+import { getChartLayout } from "../layout";
 import { getCartesianChartModel } from "../model";
 
 import { buildAxes } from "./axis";
@@ -79,7 +79,7 @@ describe("ensureRoomForLabels", () => {
       mockRenderingContext,
     );
 
-    const chartMeasurements = getChartMeasurements(
+    const chartLayout = getChartLayout(
       chartModel,
       mockSettings,
       hasTimelineEvents,
@@ -90,8 +90,7 @@ describe("ensureRoomForLabels", () => {
 
     const axes = buildAxes(
       chartModel,
-      chartWidth,
-      chartMeasurements,
+      chartLayout,
       mockSettings,
       hasTimelineEvents,
       mockRenderingContext,
@@ -101,11 +100,11 @@ describe("ensureRoomForLabels", () => {
       chartModel,
       mockSettings,
       chartWidth,
-      chartMeasurements,
+      chartLayout,
       mockRenderingContext,
     );
 
-    return [axes, chartModel, chartMeasurements, dataSeriesOptions] as const;
+    return [axes, chartModel, chartLayout, dataSeriesOptions] as const;
   };
 
   const getBoundaryGap = (axis: YAXisOption | XAXisOption) =>

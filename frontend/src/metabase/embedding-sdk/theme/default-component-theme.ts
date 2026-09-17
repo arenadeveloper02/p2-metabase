@@ -1,10 +1,10 @@
 import { merge } from "icepick";
 
-import { OVERLAY_Z_INDEX } from "metabase/css/core/overlays/constants";
 import { EMBEDDING_SDK_PORTAL_ROOT_ELEMENT_ID } from "metabase/embedding-sdk/config";
 import type { MetabaseComponentTheme } from "metabase/embedding-sdk/theme";
-import type { DeepPartial } from "metabase/embedding-sdk/types/utils";
 import type { MantineThemeOverride } from "metabase/ui";
+import { OVERLAY_Z_INDEX } from "metabase/ui/component-theme";
+import type { DeepPartial } from "metabase-types/utils/types";
 
 export const DEFAULT_SDK_FONT_SIZE = 14;
 
@@ -34,10 +34,10 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
   collectionBrowser: {
     breadcrumbs: {
       expandButton: {
-        textColor: "var(--mb-color-text-medium)",
-        backgroundColor: "var(--mb-color-bg-light)",
-        hoverTextColor: "var(--mb-color-text-white)",
-        hoverBackgroundColor: "var(--mb-color-brand)",
+        textColor: "var(--mb-color-text-secondary)",
+        backgroundColor: "var(--mb-color-background_page-secondary)",
+        hoverTextColor: "var(--mb-color-text-primary-inverse)",
+        hoverBackgroundColor: "var(--mb-color-core-brand)",
       },
     },
     emptyContent: {
@@ -54,9 +54,9 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
     },
   },
   dashboard: {
-    backgroundColor: "var(--mb-color-bg-white)",
+    backgroundColor: "var(--mb-color-background_page-primary)",
     card: {
-      backgroundColor: "var(--mb-color-bg-white)",
+      backgroundColor: "var(--mb-color-background_page-primary)",
     },
   },
   question: {
@@ -64,12 +64,13 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
   },
 
   table: {
+    stickyBackgroundColor: "var(--mb-color-background_page-secondary)",
     cell: {
       fontSize: FONT_SIZES.tableCell.px,
       textColor: "var(--mb-color-text-primary)",
     },
     idColumn: {
-      textColor: "var(--mb-color-brand)",
+      textColor: "var(--mb-color-core-brand)",
     },
   },
   pivotTable: {
@@ -77,8 +78,8 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
       fontSize: FONT_SIZES.pivotTableCell.px,
     },
     rowToggle: {
-      textColor: "text-white",
-      backgroundColor: "text-light", // TODO: should it be "bg-dark" ?
+      textColor: "var(--mb-color-text-primary-inverse)",
+      backgroundColor: "var(--mb-color-text-disabled)",
     },
   },
   cartesian: {
@@ -126,8 +127,8 @@ export const DEFAULT_EMBEDDED_COMPONENT_THEME: MetabaseComponentTheme = merge<
     breadcrumbs: {
       expandButton: {
         backgroundColor: "transparent",
-        hoverTextColor: "var(--mb-color-text-white)",
-        hoverBackgroundColor: "var(--mb-color-brand)",
+        hoverTextColor: "var(--mb-color-text-primary-inverse)",
+        hoverBackgroundColor: "var(--mb-color-core-brand)",
       },
     },
   },

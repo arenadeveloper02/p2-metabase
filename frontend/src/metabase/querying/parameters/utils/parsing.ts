@@ -1,9 +1,8 @@
-import dayjs from "dayjs";
-
-import { parseNumber } from "metabase/lib/number";
-import { isNotNull } from "metabase/lib/types";
-import type { DateFilterValue } from "metabase/querying/filters/types";
+import { dayjs } from "metabase/dayjs";
+import type { DateFilterValue } from "metabase/querying/common/types";
 import { isDatePickerTruncationUnit } from "metabase/querying/filters/utils/dates";
+import { parseNumber } from "metabase/utils/number";
+import { isNotNull } from "metabase/utils/types";
 import * as Lib from "metabase-lib";
 import type {
   ParameterType,
@@ -322,50 +321,6 @@ const DATE_FILTER_SERIALIZERS: DateFilterSerializer[] = [
       }
     },
   },
-  // `past1weeks-end` — last day of the previous completed week (Mon–Sun)
-  {
-    regex: /^past1weeks-end$/,
-    serialize: (value) => {
-      if (
-        value.type === "relative" &&
-        value.value === -1 &&
-        value.unit === "week" &&
-        value.options?.usePeriodEnd &&
-        value.offsetValue == null &&
-        value.offsetUnit == null
-      ) {
-        return "past1weeks-end";
-      }
-    },
-    deserialize: () => ({
-      type: "relative",
-      value: -1,
-      unit: "week",
-      options: { usePeriodEnd: true },
-    }),
-  },
-  // `past1months-end` — last day of the previous completed month
-  {
-    regex: /^past1months-end$/,
-    serialize: (value) => {
-      if (
-        value.type === "relative" &&
-        value.value === -1 &&
-        value.unit === "month" &&
-        value.options?.usePeriodEnd &&
-        value.offsetValue == null &&
-        value.offsetUnit == null
-      ) {
-        return "past1months-end";
-      }
-    },
-    deserialize: () => ({
-      type: "relative",
-      value: -1,
-      unit: "month",
-      options: { usePeriodEnd: true },
-    }),
-  },
   // `past30days`, `past30days~`. `~` means `includeCurrent`
   {
     regex: /^past(\d+)(\w+)s(~)?$/,
@@ -375,8 +330,7 @@ const DATE_FILTER_SERIALIZERS: DateFilterSerializer[] = [
         value.value !== 0 &&
         value.value < 0 &&
         value.offsetValue == null &&
-        value.offsetUnit == null &&
-        !value.options?.usePeriodEnd
+        value.offsetUnit == null
       ) {
         const suffix = value.options?.includeCurrent ? "~" : "";
         return `past${-value.value}${value.unit}s${suffix}`;

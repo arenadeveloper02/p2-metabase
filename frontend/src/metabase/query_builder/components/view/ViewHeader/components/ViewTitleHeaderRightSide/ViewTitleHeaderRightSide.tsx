@@ -3,23 +3,19 @@ import type React from "react";
 import { useCallback } from "react";
 import { t } from "ttag";
 
-import CS from "metabase/css/core/index.css";
-import { QuestionSharingMenu } from "metabase/embedding/components/SharingMenu";
-import { SERVER_ERROR_TYPES } from "metabase/lib/errors";
-import { useSelector } from "metabase/lib/redux";
-import MetabaseSettings from "metabase/lib/settings";
+import { getUserCanWriteToCollections } from "metabase/current-user";
 import { useRegisterShortcut } from "metabase/palette/hooks/useRegisterShortcut";
-import { PLUGIN_AI_ENTITY_ANALYSIS } from "metabase/plugins";
-import RunButtonWithTooltip from "metabase/query_builder/components/RunButtonWithTooltip";
 import { canExploreResults } from "metabase/query_builder/components/view/ViewHeader/utils";
-import type { QueryModalType } from "metabase/query_builder/constants";
-import { MODAL_TYPES } from "metabase/query_builder/constants";
-import { getUserCanWriteToCollections } from "metabase/selectors/user";
+import { RunButtonWithTooltip } from "metabase/querying/components/QueryVisualization/RunButtonWithTooltip";
+import { MODAL_TYPES, type QueryModalType } from "metabase/querying/constants";
+import { useSelector } from "metabase/redux";
+import type { DatasetEditorTab, QueryBuilderMode } from "metabase/redux/store";
 import { Box, Button, Flex, Tooltip } from "metabase/ui";
+import { SERVER_ERROR_TYPES } from "metabase/utils/errors";
+import MetabaseSettings from "metabase/utils/settings";
 import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
 import type { Dataset } from "metabase-types/api";
-import type { DatasetEditorTab, QueryBuilderMode } from "metabase-types/store";
 
 import ViewTitleHeaderS from "../../ViewTitleHeader.module.css";
 import { ExploreResultsLink } from "../ExploreResultsLink";
@@ -29,9 +25,11 @@ import { QuestionNotebookButton } from "../QuestionNotebookButton";
 import { QuestionSummarizeWidget } from "../QuestionSummarizeWidget";
 import { ToggleNativeQueryPreview } from "../ToggleNativeQueryPreview";
 
+import { QuestionSharingMenu } from "./QuestionSharingMenu/QuestionSharingMenu";
+
 interface ViewTitleHeaderRightSideProps {
   question: Question;
-  result: Dataset;
+  result?: Dataset;
   queryBuilderMode: QueryBuilderMode;
   isBookmarked: boolean;
   isModelOrMetric: boolean;
@@ -50,7 +48,7 @@ interface ViewTitleHeaderRightSideProps {
   }) => void;
   cancelQuery: () => void;
   onOpenModal: (modalType: QueryModalType) => void;
-  onEditSummary: () => void;
+  editSummary: () => void;
   onCloseSummary: () => void;
   setQueryBuilderMode: (
     mode: QueryBuilderMode,
@@ -86,7 +84,7 @@ export function ViewTitleHeaderRightSide({
   runQuestionQuery,
   cancelQuery,
   onOpenModal,
-  onEditSummary,
+  editSummary,
   onCloseSummary,
   setQueryBuilderMode,
   areFiltersExpanded,
@@ -99,7 +97,6 @@ export function ViewTitleHeaderRightSide({
   isObjectDetail,
 }: ViewTitleHeaderRightSideProps): React.JSX.Element {
   const isShowingNotebook = queryBuilderMode === "notebook";
-  const { isEditable } = Lib.queryDisplayInfo(question.query());
   const canWriteToCollections = useSelector(getUserCanWriteToCollections);
 
   const hasExploreResultsLink =
@@ -143,9 +140,7 @@ export function ViewTitleHeaderRightSide({
   const canSave = Lib.canSave(question.query(), question.type());
   const isSaveDisabled = !canSave;
   const isBrandNew = !isSaved && !result && queryBuilderMode === "notebook";
-  const disabledSaveTooltip = isSaveDisabled
-    ? getDisabledSaveTooltip(isEditable)
-    : undefined;
+  const saveTooltip = getSaveTooltip(question);
 
   useRegisterShortcut(
     hasRunButton && !isShowingNotebook
@@ -172,7 +167,6 @@ export function ViewTitleHeaderRightSide({
         isActionListVisible,
       }) && (
         <FilterHeaderButton
-          className={cx(CS.hide, CS.smShow)}
           question={question}
           isExpanded={areFiltersExpanded}
           onExpand={onExpandFilters}
@@ -186,9 +180,8 @@ export function ViewTitleHeaderRightSide({
         isActionListVisible,
       }) && (
         <QuestionSummarizeWidget
-          className={cx(CS.hide, CS.smShow)}
           isShowingSummarySidebar={isShowingSummarySidebar}
-          onEditSummary={onEditSummary}
+          editSummary={editSummary}
           onCloseSummary={onCloseSummary}
         />
       )}
@@ -202,6 +195,7 @@ export function ViewTitleHeaderRightSide({
           setQueryBuilderMode={setQueryBuilderMode}
         />
       )}
+      <Box className={ViewTitleHeaderS.Divider} />
       {ToggleNativeQueryPreview.shouldRender({
         question,
         queryBuilderMode,
@@ -219,7 +213,6 @@ export function ViewTitleHeaderRightSide({
             )}
             iconSize={16}
             onlyIcon
-            medium
             isRunning={isRunning}
             isDirty={isResultDirty}
             onRun={() => runQuestionQuery({ ignoreCache: true })}
@@ -231,10 +224,6 @@ export function ViewTitleHeaderRightSide({
       {!isShowingNotebook && (hasSaveButton || isSaved) && (
         <QuestionSharingMenu question={question} />
       )}
-      {!isShowingNotebook &&
-      PLUGIN_AI_ENTITY_ANALYSIS.canAnalyzeQuestion(question) ? (
-        <PLUGIN_AI_ENTITY_ANALYSIS.AIQuestionAnalysisButton />
-      ) : null}
       {isSaved && (
         <QuestionActions
           question={question}
@@ -247,11 +236,7 @@ export function ViewTitleHeaderRightSide({
         />
       )}
       {hasSaveButton && (
-        <Tooltip
-          disabled={!disabledSaveTooltip}
-          label={disabledSaveTooltip}
-          position="left"
-        >
+        <Tooltip disabled={!saveTooltip} label={saveTooltip} position="left">
           <Button
             className={ViewTitleHeaderS.SaveButton}
             data-testid="qb-save-button"
@@ -275,8 +260,13 @@ export function ViewTitleHeaderRightSide({
   );
 }
 
-function getDisabledSaveTooltip(isEditable: boolean) {
+function getSaveTooltip(question: Question) {
+  const query = question.query();
+  const { isEditable } = Lib.queryDisplayInfo(query);
   if (!isEditable) {
     return t`You don't have permission to save this question.`;
   }
+
+  const errors = Lib.validateTemplateTags(query);
+  return errors[0]?.message;
 }

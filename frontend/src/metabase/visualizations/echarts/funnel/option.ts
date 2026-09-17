@@ -2,9 +2,9 @@
 import type { EChartsOption } from "echarts";
 import type React from "react";
 
-import { getColorsForValues } from "metabase/lib/colors/charts";
-import { formatValue } from "metabase/lib/formatting";
-import { formatNullable } from "metabase/lib/formatting/nullable";
+import { getColorsForValues } from "metabase/ui/colors/charts";
+import { formatNullable } from "metabase/utils/formatting";
+import { formatValue } from "metabase/value-formatting";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
 import type { RawSeries } from "metabase-types/api";
 

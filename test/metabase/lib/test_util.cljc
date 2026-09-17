@@ -11,6 +11,7 @@
    [metabase.lib.query :as lib.query]
    [metabase.lib.schema :as lib.schema]
    [metabase.lib.schema.common :as lib.schema.common]
+   [metabase.lib.schema.id :as lib.schema.id]
    [metabase.lib.schema.metadata :as lib.schema.metadata]
    [metabase.lib.schema.ref :as lib.schema.ref]
    [metabase.lib.test-metadata :as meta]
@@ -90,6 +91,20 @@
    meta/metadata-provider
    (providers.mock/mock-metadata-provider
     (assoc-in cards [:cards 0 :type] :metric))))
+
+(def metadata-provider-with-nfc-path
+  "[[meta/metadata-provider]] with `orders.product-id` overridden to be a JSON-unfolded field (i.e. with
+  `:nfc-path`). Engine is forced to `:postgres` so tests that go through QP preprocessing can rely on the
+  `:native-pivot-tables` driver feature being available. Useful for testing code paths that handle
+  nested-field columns."
+  (providers.mock/mock-metadata-provider
+   meta/metadata-provider
+   {:database (assoc meta/database :engine :postgres)
+    :fields   [(merge (meta/field-metadata :orders :product-id)
+                      {:nfc-path       ["payload" "product_id"]
+                       :base-type      :type/Text
+                       :effective-type :type/Text
+                       :database-type  "text"})]}))
 
 (defn query-with-source-card
   "Returns a query against `:source-card 1`, with a metadata provider that has that Card. Card's name is `My Card`.
@@ -226,17 +241,23 @@
   (if (instance? #?(:clj  CachedProxyMetadataProvider
                     :cljs metabase.lib.metadata.cached-provider/CachedProxyMetadataProvider)
                  metadata-provider)
-    (.-metadata-provider metadata-provider)
+    (let [p #?(:clj  ^CachedProxyMetadataProvider metadata-provider
+               :cljs metadata-provider)]
+      (.-metadata-provider p))
     metadata-provider))
 
-(defn make-mock-cards
+(mu/defn make-mock-cards
   "Create mock cards against a set of tables in meta/metadata-provider. See [[mock-cards]]"
-  [metadata-provider table-key-and-ids]
+  [metadata-provider :- ::lib.schema.metadata/metadata-provider
+   table-key-and-ids :- [:sequential [:tuple :keyword ::lib.schema.id/table]]]
   (into {}
         (comp (mapcat (fn [[table table-id]]
-                        [{:table table, :table-id table-id :metadata? true,  :native? false, :card-name table}
-                         {:table table, :table-id table-id :metadata? true,  :native? true,  :card-name (keyword (name table) "native")}
-                         {:table table, :table-id table-id :metadata? false, :native? false, :card-name (keyword (name table) "no-metadata")}]))
+                        (let [base-card-name (if (qualified-keyword? table)
+                                               (str (namespace table) "-" (name table))
+                                               (name table))]
+                          [{:table table, :table-id table-id, :metadata? true, :native? false, :card-name (keyword base-card-name)}
+                           {:table table, :table-id table-id, :metadata? true, :native? true, :card-name (keyword base-card-name "native")}
+                           {:table table, :table-id table-id, :metadata? false, :native? false, :card-name (keyword base-card-name "no-metadata")}])))
               (map-indexed (fn [idx {:keys [table table-id metadata? native? card-name]}]
                              (let [eid (u/generate-nano-id)]
                                [card-name
@@ -285,7 +306,7 @@
                                                   {:base-type :type/Integer
                                                    :join-alias "Reviews"}]]}]}}}}))
 
-(defn mock-cards
+(mu/defn mock-cards :- [:map-of :keyword ::lib.schema.metadata/card]
   "Returns a map of mock MBQL query Card against the test tables. There are three versions of the Card for each table:
 
   * `:venues`, a Card WITH `:result-metadata`
@@ -295,7 +316,7 @@
   There are also some specialized mock cards used for corner cases:
   * `:model/products-and-reviews`, a model joining products to reviews"
   []
-  (merge (make-mock-cards meta/metadata-provider (map (juxt identity (comp :id meta/table-metadata)) (meta/tables)))
+  (merge (make-mock-cards meta/metadata-provider (map (juxt identity meta/id) (meta/tables)))
          (make-mock-cards-special-cases meta/metadata-provider)))
 
 (defn metadata-provider-with-mock-card
@@ -363,7 +384,7 @@
    {mbql-query :dataset-query, metadata :result-metadata} :- [:map
                                                               [:dataset-query :map]
                                                               [:result-metadata [:sequential {:min 1} :map]]]]
-  (let [mbql-query (cond-> (assoc (lib.convert/->pMBQL mbql-query)
+  (let [mbql-query (cond-> (assoc (lib.convert/->mbql5 mbql-query)
                                   :lib/metadata (lib.metadata/->metadata-provider metadata-providerable))
                      metadata
                      (lib.util/update-query-stage -1 assoc :lib/stage-metadata (lib.util/->stage-metadata (mapv #(dissoc % :id :table-id) metadata))))]

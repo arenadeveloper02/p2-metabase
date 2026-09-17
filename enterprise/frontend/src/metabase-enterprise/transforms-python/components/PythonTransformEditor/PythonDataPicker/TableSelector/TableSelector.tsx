@@ -1,16 +1,16 @@
 import { useDisclosure } from "@mantine/hooks";
 import { t } from "ttag";
 
-import type { CollectionPickerItem } from "metabase/common/components/Pickers/CollectionPicker";
+import type { OmniPickerItem } from "metabase/common/components/Pickers";
 import {
-  type DataPickerItem,
   DataPickerModal,
+  type DataPickerValue,
 } from "metabase/common/components/Pickers/DataPicker";
-import type { TablePickerValue } from "metabase/common/components/Pickers/TablePicker";
 import {
   ActionIcon,
   Box,
   Button,
+  Ellipsified,
   Group,
   Icon,
   Stack,
@@ -19,12 +19,10 @@ import {
 import type {
   ConcreteTableId,
   DatabaseId,
-  RecentItem,
   Table,
   TableId,
 } from "metabase-types/api";
-
-import { isConcreteTableId } from "../utils";
+import { isConcreteTableId } from "metabase-types/api";
 
 import S from "./TableSelector.module.css";
 
@@ -54,27 +52,26 @@ export function TableSelector({
     }
   }
 
-  function shouldDisableItem(
-    item: DataPickerItem | CollectionPickerItem | RecentItem,
-  ) {
+  function shouldDisableItem(item: OmniPickerItem) {
     if (item.model === "table") {
       // Filter available tables to exclude already selected ones (except current selection)
       return !isConcreteTableId(item.id) || selectedTableIds.includes(item.id);
     }
-    if (item.model === "database") {
-      return item.id !== database;
-    }
-    if (item.model === "collection" && item.id === "databases") {
-      return false;
-    }
-    return true;
+    return false;
   }
 
   return (
     <>
-      <Group w="100%" bdrs="xs" gap="xs" className={S.tableSelector}>
+      <Group
+        w="100%"
+        bdrs="xs"
+        gap="xs"
+        wrap="nowrap"
+        className={S.tableSelector}
+      >
         <Button
           flex="1 1 auto"
+          miw={0}
           onClick={open}
           disabled={disabled}
           classNames={{ inner: S.tableSelectorButtonInner }}
@@ -82,43 +79,48 @@ export function TableSelector({
           py="lg"
           variant="subtle"
         >
-          <Stack gap={0} align="start" justify="center">
+          <Stack gap="xs">
             {table ? (
               <>
-                <Box fz="sm" c="text-medium" fw="normal">
-                  {table?.db?.name} / {table?.schema}
-                </Box>
-                <Box c="text-dark">{table?.display_name}</Box>
+                <Ellipsified fz="sm" c="text-secondary" fw="normal" ta="left">
+                  {`${table?.db?.name} / ${table?.schema}`}
+                </Ellipsified>
+                <Ellipsified c="text-primary" ta="left">
+                  {table?.display_name}
+                </Ellipsified>
               </>
             ) : (
-              <Box c="text-dark">{t`Select a table…`}</Box>
+              <Box c="text-primary">{t`Select a table…`}</Box>
             )}
           </Stack>
         </Button>
 
-        <Tooltip label={t`Remove this table`}>
-          <ActionIcon
-            onClick={onRemove}
-            pr="sm"
-            aria-label={t`Remove this table`}
-          >
-            <Icon name="close" c="text-dark" />
-          </ActionIcon>
-        </Tooltip>
+        {!disabled && (
+          <Tooltip label={t`Remove this table`}>
+            <ActionIcon
+              onClick={onRemove}
+              mr="sm"
+              aria-label={t`Remove this table`}
+            >
+              <Icon name="close" c="text-primary" />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
       {isOpened && (
         <DataPickerModal
           title={t`Pick a table`}
-          value={getDataPickerValue(table)}
-          databaseId={database}
+          value={getDataPickerValue(table) ?? getDefaultDatabase(database)}
+          onlyDatabaseId={database}
           onChange={handleChange}
           onClose={close}
           shouldDisableItem={shouldDisableItem}
           models={["table"]}
           options={{
-            showLibrary: false,
-            showRootCollection: false,
-            showPersonalCollections: false,
+            hasLibrary: false,
+            hasDatabases: true,
+            hasRootCollection: false,
+            hasPersonalCollections: false,
           }}
         />
       )}
@@ -126,17 +128,24 @@ export function TableSelector({
   );
 }
 
+function getDefaultDatabase(dbId?: DatabaseId): DataPickerValue | undefined {
+  if (!dbId) {
+    return;
+  }
+  return {
+    model: "database",
+    id: dbId,
+  };
+}
+
 function getDataPickerValue(
   table: Table | undefined,
-): TablePickerValue | undefined {
+): DataPickerValue | undefined {
   if (!table) {
     return;
   }
   return {
     model: "table",
     id: table.id,
-    name: table.display_name,
-    db_id: table.db_id,
-    schema: table.schema,
   };
 }

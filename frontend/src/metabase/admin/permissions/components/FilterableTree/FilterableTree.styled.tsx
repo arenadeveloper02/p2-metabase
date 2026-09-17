@@ -21,7 +21,7 @@ export const FilterInputContainer = styled.div`
 export const ItemGroupsDivider = styled.hr`
   margin: 1rem 1.5rem;
   border: 0;
-  border-top: 1px solid var(--mb-color-border);
+  border-top: 1px solid var(--mb-color-border-neutral);
 `;
 
 export const EmptyStateContainer = styled.div`
@@ -30,14 +30,16 @@ export const EmptyStateContainer = styled.div`
 
 export const AdminTreeNode = styled(Tree.Node)`
   color: ${(props) =>
-    props.isSelected ? color("text-selected") : color("text-secondary")};
+    // TODO: We should really come up with a better solution for this, but since admin-navbar is currently not determined by
+    // user whitelabelling, this is somewhat safe (and consistent with what is in the admin header nav)
+    props.isSelected ? "var(--mantine-color-white)" : color("text-secondary")};
   background-color: ${(props) =>
-    props.isSelected ? color("admin-navbar") : "unset"};
+    props.isSelected ? color("navbar-admin") : "unset"};
 
   &:hover {
     background-color: ${(props) =>
       props.isSelected
-        ? color("admin-navbar")
-        : color("admin-navbar-secondary")};
+        ? color("navbar-admin")
+        : color("navbar-admin-secondary")};
   }
 `;

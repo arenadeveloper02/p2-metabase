@@ -1,51 +1,7 @@
 const { H } = cy;
-import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
-const { ORDERS_ID, ORDERS, PEOPLE_ID, PEOPLE, PRODUCTS_ID, PRODUCTS } =
-  SAMPLE_DATABASE;
-
-const ordersJoinPeopleQuery = {
-  type: "query",
-  query: {
-    "source-table": ORDERS_ID,
-    joins: [
-      {
-        fields: "all",
-        "source-table": PEOPLE_ID,
-        condition: [
-          "=",
-          ["field", ORDERS.USER_ID, null],
-          ["field", PEOPLE.ID, { "join-alias": "People" }],
-        ],
-        alias: "People",
-      },
-    ],
-    fields: [["field", ORDERS.ID, null]],
-  },
-  database: SAMPLE_DB_ID,
-};
-
-const ordersJoinProductsQuery = {
-  type: "query",
-  query: {
-    "source-table": ORDERS_ID,
-    joins: [
-      {
-        fields: "all",
-        "source-table": PRODUCTS_ID,
-        condition: [
-          "=",
-          ["field", ORDERS.PRODUCT_ID, null],
-          ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-        ],
-        alias: "Products",
-      },
-    ],
-    fields: [["field", ORDERS.ID, null]],
-  },
-  database: SAMPLE_DB_ID,
-};
+const { ORDERS_ID, PEOPLE_ID } = SAMPLE_DATABASE;
 
 const NUMBER_BUCKETS = [
   "Auto bin",
@@ -146,7 +102,7 @@ describe("scenarios > binning > binning options", () => {
 
       getTitle("Count by Total: Auto binned");
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Total: Auto binned").click();
       openBinningListForDimension("Total", "Auto binned");
 
@@ -162,7 +118,7 @@ describe("scenarios > binning > binning options", () => {
 
       getTitle("Count by Created At: Month");
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Created At: Month").click();
       openBinningListForDimension("Created At", "by month");
 
@@ -182,7 +138,7 @@ describe("scenarios > binning > binning options", () => {
 
       getTitle("Count by Longitude: Auto binned");
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Longitude: Auto binned").click();
       openBinningListForDimension("Longitude", "Auto binned");
 
@@ -208,74 +164,6 @@ describe("scenarios > binning > binning options", () => {
       });
     });
   });
-
-  context("implicit joins (metabase#16674)", { tags: "@skip" }, () => {
-    it("should work for time series", () => {
-      chooseInitialBinningOption({
-        table: ORDERS_ID,
-        column: "Birth Date",
-      });
-
-      openBinningListForDimension("Birth Date", "by month");
-      getAllOptions({ options: TIME_BUCKETS, isSelected: "Month" });
-    });
-
-    it("should work for number", () => {
-      chooseInitialBinningOption({
-        table: ORDERS_ID,
-        column: "Price",
-      });
-
-      openBinningListForDimension("Price", "Auto binned");
-      getAllOptions({ options: NUMBER_BUCKETS, isSelected: "Auto bin" });
-    });
-
-    it("should work for longitude", () => {
-      chooseInitialBinningOption({
-        table: ORDERS_ID,
-        column: "Longitude",
-      });
-
-      openBinningListForDimension("Longitude", "Auto binned");
-      getAllOptions({ options: LONGITUDE_BUCKETS, isSelected: "Auto bin" });
-    });
-  });
-
-  context("explicit joins (metabase#16675)", { tags: "@skip" }, () => {
-    beforeEach(() => {
-      cy.intercept("POST", "/api/dataset").as("dataset");
-    });
-
-    it("should work for time series", () => {
-      chooseInitialBinningOptionForExplicitJoin({
-        baseTableQuery: ordersJoinPeopleQuery,
-        column: "Birth Date",
-      });
-
-      openBinningListForDimension("Birth Date", "by month");
-      getAllOptions({ options: TIME_BUCKETS, isSelected: "Month" });
-    });
-
-    it("should work for number", () => {
-      chooseInitialBinningOptionForExplicitJoin({
-        baseTableQuery: ordersJoinProductsQuery,
-        column: "Price",
-      });
-
-      openBinningListForDimension("Price", "Auto binned");
-      getAllOptions({ options: NUMBER_BUCKETS, isSelected: "Auto bin" });
-    });
-
-    it("should work for longitude", () => {
-      chooseInitialBinningOptionForExplicitJoin({
-        baseTableQuery: ordersJoinPeopleQuery,
-        column: "Longitude",
-      });
-
-      openBinningListForDimension("Longitude", "Auto binned");
-      getAllOptions({ options: LONGITUDE_BUCKETS, isSelected: "Auto bin" });
-    });
-  });
 });
 
 function chooseInitialBinningOption({ table, column, mode = null } = {}) {
@@ -289,20 +177,6 @@ function chooseInitialBinningOption({ table, column, mode = null } = {}) {
   } else {
     cy.findByTestId("sidebar-right").contains(column).first().click();
   }
-}
-
-function chooseInitialBinningOptionForExplicitJoin({
-  baseTableQuery,
-  column,
-} = {}) {
-  H.visitQuestionAdhoc({ dataset_query: baseTableQuery });
-
-  H.summarize();
-
-  cy.findByTestId("sidebar-right").within(() => {
-    cy.findByText("Count"); // Test fails without this because of some weird race condition
-    cy.findByText(column).click();
-  });
 }
 
 function openBinningListForDimension(column, binning) {
@@ -322,7 +196,7 @@ function getAllOptions({ options, isSelected, shouldExpandList } = {}) {
   // Custom question has two popovers open.
   // The binning options are in the latest (last) one.
   // Using `.last()` works even when only one popover is open so it covers both scenarios.
-  // eslint-disable-next-line no-unsafe-element-filtering
+  // eslint-disable-next-line metabase/no-unsafe-element-filtering
   H.popover()
     .last()
     .within(() => {
@@ -335,10 +209,10 @@ function getAllOptions({ options, isSelected, shouldExpandList } = {}) {
         cy.findByText(option);
       });
 
-      isSelected &&
-        cy
-          .findByText(selectedOption)
+      if (isSelected) {
+        cy.findByText(selectedOption)
           .closest("li")
           .should("have.attr", "aria-selected", "true");
+      }
     });
 }

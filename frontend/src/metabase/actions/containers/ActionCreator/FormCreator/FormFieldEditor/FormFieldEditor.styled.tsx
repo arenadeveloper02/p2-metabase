@@ -1,13 +1,12 @@
 // eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
-import FormField from "metabase/common/components/FormField";
-import Radio from "metabase/common/components/Radio";
-import { darken } from "metabase/lib/colors";
+import { FormField } from "metabase/common/components/FormField";
+import { darken } from "metabase/ui/colors";
 
 export const FormFieldContainer = styled.div`
-  background-color: var(--mb-color-bg-white);
-  border: 1px solid var(--mb-color-border);
+  background-color: var(--mb-color-background_page-primary);
+  border: 1px solid var(--mb-color-border-neutral);
   border-radius: var(--mantine-spacing-sm);
   overflow: hidden;
 `;
@@ -21,14 +20,6 @@ export const EditorContainer = styled(ContentContainer)`
   display: flex;
   padding: 1rem 1rem 0.85rem 0.85rem;
   gap: var(--mantine-spacing-sm);
-
-  ${Radio.RadioGroupVariants.join(", ")} {
-    margin-top: 10px;
-  }
-
-  ${Radio.RadioContainerVariants.join(", ")} {
-    padding: 4px 10px;
-  }
 `;
 
 export const Column = styled.div<{ full?: boolean }>`
@@ -44,20 +35,20 @@ export const Header = styled.div`
 `;
 
 export const Title = styled.div`
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
   font-weight: 700;
 `;
 
 export const Subtitle = styled.div`
-  color: var(--mb-color-text-medium);
+  color: var(--mb-color-text-secondary);
   font-size: 0.85rem;
   font-weight: 700;
   margin-top: 1.2rem;
 `;
 
 export const PreviewContainer = styled(ContentContainer)`
-  background-color: var(--mb-color-bg-light);
-  border-top: 1px solid ${() => darken("bg-light", 0.1)};
+  background-color: var(--mb-color-background_page-secondary);
+  border-top: 1px solid ${() => darken("background_page-secondary", 0.1)};
   padding: 1rem 1rem 2rem 1rem;
 
   ${FormField.Root} {
@@ -65,7 +56,7 @@ export const PreviewContainer = styled(ContentContainer)`
   }
 
   ${FormField.Label} {
-    color: var(--mb-color-text-dark);
+    color: var(--mb-color-text-primary);
   }
 `;
 

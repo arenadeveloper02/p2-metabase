@@ -3,7 +3,8 @@ import { useRef } from "react";
 
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
 
-import ActionButton, {
+import {
+  ActionButton,
   type ActionButtonHandle,
   type ActionButtonProps,
 } from "./ActionButton";
@@ -187,7 +188,9 @@ describe("ActionButton", () => {
     );
 
     const button = screen.getByRole("button");
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     unmount();
 

@@ -1,13 +1,17 @@
 import { t } from "ttag";
 
-import { getSubpathSafeUrl } from "metabase/lib/urls";
+import { getSubpathSafeUrl } from "metabase/urls";
 import type { CardDisplayType } from "metabase-types/api";
 
 /**
  * The "table" and the "object" (detail) charts can always display the data
  * using the raw table alone, so they don't need an empty state.
  */
-export type ExcludedEmptyVizDisplayTypes = "table" | "list" | "object";
+export type ExcludedEmptyVizDisplayTypes =
+  | "table"
+  | "list"
+  | "object"
+  | "boxplot";
 type SupportedDisplayType = Exclude<
   CardDisplayType,
   ExcludedEmptyVizDisplayTypes
@@ -22,7 +26,7 @@ type EmptyVizConfig = {
 
 // We should not import these large empty-state images directly,
 // because we don't need to inline them as base64 to the SDK bundle.
-// Insead we just define paths to them that is passed to the <img> tag directly.
+// Instead we just define paths to them that is passed to the <img> tag directly.
 const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
   area: {
     get imgSrc() {
@@ -201,10 +205,10 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       );
     },
     get primaryText() {
-      return t`Then pick a metric and a number columns to group by.`;
+      return t`Then pick one or more metrics and a column to group by.`;
     },
     get secondaryText() {
-      return t`E.g. Count of orders grouped by Customer age`;
+      return t`E.g. Count of orders and Sum of revenue grouped by Product category`;
     },
   },
   smartscalar: {
@@ -220,6 +224,19 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       return t`E.g. Count of orders grouped by Month`;
     },
   },
+  treemap: {
+    get imgSrc() {
+      return getSubpathSafeUrl(
+        "app/assets/img/empty-states/visualizations/treemap.svg",
+      );
+    },
+    get primaryText() {
+      return t`Then pick a metric and one or two columns to group by.`;
+    },
+    get secondaryText() {
+      return t`E.g., Revenue grouped by Region and Country`;
+    },
+  },
   waterfall: {
     get imgSrc() {
       return getSubpathSafeUrl(
@@ -231,6 +248,32 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
     },
     get secondaryText() {
       return t`E.g. Sum of revenue grouped by Country`;
+    },
+  },
+  heatmap: {
+    get imgSrc() {
+      return getSubpathSafeUrl(
+        "app/assets/img/empty-states/visualizations/bar.svg",
+      );
+    },
+    get primaryText() {
+      return t`Then pick two grouping columns and a metric for cell values.`;
+    },
+    get secondaryText() {
+      return t`E.g. Count of orders grouped by Hour and Day of week`;
+    },
+  },
+  textscalar: {
+    get imgSrc() {
+      return getSubpathSafeUrl(
+        "app/assets/img/empty-states/visualizations/scalar.svg",
+      );
+    },
+    get primaryText() {
+      return t`Then pick a text column to display.`;
+    },
+    get secondaryText() {
+      return t`E.g. Customer name`;
     },
   },
 };

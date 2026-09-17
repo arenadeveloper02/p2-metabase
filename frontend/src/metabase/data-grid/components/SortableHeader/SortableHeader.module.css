@@ -1,23 +1,12 @@
 .root {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   min-height: 36px;
-  height: auto;
-  white-space: nowrap;
+  height: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
   position: relative;
   user-select: none;
   outline: none;
-}
-
-/* When column width is below 80px, allow wrapping */
-@container (max-width: 80px) {
-  .root {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-  }
 }
 
 .headerContent {
@@ -38,7 +27,7 @@
   touch-action: none;
   opacity: 0;
   transition: opacity 0.2s;
-  background: #c5c6cc;
+  background: var(--mb-color-core-brand);
 }
 
 .resizeHandle:hover,

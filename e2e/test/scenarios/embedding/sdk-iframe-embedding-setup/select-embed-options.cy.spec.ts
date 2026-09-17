@@ -1,5 +1,8 @@
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import { mockEmbedJsToDevServer } from "e2e/support/helpers";
+import {
+  embedModalEnableEmbedding,
+  mockEmbedJsToDevServer,
+} from "e2e/support/helpers";
 
 import {
   codeBlock,
@@ -13,6 +16,12 @@ const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 const DASHBOARD_NAME = "Orders in a dashboard";
 const QUESTION_NAME = "Orders, Count";
+
+// Toggling a sidebar option re-renders (and re-runs the query of) the embedded
+// question inside the already-loaded preview iframe. That round-trip can exceed
+// Cypress's default 4s command timeout, so lookups that depend on the re-render
+// finishing get a longer budget to wait it out.
+const RERENDER_TIMEOUT = 15000;
 
 const suiteTitle =
   "scenarios > embedding > sdk iframe embed setup > select embed options";
@@ -36,6 +45,15 @@ describe("OSS", { tags: "@OSS" }, () => {
       navigateToEmbedOptionsStep({
         experience: "dashboard",
         resourceName: DASHBOARD_NAME,
+      });
+
+      getEmbedSidebar().findByTestId("upsell-card").should("be.visible");
+    });
+
+    it("should show upsell for Allow alerts option", () => {
+      navigateToEmbedOptionsStep({
+        experience: "chart",
+        resourceName: QUESTION_NAME,
       });
 
       getEmbedSidebar().findByTestId("upsell-card").should("be.visible");
@@ -75,12 +93,16 @@ describe(suiteTitle, () => {
     H.restore();
     H.resetSnowplow();
     cy.signInAsAdmin();
-    H.activateToken("bleeding-edge");
+    H.activateToken("pro-self-hosted");
     H.enableTracking();
     H.updateSetting("enable-embedding-simple", true);
+    H.setupAnthropicLlmProvider();
 
     cy.intercept("GET", "/api/dashboard/**").as("dashboard");
     cy.intercept("POST", "/api/card/*/query").as("cardQuery");
+    cy.intercept("PUT", "/api/setting/sdk-iframe-embed-setup-settings").as(
+      "persistSettings",
+    );
 
     mockEmbedJsToDevServer();
   });
@@ -124,7 +146,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=dashboard,authType=sso,drills=false,withDownloads=false,withSubscriptions=false,withTitle=true,isSaveEnabled=false,theme=default",
+        "settings=custom,experience=dashboard,authType=sso,drills=false,withDownloads=false,withSubscriptions=false,withTitle=true,theme=default",
     });
 
     codeBlock().should("contain", 'drills="false"');
@@ -161,7 +183,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=true,withSubscriptions=false,withTitle=true,isSaveEnabled=false,theme=default",
+        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=true,withSubscriptions=false,withTitle=true,theme=default",
     });
 
     codeBlock().should("contain", 'with-subscriptions="false"');
@@ -171,6 +193,7 @@ describe(suiteTitle, () => {
     navigateToEmbedOptionsStep({
       experience: "dashboard",
       resourceName: DASHBOARD_NAME,
+      preselectGuest: true,
     });
 
     getEmbedSidebar()
@@ -179,11 +202,14 @@ describe(suiteTitle, () => {
       .and("be.disabled");
 
     cy.log("Email warning should only be shown on non-guest embedding");
+    // Use trigger("mouseenter") instead of realHover() because Chrome v133+
+    // headless CDP hit-testing on elements near disabled inputs suppresses
+    // mouse boundary events, preventing the Tooltip from appearing.
     getEmbedSidebar()
       .findByLabelText("Allow subscriptions")
       .closest("[data-testid=tooltip-warning]")
       .icon("info")
-      .realHover();
+      .trigger("mouseenter");
     H.tooltip().should(
       "contain.text",
       "Not available if Guest Mode is selected",
@@ -205,17 +231,23 @@ describe(suiteTitle, () => {
     getEmbedSidebar().within(() => {
       cy.button("Back").click();
       cy.button("Back").click();
-      cy.button("Back").click();
 
       cy.findByLabelText("Metabase account (SSO)").click();
+    });
 
-      cy.button("Next").click();
+    embedModalEnableEmbedding();
+
+    getEmbedSidebar().within(() => {
       cy.button("Next").click();
 
+      // Trigger mouseover (not mouseenter) because this HoverCard is outside a
+      // HoverCardGroup, so Mantine attaches a React onMouseEnter prop. React 18
+      // simulates onMouseEnter from mouseover events (which bubble to the React
+      // root for delegation). Native mouseenter doesn't bubble and React ignores it.
       cy.findByLabelText("Allow subscriptions")
         .closest("[data-testid=tooltip-warning]")
         .icon("info")
-        .realHover();
+        .trigger("mouseover");
     });
     H.hovercard().should(
       "contain.text",
@@ -347,7 +379,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=false,withSubscriptions=true,withTitle=true,isSaveEnabled=false,theme=default",
+        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=false,withSubscriptions=true,withTitle=true,theme=default",
     });
 
     codeBlock().should("contain", 'with-subscriptions="true"');
@@ -357,6 +389,7 @@ describe(suiteTitle, () => {
     navigateToEmbedOptionsStep({
       experience: "dashboard",
       resourceName: DASHBOARD_NAME,
+      preselectGuest: true,
     });
 
     H.publishChanges("dashboard");
@@ -434,6 +467,7 @@ describe(suiteTitle, () => {
     navigateToEmbedOptionsStep({
       experience: "chart",
       resourceName: QUESTION_NAME,
+      preselectGuest: true,
     });
 
     H.publishChanges("card");
@@ -464,7 +498,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        'settings=custom,experience=chart,guestEmbedEnabled=true,guestEmbedType=guest-embed,authType=guest-embed,drills=false,withDownloads=true,withTitle=true,isSaveEnabled=false,params={"disabled":0,"locked":0,"enabled":0},theme=default',
+        'settings=custom,experience=chart,guestEmbedEnabled=true,guestEmbedType=guest-embed,authType=guest-embed,drills=false,withDownloads=true,withAlerts=false,withTitle=true,isSaveEnabled=false,params={"disabled":0,"locked":0,"enabled":0},theme=default',
     });
 
     codeBlock().should("contain", 'with-downloads="true"');
@@ -531,6 +565,174 @@ describe(suiteTitle, () => {
       .should("be.visible");
   });
 
+  it("cannot select alerts for question when email is not set up", () => {
+    navigateToEmbedOptionsStep({
+      experience: "chart",
+      resourceName: QUESTION_NAME,
+      preselectGuest: true,
+    });
+
+    getEmbedSidebar()
+      .findByLabelText("Allow alerts")
+      .should("not.be.checked")
+      .and("be.disabled");
+
+    cy.log("Email warning should only be shown on non-guest embedding");
+    getEmbedSidebar()
+      .findByLabelText("Allow alerts")
+      .closest("[data-testid=tooltip-warning]")
+      .icon("info")
+      .trigger("mouseenter");
+    H.tooltip().should(
+      "contain.text",
+      "Not available if Guest Mode is selected",
+    );
+
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts" })
+      .should("not.exist");
+
+    cy.log("snippet should show alerts as false");
+    getEmbedSidebar().findByText("Get code").click();
+
+    H.expectUnstructuredSnowplowEvent({
+      event: "embed_wizard_options_completed",
+      event_detail: "settings=default",
+    });
+
+    cy.log("test non-guest embeds");
+    getEmbedSidebar().within(() => {
+      cy.button("Back").click();
+      cy.button("Back").click();
+
+      cy.findByLabelText("Metabase account (SSO)").click();
+    });
+
+    embedModalEnableEmbedding();
+
+    getEmbedSidebar().within(() => {
+      cy.button("Next").click();
+
+      cy.findByLabelText("Allow alerts")
+        .closest("[data-testid=tooltip-warning]")
+        .icon("info")
+        .trigger("mouseover");
+    });
+    H.hovercard().should(
+      "contain.text",
+      "To allow alerts, set up email in admin settings",
+    );
+  });
+
+  it("toggles alerts for question when email is set up", () => {
+    H.setupSMTP();
+
+    navigateToEmbedOptionsStep({
+      experience: "chart",
+      resourceName: QUESTION_NAME,
+      preselectSso: true,
+    });
+
+    getEmbedSidebar().findByLabelText("Allow alerts").should("not.be.checked");
+
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts" })
+      .should("not.exist");
+
+    cy.log("turn on alerts");
+    getEmbedSidebar()
+      .findByLabelText("Allow alerts")
+      .click()
+      .should("be.checked");
+
+    cy.log("assert that alert button appears in preview");
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts", timeout: RERENDER_TIMEOUT })
+      .should("be.visible");
+
+    cy.log(
+      "test that with drills off, alerts still work because it will now render <StaticQuestion /> (from <SdkQuestion />)",
+    );
+    getEmbedSidebar()
+      .findByLabelText("Allow people to drill through on data points")
+      .should("be.checked")
+      .click()
+      .should("not.be.checked");
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts", timeout: RERENDER_TIMEOUT })
+      .should("be.visible");
+
+    cy.log("assert that unchecking alerts will close the alert modal");
+    const newAlertModalTitle = "New alert";
+    // Re-query the iframe body for the click instead of caching it via
+    // within(): toggling the sidebar options above re-renders the embedded
+    // question, so a cached body (and the element found inside it) goes stale
+    // and the "Alerts" ActionIcon detaches mid-click. Asserting visibility and
+    // clicking as separate re-queried chains lets Cypress re-run the full query
+    // for the action and land on a freshly-attached, stable button. The re-render
+    // re-executes the question's query inside the already-loaded iframe, which can
+    // exceed the default 4s command timeout, so give these lookups a longer budget.
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts", timeout: RERENDER_TIMEOUT })
+      .should("be.visible");
+    H.getSimpleEmbedIframeContent()
+      .findByRole("button", { name: "Alerts", timeout: RERENDER_TIMEOUT })
+      .click();
+    H.getSimpleEmbedIframeContent()
+      .findByRole("heading", {
+        name: newAlertModalTitle,
+        timeout: RERENDER_TIMEOUT,
+      })
+      .should("be.visible");
+
+    getEmbedSidebar()
+      .findByLabelText("Allow alerts")
+      .click()
+      .should("not.be.checked");
+    H.getSimpleEmbedIframeContent()
+      .findByRole("heading", { name: newAlertModalTitle })
+      .should("not.exist");
+
+    cy.log("toggle alerts back on");
+    getEmbedSidebar()
+      .findByLabelText("Allow alerts")
+      .click()
+      .should("be.checked");
+
+    cy.log("snippet should be updated");
+    getEmbedSidebar().findByText("Get code").click();
+
+    H.expectUnstructuredSnowplowEvent({
+      event: "embed_wizard_options_completed",
+      event_detail:
+        "settings=custom,experience=chart,authType=sso,drills=false,withDownloads=false,withAlerts=true,withTitle=true,isSaveEnabled=false,theme=default",
+    });
+
+    codeBlock().should("contain", 'with-alerts="true"');
+  });
+
+  it("shows a docs icon in behavior section depending on a component", () => {
+    navigateToEmbedOptionsStep({
+      experience: "chart",
+      resourceName: QUESTION_NAME,
+      preselectSso: true,
+    });
+
+    getEmbedSidebar().within(() => {
+      cy.findByTestId("behavior-docs-link").should("be.visible");
+      cy.findByTestId("behavior-docs-link")
+        .should("have.attr", "href")
+        .and("include", "embedding/question-reference");
+
+      cy.findByText("Back").click();
+
+      cy.findByText("Metabot").click();
+      cy.findByText("Next").click();
+
+      cy.findByTestId("behavior-docs-link").should("not.exist");
+    });
+  });
+
   ["exploration", "chart"].forEach((experience) => {
     it(`toggles save button for ${experience}`, () => {
       navigateToEmbedOptionsStep(
@@ -567,8 +769,11 @@ describe(suiteTitle, () => {
       if (experience === "chart") {
         cy.log("select a different visualization to enable the save button");
         H.getSimpleEmbedIframeContent().within(() => {
-          cy.findByText("Table").click();
-          H.popover().findByText("Number").click();
+          cy.findByTestId("chart-type-selector-button").click();
+
+          cy.findByRole("listbox").within(() => {
+            cy.findByText("Number").click();
+          });
         });
       }
 
@@ -583,12 +788,37 @@ describe(suiteTitle, () => {
         event: "embed_wizard_options_completed",
         event_detail:
           experience === "chart"
-            ? "settings=custom,experience=chart,authType=sso,drills=true,withDownloads=false,withTitle=true,isSaveEnabled=true,theme=default"
+            ? "settings=custom,experience=chart,authType=sso,drills=true,withDownloads=false,withAlerts=false,withTitle=true,isSaveEnabled=true,theme=default"
             : "settings=custom,experience=exploration,authType=sso,isSaveEnabled=true,theme=default",
       });
 
       codeBlock().should("contain", 'is-save-enabled="true"');
     });
+  });
+
+  it("toggles save button for metabot", () => {
+    navigateToEmbedOptionsStep({ experience: "metabot" });
+
+    getEmbedSidebar()
+      .findByLabelText("Allow people to save new questions")
+      .should("not.be.checked");
+
+    cy.log("turn on save option");
+    getEmbedSidebar()
+      .findByLabelText("Allow people to save new questions")
+      .click()
+      .should("be.checked");
+
+    cy.log("snippet should be updated");
+    getEmbedSidebar().findByText("Get code").click();
+
+    H.expectUnstructuredSnowplowEvent({
+      event: "embed_wizard_options_completed",
+      event_detail:
+        "settings=custom,experience=metabot,authType=sso,isSaveEnabled=true,theme=default",
+    });
+
+    codeBlock().should("contain", 'is-save-enabled="true"');
   });
 
   it("can toggle read-only setting for browser", () => {
@@ -631,11 +861,15 @@ describe(suiteTitle, () => {
     navigateToEmbedOptionsStep({
       experience: "dashboard",
       resourceName: DASHBOARD_NAME,
+      preselectGuest: true,
     });
 
     H.publishChanges("dashboard");
 
     cy.button("Unpublish").should("be.visible");
+
+    cy.log("Selecting custom colors");
+    cy.findByTestId("theme-card-Custom").click();
 
     cy.log("brand color should be visible");
     getEmbedSidebar().within(() => {
@@ -718,6 +952,9 @@ describe(suiteTitle, () => {
       preselectSso: true,
     });
 
+    cy.log("Selecting custom colors");
+    cy.findByTestId("theme-card-Custom").click();
+
     cy.log("click on brand color picker");
     cy.findByTestId("brand-color-picker").findByRole("button").click();
 
@@ -750,14 +987,24 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=false,withSubscriptions=false,withTitle=true,isSaveEnabled=false,theme=custom",
+        "settings=custom,experience=dashboard,authType=sso,drills=true,withDownloads=false,withSubscriptions=false,withTitle=true,theme=custom",
     });
 
     // derived-colors-for-embed-flow.unit.spec.ts contains the tests for other derived colors.
     cy.log("dark mode colors should be derived");
-    codeBlock().should("contain", '"background-hover": "rgb(27, 27, 27)"');
     codeBlock().should("contain", '"text-secondary": "rgb(169, 169, 169)"');
     codeBlock().should("contain", '"brand-hover": "rgba(189, 81, 253, 0.5)"');
+
+    // Should no longer derive background-hover as it is color-mix'd
+    // in the colors configuration
+    codeBlock().should("not.contain", '"background-hover"');
+
+    // Wait for the debounced theme persist to land before the test ends —
+    // otherwise the orphaned `_.debounce` callback in `useUserSetting` fires
+    // after `H.restore()` of the next test and writes the custom theme back
+    // into the freshly-restored DB, polluting downstream snowplow assertions.
+    // Proper fix (flush-on-unmount in `useUserSetting`) tracked in EMB-1795.
+    cy.wait("@persistSettings");
   });
 
   it("can toggle the Metabot layout from auto to stacked to sidebar", () => {
@@ -776,7 +1023,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=metabot,authType=sso,layout=stacked,theme=default",
+        "settings=custom,experience=metabot,authType=sso,isSaveEnabled=false,layout=stacked,theme=default",
     });
 
     getEmbedSidebar().findByText("Back").click();
@@ -792,7 +1039,7 @@ describe(suiteTitle, () => {
     H.expectUnstructuredSnowplowEvent({
       event: "embed_wizard_options_completed",
       event_detail:
-        "settings=custom,experience=metabot,authType=sso,layout=sidebar,theme=default",
+        "settings=custom,experience=metabot,authType=sso,isSaveEnabled=false,layout=sidebar,theme=default",
     });
   });
 });

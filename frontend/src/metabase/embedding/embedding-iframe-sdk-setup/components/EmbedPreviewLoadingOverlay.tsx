@@ -16,7 +16,13 @@ export const EmbedPreviewLoadingOverlay = ({
   }
 
   return (
-    <Box pos="absolute" bg={bg ?? "var(--mb-color-bg-white)"} inset={0}>
+    <Box
+      pos="absolute"
+      style={{
+        backgroundColor: bg ?? "var(--mb-color-background_page-primary)",
+      }}
+      inset={0}
+    >
       <Center h="100%" w="100%" mx="auto">
         <Loader data-testid="preview-loading-indicator" />
       </Center>

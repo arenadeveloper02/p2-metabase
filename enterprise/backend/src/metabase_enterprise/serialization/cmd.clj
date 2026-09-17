@@ -1,15 +1,15 @@
 (ns metabase-enterprise.serialization.cmd
-  (:refer-clojure :exclude [load])
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [metabase-enterprise.serialization.v2.entity-ids :as v2.entity-ids]
    [metabase-enterprise.serialization.v2.extract :as v2.extract]
    [metabase-enterprise.serialization.v2.ingest :as v2.ingest]
    [metabase-enterprise.serialization.v2.load :as v2.load]
    [metabase-enterprise.serialization.v2.storage :as v2.storage]
+   [metabase-enterprise.serialization.v2.storage.files :as v2.storage.files]
    [metabase.analytics.core :as analytics]
    [metabase.app-db.core :as mdb]
+   [metabase.events.core :as events]
    [metabase.models.serialization :as serdes]
    [metabase.plugins.core :as plugins]
    [metabase.premium-features.core :as premium-features]
@@ -33,7 +33,6 @@
   `opts` are passed to [[v2.load/load-metabase]]."
   [path :- :string
    opts :- [:map
-            [:backfill? {:optional true} [:maybe :boolean]]
             [:continue-on-error {:optional true} [:maybe :boolean]]
             [:reindex? {:optional true} [:maybe :boolean]]]
    ;; Deliberately separate from the opts so it can't be set from the CLI.
@@ -47,12 +46,13 @@
     (throw (ex-info "You cannot `import` into an empty database. Please set up Metabase normally, then retry." {})))
   (when token-check?
     (check-premium-token!))
-  ; TODO This should be restored, but there's no manifest or other meta file written by v2 dumps.
-  ;(when-not (load/compatible? path)
-  ;  (log/warn "Dump was produced using a different version of Metabase. Things may break!"))
+  ;; TODO This should be restored, but there's no manifest or other meta file written by v2 dumps.
+  ;;(when-not (load/compatible? path)
+  ;;  (log/warn "Dump was produced using a different version of Metabase. Things may break!"))
   (log/infof "Loading serialized Metabase files from %s" path)
-  (serdes/with-cache
-    (v2.load/load-metabase! (v2.ingest/ingest-yaml path) opts)))
+  (u/prog1 (serdes/with-cache
+             (v2.load/load-metabase! (v2.ingest/ingest-yaml path) opts))
+    (events/publish-event! :event/serdes-load {})))
 
 (mu/defn v2-load!
   "SerDes v2 load entry point.
@@ -60,7 +60,6 @@
    opts are passed to load-metabase"
   [path :- :string
    opts :- [:map
-            [:backfill? {:optional true} [:maybe :boolean]]
             [:continue-on-error {:optional true} [:maybe :boolean]]
             [:full-stacktrace {:optional true} [:maybe :boolean]]]]
   (let [timer    (u/start-timer)
@@ -111,7 +110,9 @@
         report (try
                  (serdes/with-cache
                    (-> (v2.extract/extract opts)
-                       (v2.storage/store! path)))
+                       (v2.storage/store! (v2.storage.files/file-writer path))))
+                 ;; we could publish :event/serdes-dump to go with :event/serdes-load above, but
+                 ;; nothing would listen to it currently
                  (catch Exception e
                    (reset! err e)))]
     (analytics/track-event! :snowplow/serialization
@@ -119,7 +120,7 @@
                              :direction       "export"
                              :source          "cli"
                              :duration_ms     (int (/ (- (System/nanoTime) start) 1e6))
-                             :count           (count (:seen report))
+                             :count           (reduce + 0 (vals (:entity-counts report)))
                              :error_count     (count (:errors report))
                              :collection      (str/join "," collection-ids)
                              :all_collections (and (empty? collection-ids)
@@ -127,7 +128,7 @@
                              :data_model      (not (:no-data-model opts))
                              :settings        (not (:no-settings opts))
                              :field_values    (boolean (:include-field-values opts))
-                             :secrets         (boolean (:include-database-secrets opts))
+                             :secrets         false
                              :success         (nil? @err)
                              :error_message   (when @err
                                                 (u/strip-error @err nil))})
@@ -139,21 +140,5 @@
     (log/info (format "Export to '%s' complete!" path) (u/emoji "🚛💨 📦"))
     report))
 
-(defn seed-entity-ids!
-  "Add entity IDs for instances of serializable models that don't already have them.
-
-  Returns truthy if all entity IDs were added successfully, or falsey if any errors were encountered."
-  []
-  (v2.entity-ids/seed-entity-ids!))
-
-(defn drop-entity-ids!
-  "Drop entity IDs for all instances of serializable models.
-
-  This is needed for some cases of migrating from v1 to v2 serdes. v1 doesn't dump `entity_id`, so they may have been
-  randomly generated independently in both instances. Then when v2 serdes is used to export and import, the randomly
-  generated IDs don't match and the entities get duplicated. Dropping `entity_id` from both instances first will force
-  them to be regenerated based on the hashes, so they should match up if the receiving instance is a copy of the sender.
-
-  Returns truthy if all entity IDs have been dropped, or falsey if any errors were encountered."
-  []
-  (v2.entity-ids/drop-entity-ids!))
+(comment
+  (v2-dump! "/tmp/serdes" {}))

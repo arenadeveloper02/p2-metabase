@@ -28,8 +28,11 @@ export function restore(name = "default") {
     resetWritableDb({ type: dbType });
   }
 
-  // Force the color scheme to be consistent, otherwise, it will pick up system color theme
-  window.localStorage.setItem("metabase-color-scheme", "light");
+  cy.request({
+    method: "POST",
+    url: "/api/testing/reset-throttlers",
+    failOnStatusCode: false,
+  });
 
   return cy.request("POST", `/api/testing/restore/${name}`);
 }

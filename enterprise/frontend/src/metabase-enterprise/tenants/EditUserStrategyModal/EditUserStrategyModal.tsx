@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { push } from "react-router-redux";
 import { t } from "ttag";
 
 import { permissionApi } from "metabase/api";
-import { useAdminSetting } from "metabase/api/utils";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { useToast } from "metabase/common/hooks";
 import { useConfirmation } from "metabase/common/hooks/use-confirmation";
-import { useDispatch } from "metabase/lib/redux";
+import { useDispatch } from "metabase/redux";
+import { useNavigate } from "metabase/router";
+import { useAdminSetting } from "metabase/settings";
 import { Button, Flex, Group, Modal, Radio, Stack, Text } from "metabase/ui";
 
 import S from "./EditUserStrategyModal.module.css";
@@ -20,6 +20,7 @@ export const EditUserStrategyModal = ({
   onClose,
 }: EditUserStrategyModalProps) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const { isLoading, error, value, updateSetting, refetch } =
     useAdminSetting("use-tenants");
@@ -91,7 +92,7 @@ export const EditUserStrategyModal = ({
       // This ensures `createTenantsRouteGuard` sees the updated setting.
       await refetch();
 
-      dispatch(push("/admin/tenants"));
+      navigate("/admin/people/tenants");
     }
   };
 
@@ -109,7 +110,7 @@ export const EditUserStrategyModal = ({
     {
       value: "single-tenant",
       title: t`Single tenant`,
-      // eslint-disable-next-line no-literal-metabase-strings -- in admin settings
+      // eslint-disable-next-line metabase/no-literal-metabase-strings -- in admin settings
       description: t`All users exist in the same world and are managed via Metabase groups. Ideal for internal company analytics, proof of concept, or simple embedding setups.`,
     },
   ];

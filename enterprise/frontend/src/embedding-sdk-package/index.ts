@@ -1,8 +1,8 @@
-// eslint-disable-next-line no-external-references-for-sdk-package-code
+// eslint-disable-next-line metabase/no-external-references-for-sdk-package-code
 import { EMBEDDING_SDK_CONFIG } from "metabase/embedding-sdk/config";
-// eslint-disable-next-line no-external-references-for-sdk-package-code
+// eslint-disable-next-line metabase/no-external-references-for-sdk-package-code
 import { defineBuildInfo } from "metabase/embedding-sdk/lib/define-build-info";
-// eslint-disable-next-line no-external-references-for-sdk-package-code
+// eslint-disable-next-line metabase/no-external-references-for-sdk-package-code
 import { defineGlobalDependencies } from "metabase/embedding-sdk/lib/define-global-dependencies";
 
 // Enable SDK mode as we are in the SDK package
@@ -26,11 +26,28 @@ export * from "./components/public/debug/SdkDebugInfo";
 export { useApplicationName } from "./hooks/public/use-application-name";
 export { useAvailableFonts } from "./hooks/public/use-available-fonts";
 export { useCurrentUser } from "./hooks/public/use-current-user";
+export { useMetabot } from "./hooks/public/use-metabot";
 export { useCreateDashboardApi } from "./hooks/public/use-create-dashboard-api";
 export { useMetabaseAuthStatus } from "./hooks/public/use-metabase-auth-status";
-
+export { useAction } from "./hooks/public/use-action";
+export type {
+  ActionExecuteError,
+  ActionKind,
+  ActionResultForBulk,
+  ActionResultForCreate,
+  ActionResultForDelete,
+  ActionResultForKind,
+  ActionResultForSql,
+  ActionResultForUpdate,
+  AnyActionResult,
+  UseActionResult,
+} from "./hooks/public/use-action";
 export { defineMetabaseAuthConfig } from "./lib/public/define-metabase-auth-config";
 export { defineMetabaseTheme } from "./lib/public/define-metabase-theme";
+
+export { DataAppRouter } from "./components/public/DataAppRouter";
+export { DataAppLink } from "./components/public/DataAppLink";
+export { useDataAppLocation } from "./hooks/public/use-data-app-location";
 
 export {
   type CollectionBrowserProps,
@@ -76,9 +93,9 @@ export {
 } from "embedding-sdk-bundle/components/public/StaticQuestion";
 export { type MetabaseProviderProps } from "embedding-sdk-bundle/types/metabase-provider";
 
+export type { DashCardMenuItem } from "metabase/embedding-sdk/types/plugins";
 export type {
   CustomDashboardCardMenuItem,
-  DashCardMenuItem,
   DashboardCardCustomMenuItem,
   DashboardCardMenuCustomElement,
   DashboardCardMenu,
@@ -87,6 +104,7 @@ export type {
 export type {
   ButtonProps,
   ChartColor,
+  ChartColorV2,
   CreateDashboardValues,
   EntityTypeFilterKeys,
   InitializationStatus,
@@ -97,21 +115,38 @@ export type {
   MetabaseAuthConfigWithSaml,
   MetabaseIsGuestAuthConfig,
   MetabaseClickActionPluginsConfig,
+  MetabaseColorKey,
   MetabaseColors,
   MetabaseClickAction,
   MetabaseComponentTheme,
   MetabaseCollection,
   MetabaseCollectionItem,
   MetabaseDataPointObject,
+  MetabaseQueryObject,
   MetabaseDashboard,
   MetabaseDashboardPluginsConfig,
+  MetabaseEmbeddingColorKeyV2,
+  MetabaseEmbeddingTheme,
+  MetabaseEmbeddingThemeV2,
   MetabaseFontFamily,
   MetabaseGlobalPluginsConfig,
+  ProtectedColorKey,
+  MetabaseCard,
   MetabasePluginsConfig,
   MetabaseQuestion,
   MetabaseTheme,
   MetabaseThemePreset,
   MetabaseUser,
+  MetabotAgentChartMessage,
+  MetabotAgentMessage,
+  MetabotAgentTextMessage,
+  MetabotChartProps,
+  MetabotErrorMessage,
+  MetabotMessage,
+  MetabotUserTextMessage,
+  ParameterChangeSource,
+  ParameterChangePayload,
+  UseMetabotResult,
   SdkEntityToken,
   SdkCollectionId,
   SdkDashboardId,
@@ -124,11 +159,26 @@ export type {
   SdkQuestionId,
   SdkQuestionEntityPublicProps,
   SdkQuestionTitleProps,
+  SqlParameterChangeSource,
+  SqlParameterChangePayload,
   SdkUserId,
   SqlParameterValues,
+  SdkActionId,
 } from "embedding-sdk-bundle/types";
+export type {
+  FieldSchema,
+  QueryData,
+  RowValue,
+  SchemaColumn,
+  SchemaJavaScriptType,
+  SchemaRow,
+} from "./hooks/public/data-schema";
+export type { QueryQuestionResult } from "embedding-sdk-bundle/lib/query-question";
 
-export type { ModularEmbeddingEntityType } from "metabase-types/store/embedding-data-picker";
+export type {
+  EmbeddingEntityType,
+  EmbeddingDataPicker,
+} from "metabase/redux/store/embedding-data-picker";
 
 export type { ParameterValues } from "metabase/embedding-sdk/types/dashboard";
 export type { IconName } from "metabase/embedding-sdk/types/icon";

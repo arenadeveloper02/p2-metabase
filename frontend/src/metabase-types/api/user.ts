@@ -1,6 +1,10 @@
 import type { CollectionId } from "./collection";
 import type { DashboardId } from "./dashboard";
+import type { DatabaseId } from "./database";
+import type { DependencyDiagnosticsUserParams } from "./dependencies";
+import type { ExportFormat, TableExportFormat } from "./export-format";
 import type { PaginationRequest, PaginationResponse } from "./pagination";
+import type { ConcreteTableId, SchemaName } from "./table";
 
 export type UserId = number;
 export type UserAttributeKey = string;
@@ -34,6 +38,7 @@ export interface BaseUser {
   is_active: boolean;
   is_qbnewb: boolean;
   is_superuser: boolean;
+  is_data_analyst: boolean;
 
   date_joined: string;
   last_login: string;
@@ -48,12 +53,14 @@ export interface UserPermissions {
 
   // requires advanced_permissions feature
   is_group_manager?: boolean;
+  is_data_analyst?: boolean;
   can_access_data_model?: boolean;
   can_access_db_details?: boolean;
   can_access_monitoring?: boolean;
   can_access_setting?: boolean;
   can_access_subscription?: boolean;
   can_access_data_studio?: boolean;
+  can_access_transforms?: boolean;
 }
 
 export interface User extends BaseUser {
@@ -65,9 +72,9 @@ export interface User extends BaseUser {
   has_invited_second_user: boolean;
   has_question_and_dashboard: boolean;
   can_write_any_collection: boolean;
-  personal_collection_id: CollectionId;
+  personal_collection_id: CollectionId | null;
   tenant_collection_id: CollectionId | null;
-  sso_source: "jwt" | "ldap" | "google" | "scim" | "saml" | null;
+  sso_source: "jwt" | "ldap" | "google" | "scim" | "saml" | "oidc" | null;
   custom_homepage: {
     dashboard_id: DashboardId;
   } | null;
@@ -80,7 +87,11 @@ export interface UserListResult {
   last_name: string | null;
   common_name: string;
   email: string;
-  personal_collection_id: CollectionId;
+  /**
+   * `null` for API-key users (see `include-personal-collection-ids`
+   * in `collections/models/collection.clj`).
+   */
+  personal_collection_id: CollectionId | null;
   structured_attributes?: StructuredUserAttributes;
 }
 
@@ -100,6 +111,7 @@ export type UserInfo = Pick<
   | "last_login"
   | "is_superuser"
   | "is_qbnewb"
+  | "is_active"
 >;
 
 export type UserListQuery = {
@@ -117,6 +129,12 @@ export type UserLoginHistoryItem = {
 
 export type UserLoginHistory = UserLoginHistoryItem[];
 
+export type InviteTarget = {
+  type: "dashboard" | "question";
+  id: number;
+  name: string;
+};
+
 export type CreateUserRequest = {
   email: string;
   first_name?: string;
@@ -125,6 +143,7 @@ export type CreateUserRequest = {
   login_attributes?: UserAttributeMap;
   password?: string;
   source?: "setup" | "admin";
+  invite_target?: InviteTarget;
 };
 
 export type UpdatePasswordRequest = {
@@ -139,6 +158,7 @@ export type ListUsersRequest = {
   group_id?: number;
   include_deactivated?: boolean;
   tenancy?: UserTenancy;
+  tenant_id?: number;
 } & PaginationRequest;
 
 export type ListUsersResponse = {
@@ -169,8 +189,8 @@ export type UserKeyValue =
       namespace: "last_download_format";
       key: string;
       value: {
-        last_download_format: "csv" | "xlsx" | "json" | "png";
-        last_table_download_format: "csv" | "xlsx" | "json";
+        last_download_format: ExportFormat;
+        last_table_download_format: TableExportFormat;
       };
     }
   | {
@@ -180,8 +200,33 @@ export type UserKeyValue =
     }
   | {
       namespace: "data_studio";
-      key: string;
+      key: "isNavbarOpened" | "hasSeenGuide";
       value: boolean;
+    }
+  | {
+      namespace: "monitor";
+      key: "isNavbarOpened";
+      value: boolean;
+    }
+  | {
+      namespace: "dependency_diagnostics";
+      key: string;
+      value: DependencyDiagnosticsUserParams;
+    }
+  | {
+      namespace: "schema_viewer";
+      key: "last_database";
+      value: {
+        databaseId: DatabaseId;
+        schema?: SchemaName;
+      };
+    }
+  | {
+      namespace: "schema_viewer";
+      key: `${DatabaseId}__${SchemaName}`;
+      value: {
+        table_ids: ConcreteTableId[];
+      };
     };
 
 export type UserKeyValueKey = Pick<UserKeyValue, "namespace" | "key">;

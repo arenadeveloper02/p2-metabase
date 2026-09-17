@@ -32,10 +32,25 @@ export const formatCellValueForCopy = (
 
     return String(rawValue);
   }
-  1;
+
   if (rawValue == null) {
     return "";
   }
 
   return formatter(rawValue, rowIndex, columnId);
 };
+
+const NEEDS_QUOTING_PATTERN = /[\t\n\r]/;
+
+const needsQuoting = (text: string) => NEEDS_QUOTING_PATTERN.test(text);
+
+export const serializeTsv = (lines: string[][]): string =>
+  lines
+    .map((cells) =>
+      cells
+        .map((cell) =>
+          needsQuoting(cell) ? `"${cell.replaceAll('"', '""')}"` : cell,
+        )
+        .join("\t"),
+    )
+    .join("\n");

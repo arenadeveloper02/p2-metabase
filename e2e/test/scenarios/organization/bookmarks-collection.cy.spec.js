@@ -74,6 +74,46 @@ describe("scenarios > organization > bookmarks > collection", () => {
     bookmarkThenArchive("Orders in a dashboard");
   });
 
+  it("should update bookmarks list when restoring a collection containing bookmarked items (metabase#44499)", () => {
+    const collectionName = "First collection";
+    const questionName = "Orders in First Collection";
+
+    // Create a question in the collection and bookmark it
+    H.createQuestion({
+      name: questionName,
+      query: { "source-table": STATIC_ORDERS_ID },
+      collection_id: FIRST_COLLECTION_ID,
+    }).then(({ body: { id: questionId } }) => {
+      cy.request("POST", `/api/bookmark/card/${questionId}`);
+    });
+
+    H.visitCollection("root");
+
+    // Verify bookmark appears in sidebar
+    H.navigationSidebar()
+      .findByRole("section", { name: "Bookmarks" })
+      .should("contain", questionName);
+
+    // Archive the collection
+    H.openCollectionItemMenu(collectionName);
+    H.popover().findByTextEnsureVisible("Move to trash").click();
+
+    // The bookmarked question should be removed from bookmarks
+    H.navigationSidebar()
+      .findByRole("section", { name: "Bookmarks" })
+      .should("not.exist");
+
+    // Restore the collection
+    cy.visit("/trash");
+    H.openCollectionItemMenu(collectionName);
+    H.popover().findByTextEnsureVisible("Restore").click();
+
+    // The bookmarked question should reappear in bookmarks
+    H.navigationSidebar()
+      .findByRole("section", { name: "Bookmarks" })
+      .should("contain", questionName);
+  });
+
   it("can remove bookmark from item in sidebar", () => {
     H.visitCollection(ADMIN_PERSONAL_COLLECTION_ID);
 
@@ -128,7 +168,7 @@ describe("scenarios > organization > bookmarks > collection", () => {
       H.visitCollection("root");
 
       pin(name);
-      H.tableHeaderColumn("ID");
+      H.getPinnedSection().findByText("A question");
       bookmarkPinnedItem(name);
 
       H.expectUnstructuredSnowplowEvent({
@@ -161,7 +201,7 @@ describe("scenarios > organization > bookmarks > collection", () => {
       H.visitCollection("root");
 
       pin(name);
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("A dashboard");
       bookmarkPinnedItem(name);
       H.expectUnstructuredSnowplowEvent({
@@ -256,7 +296,8 @@ function archive(name) {
 }
 
 function bookmarkPinnedItem(name) {
-  cy.findByText(name)
+  H.getPinnedSection()
+    .findByText(name)
     .closest("a")
     .find(".Icon-ellipsis")
     .click({ force: true });

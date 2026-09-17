@@ -32,12 +32,13 @@ const propsSchema: Yup.SchemaOf<InteractiveDashboardProps> = Yup.object({
     width: Yup.mixed().optional(),
     withChartTypeSelector: Yup.mixed().optional(),
     withDownloads: Yup.mixed().optional(),
-    withResetButton: Yup.mixed().optional(),
   })
     .optional()
     .noUnknown(),
   hiddenParameters: Yup.mixed().optional(),
   initialParameters: Yup.mixed().optional(),
+  parameters: Yup.mixed().optional(),
+  onParametersChange: Yup.mixed().optional(),
   onLoad: Yup.mixed().optional(),
   onLoadWithoutCards: Yup.mixed().optional(),
   plugins: Yup.object({
@@ -50,11 +51,13 @@ const propsSchema: Yup.SchemaOf<InteractiveDashboardProps> = Yup.object({
     .noUnknown(),
   renderDrillThroughQuestion: Yup.mixed().optional(),
   style: Yup.mixed().optional(),
+  autoRefreshInterval: Yup.mixed().optional(),
   withCardTitle: Yup.mixed().optional(),
   withDownloads: Yup.mixed().optional(),
   withSubscriptions: Yup.mixed().optional(),
   withTitle: Yup.mixed().optional(),
   onVisualizationChange: Yup.mixed().optional(),
+  enableEntityNavigation: Yup.mixed().optional(),
 }).noUnknown();
 
 export const interactiveDashboardSchema: FunctionSchema = {

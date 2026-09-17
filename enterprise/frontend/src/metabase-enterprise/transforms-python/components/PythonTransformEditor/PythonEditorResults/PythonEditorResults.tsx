@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { c, t } from "ttag";
 
 import EmptyCodeResult from "assets/img/empty-states/code.svg";
 import { AnsiLogs } from "metabase/common/components/AnsiLogs";
-import DebouncedFrame from "metabase/common/components/DebouncedFrame";
-import { LoadingSpinner } from "metabase/common/components/MetadataInfo/MetadataInfo.styled";
-import { isMac } from "metabase/lib/browser";
-import { Box, Flex, Group, Icon, Stack, Tabs, Text } from "metabase/ui";
+import { DebouncedFrame } from "metabase/common/components/DebouncedFrame";
+import {
+  ActionIcon,
+  Box,
+  Flex,
+  Group,
+  Icon,
+  Loader,
+  Stack,
+  Tabs,
+  Text,
+} from "metabase/ui";
+import { isMac } from "metabase/utils/browser";
 import type { TestPythonTransformResponse } from "metabase-types/api";
 
 import { ExecutionOutputTable } from "./ExecutionOutputTable";
@@ -24,25 +33,35 @@ export function PythonEditorResults({
   isRunning,
 }: PythonEditorProps) {
   const [tab, setTab] = useState<ResultsTab>("results");
+  const [footerDismissed, setFooterDismissed] = useState(false);
   const hasDataOrError = executionResult?.output || executionResult?.error;
+
+  useEffect(() => {
+    setFooterDismissed(false);
+  }, [executionResult]);
+
   return (
     <DebouncedFrame className={S.visualization}>
       <Stack data-testid="python-results" gap={0} h="100%">
-        <ExecutionResultHeader
-          executionResult={executionResult}
-          tab={tab}
-          onTabChange={setTab}
-        />
-        {!hasDataOrError && <EmptyState />}
-        {hasDataOrError &&
-          tab === "results" &&
-          (executionResult?.error ? (
-            <ErrorState error={executionResult.error.message} />
-          ) : (
-            <ExecutionOutputTable output={executionResult?.output} />
-          ))}
-        {executionResult && tab === "output" && (
-          <ExecutionOutputLogs executionResult={executionResult} />
+        <ExecutionResultTabs tab={tab} onTabChange={setTab} />
+        <Box className={S.content} flex={1} mih={0}>
+          {!hasDataOrError && <EmptyState />}
+          {hasDataOrError &&
+            tab === "results" &&
+            (executionResult?.error ? (
+              <ErrorState error={executionResult.error.message} />
+            ) : (
+              <ExecutionOutputTable output={executionResult?.output} />
+            ))}
+          {executionResult && tab === "output" && (
+            <ExecutionOutputLogs executionResult={executionResult} />
+          )}
+        </Box>
+        {!footerDismissed && (
+          <ResultsFooter
+            executionResult={executionResult}
+            onDismiss={() => setFooterDismissed(true)}
+          />
         )}
         {isRunning && <LoadingState />}
       </Stack>
@@ -50,17 +69,13 @@ export function PythonEditorResults({
   );
 }
 
-function ExecutionResultHeader({
-  executionResult,
+function ExecutionResultTabs({
   tab,
   onTabChange,
 }: {
-  executionResult?: TestPythonTransformResponse | null;
   tab: ResultsTab;
   onTabChange: (tab: ResultsTab) => void;
 }) {
-  const message = getMessageForExecutionResult(executionResult);
-
   return (
     <Group className={S.header} justify="space-between">
       <Box mt="xs">
@@ -68,17 +83,16 @@ function ExecutionResultHeader({
           value={tab}
           onChange={(value) => {
             if (value) {
-              onTabChange(value as ResultsTab);
+              onTabChange(value);
             }
           }}
         >
           <Tabs.List>
-            <Tabs.Tab value="results">{t`Results`}</Tabs.Tab>
+            <Tabs.Tab value="results">{t`Results preview`}</Tabs.Tab>
             <Tabs.Tab value="output">{t`Output`}</Tabs.Tab>
           </Tabs.List>
         </Tabs>
       </Box>
-      {message}
     </Group>
   );
 }
@@ -89,8 +103,8 @@ function getRunQueryShortcut() {
 
 function LoadingState() {
   return (
-    <Flex p="md" className={S.loading}>
-      <LoadingSpinner />
+    <Flex p="md" align="center" justify="center" className={S.loading}>
+      <Loader size="lg" color="core-brand" />
     </Flex>
   );
 }
@@ -104,7 +118,7 @@ function EmptyState() {
         <Box maw="3rem" mb="0.75rem">
           <img src={EmptyCodeResult} alt="Code prompt icon" />
         </Box>
-        <Text c="text-medium">
+        <Text c="text-secondary">
           {c("{0} refers to the keyboard shortcut")
             .jt`To run your code, click on the Run button or type ${(
             <b key="shortcut">({keyboardShortcut})</b>
@@ -117,7 +131,7 @@ function EmptyState() {
 
 function ErrorState({ error }: { error: string }) {
   return (
-    <Stack gap="sm" h="100%" p="md" c="error" className={S.error}>
+    <Stack gap="sm" h="100%" p="md" c="feedback-negative" className={S.error}>
       <Group fw="bold" gap="sm">
         <Icon name="warning" />
         {t`Error`}
@@ -129,27 +143,71 @@ function ErrorState({ error }: { error: string }) {
   );
 }
 
-function getMessageForExecutionResult(
-  executionResult?: TestPythonTransformResponse | null,
-) {
+function ResultsFooter({
+  executionResult,
+  onDismiss,
+}: {
+  executionResult?: TestPythonTransformResponse | null;
+  onDismiss: () => void;
+}) {
   if (!executionResult) {
     return null;
   }
 
   if (executionResult.error) {
     return (
-      <Flex gap="sm" align="center" pr="md" c="error">
-        <Icon name="warning" />
-        {t`An error occurred while executing your Python script`}
+      <Flex className={S.footer} gap="xs" align="center" px="md" py="md">
+        <Icon
+          size="1rem"
+          style={{ flexShrink: 0 }}
+          name="warning"
+          c="feedback-negative"
+        />
+        <Text
+          c="text-primary"
+          ml="xs"
+        >{t`An error occurred while executing your Python script.`}</Text>
+        <DismissButton onDismiss={onDismiss} />
       </Flex>
     );
   }
 
+  if (!executionResult.output) {
+    return null;
+  }
+
   return (
-    <Flex gap="sm" align="center" pr="md" c="success">
-      <Icon name="check_filled" />
-      {t`Script executed successfully`}
+    <Flex className={S.footer} gap="xs" align="center" px="md" py="md">
+      <Icon
+        size="1rem"
+        style={{ flexShrink: 0 }}
+        name="check_filled"
+        c="feedback-positive"
+      />
+      <Text fw="bold" c="text-primary" lh="xs">{t`Done`}</Text>
+      <Text
+        c="text-disabled"
+        ml="xs"
+        lh="xs"
+      >{t`Preview based on the first 100 rows from each table.`}</Text>
+      <DismissButton onDismiss={onDismiss} />
     </Flex>
+  );
+}
+
+function DismissButton({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <ActionIcon
+      ml="auto"
+      size="1.5rem"
+      radius="xl"
+      variant="subtle"
+      c="text-disabled"
+      onClick={onDismiss}
+      aria-label={t`Dismiss`}
+    >
+      <Icon name="close" size={12} />
+    </ActionIcon>
   );
 }
 
@@ -159,11 +217,21 @@ function ExecutionOutputLogs({
   executionResult: TestPythonTransformResponse | null;
 }) {
   return (
-    <Box fz="sm" p="md" bg="bg-light" h="100%" className={S.logs}>
+    <Box
+      fz="sm"
+      p="md"
+      bg="background_page-secondary"
+      h="100%"
+      className={S.logs}
+    >
       {executionResult?.logs ? (
         <AnsiLogs>{executionResult.logs}</AnsiLogs>
       ) : (
-        <Text c="text-light" fz="sm" fs="italic">{t`No logs to display`}</Text>
+        <Text
+          c="text-disabled"
+          fz="sm"
+          fs="italic"
+        >{t`No logs to display`}</Text>
       )}
     </Box>
   );

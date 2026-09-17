@@ -1,1 +1,1 @@
-export { Heatmap } from "./Heatmap";
+export { Heatmap, HEATMAP_CHART_DEFINITION } from "./Heatmap";

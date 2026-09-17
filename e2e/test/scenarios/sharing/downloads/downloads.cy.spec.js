@@ -58,7 +58,7 @@ describe("scenarios > question > download", () => {
         });
 
         H.visualize();
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.contains("18,760");
 
         H.downloadAndAssert({ fileType });
@@ -153,7 +153,7 @@ describe("scenarios > question > download", () => {
       cy.intercept("GET", formatUrl).as("fetchFormat");
     });
 
-    it("should remember the selected format across page reloads", () => {
+    it("should remember the downloaded format across page reloads", () => {
       H.createQuestion(
         {
           name: "Format Preference Test",
@@ -172,6 +172,7 @@ describe("scenarios > question > download", () => {
       cy.findByTestId("view-footer").button("Download results").click();
 
       H.popover().findByText(".xlsx").click();
+      cy.findByTestId("download-results-button").click();
       cy.wait("@saveFormat");
 
       cy.get("@questionId").then((id) => {
@@ -190,7 +191,7 @@ describe("scenarios > question > download", () => {
       });
     });
 
-    it("should remember the download format on dashboards", () => {
+    it("should remember the downloaded format on dashboards", () => {
       H.createQuestion({
         name: "Dashboard Format Test",
         query: {
@@ -212,7 +213,7 @@ describe("scenarios > question > download", () => {
           H.popover().findByText("Download results").click();
 
           H.popover().findByText(".xlsx").click();
-
+          cy.findByTestId("download-results-button").click();
           cy.wait("@saveFormat");
 
           cy.reload();
@@ -336,7 +337,7 @@ describe("scenarios > question > download", () => {
 
       H.popover().within(() => H.fieldValuesCombobox().type("1"));
 
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Add filter").click();
 
       cy.wait("@dashboard");
@@ -487,6 +488,10 @@ describe("scenarios > dashboard > download pdf", () => {
     });
 
     H.openSharingMenu("Export as PDF");
+    cy.findByTestId("status-root-container")
+      .should("contain", "Downloading")
+      .and("contain", `Dashboard for saving pdf dashboard - ${date}`);
+
     cy.log("We're adding a 'Metabase-' prefix for non-whitelabelled instances");
     cy.verifyDownload(`Metabase - saving pdf dashboard - ${date}.pdf`);
   });
@@ -511,6 +516,10 @@ describe("[snowplow] scenarios > dashboard", () => {
     }).then(({ dashboard }) => {
       H.visitDashboard(dashboard.id);
       H.openSharingMenu("Export as PDF");
+
+      cy.findByTestId("status-root-container")
+        .should("contain", "Downloading")
+        .and("contain", "Dashboard for test dashboard");
 
       H.expectUnstructuredSnowplowEvent({
         event: "dashboard_pdf_exported",

@@ -147,4 +147,45 @@ describe("calculateColumnWidths", () => {
       auto: 200,
     });
   });
+
+  it("maxAutoWidth caps measured content width", () => {
+    const columns = [
+      createColumn({ id: "auto", width: "auto", maxAutoWidth: 100 }),
+      createColumn({ id: "stretch" }),
+    ];
+    // Content is 300 but maxAutoWidth caps it at 100
+    expect(calculateColumnWidths(columns, 500, { auto: 300 }, 0, 20)).toEqual({
+      auto: 100,
+      stretch: 400,
+    });
+    // Content smaller than cap uses actual content width
+    expect(calculateColumnWidths(columns, 500, { auto: 80 }, 0, 20)).toEqual({
+      auto: 80,
+      stretch: 420,
+    });
+  });
+
+  it("enforces a numeric minWidth floor on width=auto columns", () => {
+    const columns = [
+      createColumn({ id: "auto", width: "auto", minWidth: 150 }),
+      createColumn({ id: "stretch" }),
+    ];
+    // Measured content (80) is narrower than minWidth (150); minWidth wins.
+    expect(calculateColumnWidths(columns, 500, { auto: 80 }, 0, 20)).toEqual({
+      auto: 150,
+      stretch: 350,
+    });
+  });
+
+  it("maxAutoWidth caps minimum but column can stretch beyond it if there is extra space", () => {
+    const columns = [
+      createColumn({ id: "col", minWidth: "auto", maxAutoWidth: 100 }),
+      createColumn({ id: "fixed", width: 100 }),
+    ];
+    // Content is 300, maxAutoWidth caps minimum at 100, but column stretches to 400
+    expect(calculateColumnWidths(columns, 500, { col: 300 }, 0, 20)).toEqual({
+      col: 400,
+      fixed: 100,
+    });
+  });
 });

@@ -4,4 +4,5 @@ export type FunnelRow = {
   key: RowValue;
   name: RowValue;
   enabled: boolean;
+  color?: string;
 };

@@ -26,19 +26,18 @@ export const SidebarCacheForm = ({
 }: SidebarCacheFormProps) => {
   const configurableModels = useMemo(() => [model], [model]);
   const id: number = getItemId(model, item);
-  const { configs, setConfigs, loading, error } = useCacheConfigs({
-    configurableModels,
+  const { configs, isLoading, error } = useCacheConfigs({
+    model: configurableModels,
     id,
   });
 
-  const { savedStrategy, filteredConfigs } = useMemo(() => {
-    const targetConfig = _.findWhere(configs, { model_id: id });
+  const { savedStrategy } = useMemo(() => {
+    const targetConfig = _.findWhere(configs ?? [], { model_id: id });
     const savedStrategy = targetConfig?.strategy;
-    const filteredConfigs = _.compact([targetConfig]);
-    return { savedStrategy, filteredConfigs };
+    return { savedStrategy };
   }, [configs, id]);
 
-  const saveStrategy = useSaveStrategy(id, filteredConfigs, setConfigs, model);
+  const saveStrategy = useSaveStrategy(id, model);
   const saveAndBack = useCallback(
     async (values: CacheStrategy) => {
       await saveStrategy(values);
@@ -76,7 +75,7 @@ export const SidebarCacheForm = ({
         aria-labelledby={headingId}
         {...stackProps}
       >
-        <DelayedLoadingAndErrorWrapper loading={loading} error={error}>
+        <DelayedLoadingAndErrorWrapper loading={isLoading} error={error}>
           <StrategyForm
             targetId={id}
             targetModel={model}
@@ -86,9 +85,13 @@ export const SidebarCacheForm = ({
             savedStrategy={savedStrategy}
             shouldAllowInvalidation
             shouldShowName={false}
-            onReset={onBack}
+            onCancel={() =>
+              isStrategyFormDirty
+                ? askBeforeDiscardingChanges(onBack)
+                : onBack()
+            }
             buttonLabels={{ save: t`Save`, discard: t`Cancel` }}
-            isInSidebar
+            layout="sidebar"
           />
         </DelayedLoadingAndErrorWrapper>
         {confirmationModal}

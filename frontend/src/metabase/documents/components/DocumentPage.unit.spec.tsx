@@ -1,12 +1,12 @@
 import userEvent from "@testing-library/user-event";
-import { Route } from "react-router";
 
 import {
   setupBookmarksEndpoints,
   setupCommentEndpoints,
   setupDocumentEndpoints,
 } from "__support__/server-mocks";
-import { renderWithProviders, screen, waitFor } from "__support__/ui";
+import { act, renderWithProviders, screen, waitFor } from "__support__/ui";
+import { Route } from "metabase/router";
 import { createMockDocument } from "metabase-types/api/mocks";
 
 import { DocumentPage } from "./DocumentPage";
@@ -15,7 +15,7 @@ const setup = () => {
   setupBookmarksEndpoints([]);
   setupDocumentEndpoints(
     createMockDocument({
-      name: "Ends with whitepsace ",
+      name: "Ends with whitespace ",
       id: 1,
       can_write: true,
     }),
@@ -24,11 +24,23 @@ const setup = () => {
 
   renderWithProviders(
     <>
-      <Route path="/document/:entityId" component={DocumentPage}></Route>
+      <Route path="/document/:entityId" element={<DocumentPage />}></Route>
     </>,
     {
       withRouter: true,
       initialRoute: "/document/1",
+    },
+  );
+};
+
+const setupNewDocument = () => {
+  setupBookmarksEndpoints([]);
+
+  return renderWithProviders(
+    <Route path="/document/:entityId" element={<DocumentPage />} />,
+    {
+      withRouter: true,
+      initialRoute: "/document/new",
     },
   );
 };
@@ -40,7 +52,7 @@ describe("Document Page", () => {
   it("should show a save button when title changes", async () => {
     setup();
     await waitFor(async () =>
-      expect(await getDocumentTitle()).toHaveValue("Ends with whitepsace "),
+      expect(await getDocumentTitle()).toHaveValue("Ends with whitespace "),
     );
 
     await userEvent.clear(await getDocumentTitle());
@@ -55,12 +67,27 @@ describe("Document Page", () => {
     // is a very easy way to get false positives in your test. Asserting that something
     // doesn't exist *anymore* should be more robust
     await userEvent.clear(await getDocumentTitle());
-    await userEvent.type(await getDocumentTitle(), "Ends with whitepsace ");
+    await userEvent.type(await getDocumentTitle(), "Ends with whitespace ");
 
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "Save" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("warns about unsaved changes only once a navigation lands back on /document/new", async () => {
+    const { router } = setupNewDocument();
+
+    await userEvent.type(await getDocumentTitle(), "Draft");
+
+    expect(screen.queryByTestId("leave-confirmation")).not.toBeInTheDocument();
+
+    // The "New document" menu item links to the URL we are already on, which v7
+    // resolves as a replace. The page stays mounted, so the fresh location is
+    // what tells it the user asked to start over.
+    act(() => router?.navigate("/document/new", { replace: true }));
+
+    expect(await screen.findByTestId("leave-confirmation")).toBeInTheDocument();
   });
 });

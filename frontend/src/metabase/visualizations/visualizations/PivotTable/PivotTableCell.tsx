@@ -1,15 +1,14 @@
-/* eslint-disable no-color-literals */
 import { useDraggable } from "@dnd-kit/core";
 import cx from "classnames";
 import { useEffect, useId, useRef } from "react";
 
-import { Ellipsified } from "metabase/common/components/Ellipsified";
+import { useTranslateContent } from "metabase/content-translation/hooks";
 import CS from "metabase/css/core/index.css";
-import { useTranslateContent } from "metabase/i18n/hooks";
-import type { VisualizationSettings } from "metabase-types/api";
+import { Ellipsified } from "metabase/ui";
+import type { RowValue, VisualizationSettings } from "metabase-types/api";
 
 import { PivotTableCell, ResizeHandle } from "./PivotTable.styled";
-//import { RowToggleIcon } from "./RowToggleIcon";
+import { RowToggleIcon } from "./RowToggleIcon";
 import { LEFT_HEADER_LEFT_SPACING, RESIZE_HANDLE_WIDTH } from "./constants";
 import type { BodyItem, HeaderItem, PivotTableClicked } from "./types";
 
@@ -21,6 +20,8 @@ interface CellProps {
   isBody?: boolean;
   isBold?: boolean;
   isEmphasized?: boolean;
+  isGrandTotal?: boolean;
+  isHeader?: boolean;
   isBorderedHeader?: boolean;
   isTransparent?: boolean;
   hasTopBorder?: boolean;
@@ -83,6 +84,8 @@ export function Cell({
   isBody = false,
   isBold,
   isEmphasized,
+  isGrandTotal,
+  isHeader,
   isBorderedHeader,
   isTransparent,
   hasTopBorder,
@@ -96,8 +99,11 @@ export function Cell({
     <PivotTableCell
       data-allow-page-break-after
       data-testid="pivot-table-cell"
+      data-is-grand-total={isGrandTotal || undefined}
       isBold={isBold}
       isEmphasized={isEmphasized}
+      isGrandTotal={isGrandTotal}
+      isHeader={isHeader}
       isBorderedHeader={isBorderedHeader}
       hasTopBorder={hasTopBorder}
       isTransparent={isTransparent}
@@ -123,6 +129,7 @@ export function Cell({
         {!!onResize && (
           <ResizableHandle
             id={`resize-handle-${cellId}`}
+            // Unjustified type cast. FIXME
             initialWidth={(style?.width as number) ?? 0}
             onResizeEnd={onResize}
           />
@@ -141,8 +148,6 @@ interface TopHeaderCellProps {
   style: React.CSSProperties;
   getCellClickHandler: CellClickHandler;
   onResize?: (newWidth: number) => void;
-  backgroundColor: string;
-  isNumber?: boolean;
 }
 
 export const TopHeaderCell = ({
@@ -150,26 +155,21 @@ export const TopHeaderCell = ({
   style,
   getCellClickHandler,
   onResize,
-  backgroundColor,
-  isNumber = false,
 }: TopHeaderCellProps) => {
-  const { value, hasChildren, clicked, isSubtotal, maxDepthBelow, span } = item;
+  const { value, clicked, isGrandTotal, maxDepthBelow, span } = item;
 
   const tc = useTranslateContent();
 
   return (
     <Cell
-      isBody={isNumber}
       style={{
         ...style,
-        fontWeight: "bold",
-        color: "#000",
       }}
       value={tc(value)}
+      isHeader
+      isGrandTotal={isGrandTotal}
       isBorderedHeader={maxDepthBelow === 0}
-      backgroundColor={backgroundColor}
-      isEmphasized={hasChildren}
-      isBold={isSubtotal}
+      isBold
       onClick={getCellClickHandler(clicked)}
       onResize={span < 2 ? onResize : undefined}
     />
@@ -177,23 +177,22 @@ export const TopHeaderCell = ({
 };
 
 type LeftHeaderCellProps = TopHeaderCellProps & {
-  rowIndex: string[];
+  rowIndex: RowValue[][];
   settings: VisualizationSettings;
   onUpdateVisualizationSettings: (settings: VisualizationSettings) => void;
-  backgroundColor?: string;
 };
 
 export const LeftHeaderCell = ({
   item,
   style,
   getCellClickHandler,
-  // rowIndex,
-  // settings,
-  // onUpdateVisualizationSettings,
+  rowIndex,
+  settings,
+  onUpdateVisualizationSettings,
   onResize,
-  backgroundColor,
 }: LeftHeaderCellProps) => {
-  const { value, isSubtotal, /*hasSubtotal,*/ depth, /*path,*/ clicked } = item;
+  const { value, isSubtotal, isGrandTotal, hasSubtotal, depth, path, clicked } =
+    item;
 
   return (
     <Cell
@@ -202,23 +201,24 @@ export const LeftHeaderCell = ({
         ...(depth === 0 ? { paddingLeft: LEFT_HEADER_LEFT_SPACING } : {}),
       }}
       value={value}
+      isHeader
       isEmphasized={isSubtotal}
-      isBold={isSubtotal}
+      isGrandTotal={isGrandTotal}
+      isBold
       onClick={getCellClickHandler(clicked)}
       onResize={onResize}
-      backgroundColor={backgroundColor}
-      // icon={
-      //   (isSubtotal || hasSubtotal) && (
-      //     <RowToggleIcon
-      //       data-testid={`${item.rawValue}-toggle-button`}
-      //       value={path}
-      //       settings={settings}
-      //       updateSettings={onUpdateVisualizationSettings}
-      //       hideUnlessCollapsed={isSubtotal}
-      //       rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
-      //     />
-      //   )
-      // }
+      icon={
+        (isSubtotal || hasSubtotal) && (
+          <RowToggleIcon
+            data-testid={`${item.rawValue}-toggle-button`}
+            value={path}
+            settings={settings}
+            updateSettings={onUpdateVisualizationSettings}
+            hideUnlessCollapsed={isSubtotal}
+            rowIndex={rowIndex} // used to get a list of "other" paths when open one item in a collapsed column
+          />
+        )
+      }
     />
   );
 };
@@ -229,7 +229,6 @@ interface BodyCellProps {
   getCellClickHandler: CellClickHandler;
   cellWidths: number[];
   showTooltip?: boolean;
-  bottomBackgroundColor?: string;
 }
 
 export const BodyCell = ({
@@ -238,13 +237,12 @@ export const BodyCell = ({
   getCellClickHandler,
   cellWidths,
   showTooltip = true,
-  bottomBackgroundColor,
 }: BodyCellProps) => {
   return (
     <div style={style} className={CS.flex}>
       {rowSection.map(
         (
-          { value, isSubtotal, clicked, backgroundColor, isGrandTotal },
+          { value, isSubtotal, isGrandTotal, clicked, backgroundColor },
           index,
         ) => {
           return (
@@ -252,22 +250,15 @@ export const BodyCell = ({
               key={index}
               style={{
                 flexBasis: cellWidths[index],
-                color: bottomBackgroundColor ? "#fff" : "#000",
               }}
               value={value}
               isEmphasized={isSubtotal}
+              isGrandTotal={isGrandTotal}
               isBold={isSubtotal}
               showTooltip={showTooltip}
               isBody
               onClick={getCellClickHandler(clicked)}
-              backgroundColor={
-                !isGrandTotal && isSubtotal && !bottomBackgroundColor
-                  ? // eslint-disable-next-line no-color-literals
-                    "#f3f2f3"
-                  : bottomBackgroundColor
-                    ? bottomBackgroundColor
-                    : backgroundColor
-              }
+              backgroundColor={backgroundColor}
             />
           );
         },

@@ -8,30 +8,36 @@ import {
   isPublicEmbedding,
   isStaticEmbedding,
 } from "metabase/embedding/config";
-import { getSitePath } from "metabase/lib/dom";
-import { useSelector } from "metabase/lib/redux";
+import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
+import { useSelector } from "metabase/redux";
+import { useSetting } from "metabase/settings";
 import { getMetabaseCssVariables } from "metabase/styled-components/theme/css-variables";
 import { useMantineTheme } from "metabase/ui";
-import { saveDomImageStyles } from "metabase/visualizations/lib/image-exports";
+import { getSitePath } from "metabase/utils/dom";
+import { getFontFamilyValue } from "metabase/utils/fonts";
+import { getSaveDomImageStyles } from "metabase/visualizations/lib/image-exports";
 
 import { getFont, getFontFiles } from "../../selectors";
 
 export const GlobalStyles = (): JSX.Element => {
   const font = useSelector(getFont);
   const fontFiles = useSelector(getFontFiles);
+  const whitelabelColors = useSetting("application-colors");
 
   const sitePath = getSitePath();
   const theme = useMantineTheme();
   const { colorScheme } = theme.other;
 
   // This can get expensive so we should memoize it separately
-  const cssVariables = useMemo(() => getMetabaseCssVariables(theme), [theme]);
+  const cssVariables = useMemo(() => {
+    return getMetabaseCssVariables({ theme, whitelabelColors });
+  }, [theme, whitelabelColors]);
 
   const styles = useMemo(() => {
     return css`
       ${cssVariables}
       :root {
-        --mb-default-font-family: "${font}";
+        --mb-default-font-family: ${getFontFamilyValue(font)};
       }
 
       ${defaultFontFiles({ baseUrl: sitePath })}
@@ -46,7 +52,7 @@ export const GlobalStyles = (): JSX.Element => {
           }
         `,
       )}
-    ${saveDomImageStyles}
+    ${getSaveDomImageStyles(isEmbeddingSdk())}
     body {
         font-size: 0.875em;
         ${isStaticEmbedding() || isPublicEmbedding()

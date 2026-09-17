@@ -9,11 +9,11 @@ import { Text } from "@visx/text";
 import type { ScaleBand, ScaleContinuousNumeric } from "d3-scale";
 import * as React from "react";
 
-import { alpha } from "metabase/lib/colors";
+import { alpha } from "metabase/ui/colors/palette";
+import type { TextWidthMeasurer } from "metabase/utils/measure-text";
 import { truncateText } from "metabase/visualizations/lib/text";
 import type { HoveredData } from "metabase/visualizations/shared/types/events";
 import type { Margin } from "metabase/visualizations/shared/types/layout";
-import type { TextWidthMeasurer } from "metabase/visualizations/shared/types/measure-text";
 
 import type { SeriesInfo } from "../../types/data";
 import type { BarData, RowChartTheme, SeriesData } from "../RowChart/types";
@@ -28,7 +28,10 @@ export interface RowChartViewProps<TDatum> {
   yScale: ScaleBand<StringLike>;
   xScale: ScaleContinuousNumeric<number, number, never>;
   seriesData: SeriesData<TDatum, SeriesInfo>[];
-  labelsFormatter: (value: NumberLike) => string;
+  labelsFormatter: (
+    value: NumberLike,
+    bar?: BarData<TDatum, SeriesInfo>,
+  ) => string;
   yTickFormatter: (value: StringLike) => string;
   xTickFormatter: (value: NumberLike) => string;
   xTicks: number[];
@@ -125,21 +128,19 @@ const RowChartView = <TDatum,>({
     yTickFormatter,
   ]);
 
-  // Create unique gradient IDs for each series color when modern design is enabled
   const gradientIds = React.useMemo(() => {
     if (!isModernDesign) {
       return {};
     }
-    const uniqueColors = Array.from(
+    const uniqueBarColors = Array.from(
       new Set(seriesData.map((series) => series.color)),
     );
-    return uniqueColors.reduce((acc, color, index) => {
-      acc[color] = `gradient-${index}-${color.replace("#", "")}`;
+    return uniqueBarColors.reduce<Record<string, string>>((acc, barColor, index) => {
+      acc[barColor] = `gradient-${index}-${barColor.replace("#", "")}`;
       return acc;
-    }, {} as Record<string, string>);
+    }, {});
   }, [seriesData, isModernDesign]);
 
-  // Get unique colors for gradient definitions
   const uniqueColors = React.useMemo(() => {
     if (!isModernDesign) {
       return [];
@@ -151,8 +152,8 @@ const RowChartView = <TDatum,>({
     <svg width={width ?? undefined} height={height ?? undefined} style={style}>
       <defs>
         {isModernDesign &&
-          uniqueColors.map((color) => {
-            const gradientId = gradientIds[color];
+          uniqueColors.map((barColor) => {
+            const gradientId = gradientIds[barColor];
             if (!gradientId) {
               return null;
             }
@@ -167,21 +168,22 @@ const RowChartView = <TDatum,>({
               >
                 <stop
                   offset="0%"
-                  stopColor={alpha(color, 0.5)}
+                  stopColor={alpha(barColor, 0.5)}
                   stopOpacity={1}
                 />
                 <stop
                   offset="70%"
-                  stopColor={alpha(color, 0.85)}
+                  stopColor={alpha(barColor, 0.85)}
                   stopOpacity={1}
                 />
-                <stop offset="100%" stopColor={color} stopOpacity={1} />
+                <stop offset="100%" stopColor={barColor} stopOpacity={1} />
               </linearGradient>
             );
           })}
       </defs>
       <Group top={margin.top} left={margin.left}>
         <GridColumns
+          // Unjustified type cast. FIXME
           scale={xScale as AxisScale<number>}
           height={innerHeight}
           stroke={theme.grid.color}
@@ -266,7 +268,7 @@ const RowChartView = <TDatum,>({
                     y={y + height / 2}
                     verticalAnchor="middle"
                   >
-                    {labelsFormatter(label)}
+                    {labelsFormatter(label, bar)}
                   </Text>
                 )}
               </React.Fragment>
@@ -327,6 +329,7 @@ const RowChartView = <TDatum,>({
           tickValues={hasXAxis ? xTicks : []}
           tickFormat={xTickFormatter}
           top={innerHeight}
+          // Unjustified type cast. FIXME
           scale={xScale as AxisScale<number>}
           stroke={theme.axis.color}
           tickStroke={theme.axis.color}

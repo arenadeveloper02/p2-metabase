@@ -49,6 +49,7 @@ export const ParameterDropdownWidget = ({
   cardId,
   dashboardId,
   enableRequiredBehavior,
+  showRollingDefaults,
 }: ParameterDropdownWidgetProps) => {
   const normalizedValue = Array.isArray(value)
     ? value
@@ -80,6 +81,7 @@ export const ParameterDropdownWidget = ({
           value={value}
           availableOperators={["=", ">", "<", "between", "!="]}
           submitButtonLabel={value ? t`Update filter` : t`Add filter`}
+          showRollingDefaults={showRollingDefaults}
           onChange={(value) => {
             setValue?.(value);
             onPopoverClose?.();

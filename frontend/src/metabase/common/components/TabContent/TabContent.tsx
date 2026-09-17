@@ -12,7 +12,7 @@ export interface TabContentProps<T> {
   onChange?: (value: T) => void;
 }
 
-const TabContent = function TabContent<T>({
+export const TabContent = function TabContent<T>({
   value,
   children,
   onChange,
@@ -22,12 +22,10 @@ const TabContent = function TabContent<T>({
     return { value, idPrefix, onChange };
   }, [value, idPrefix, onChange]);
 
+  // Unjustified type cast. FIXME
   return (
     <TabContext.Provider value={context as TabContextType}>
       {children}
     </TabContext.Provider>
   );
 };
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default TabContent;

@@ -1,13 +1,22 @@
 import type {
+  AnalysisFindingError,
   CardDependencyNode,
   CardDependencyNodeData,
-  CheckCardDependenciesRequest,
-  CheckDependenciesResponse,
-  CheckSnippetDependenciesRequest,
-  CheckTransformDependenciesRequest,
+  DashboardDependencyNode,
+  DashboardDependencyNodeData,
   DependencyEdge,
   DependencyEntry,
   DependencyGraph,
+  DocumentDependencyNode,
+  DocumentDependencyNodeData,
+  ListBreakingGraphNodesRequest,
+  ListBreakingGraphNodesResponse,
+  ListUnreferencedGraphNodesRequest,
+  ListUnreferencedGraphNodesResponse,
+  MeasureDependencyNode,
+  MeasureDependencyNodeData,
+  SandboxDependencyNode,
+  SandboxDependencyNodeData,
   SegmentDependencyNode,
   SegmentDependencyNodeData,
   SnippetDependencyNode,
@@ -24,6 +33,18 @@ export function createMockDependencyEntry(
   return {
     id: 1,
     type: "table",
+    ...opts,
+  };
+}
+
+export function createMockAnalysisFindingError(
+  opts?: Partial<AnalysisFindingError>,
+): AnalysisFindingError {
+  return {
+    id: 1,
+    analyzed_entity_id: 1,
+    analyzed_entity_type: "card",
+    error_type: "missing-column",
     ...opts,
   };
 }
@@ -47,6 +68,7 @@ export function createMockTransformDependencyNodeData(
   return {
     name: "Transform",
     description: null,
+    created_at: "2020-01-01T00:00:00Z",
     ...opts,
   };
 }
@@ -59,6 +81,7 @@ export function createMockCardDependencyNodeData(
     description: null,
     type: "question",
     display: "table",
+    query_type: "query",
     dashboard_id: 1,
     collection_id: null,
     result_metadata: [],
@@ -129,7 +152,7 @@ export function createMockDependencyEdge(
 }
 
 export function createMockDependencyGraph(
-  opts?: Partial<DependencyGraph>,
+  opts: Partial<DependencyGraph> = {},
 ): DependencyGraph {
   return {
     nodes: [],
@@ -144,6 +167,9 @@ export function createMockSnippetDependencyNodeData(
   return {
     name: "Snippet",
     description: null,
+    created_at: "2020-01-01T00:00:00Z",
+    creator_id: 1,
+    collection_id: null,
     ...opts,
   };
 }
@@ -173,38 +199,138 @@ export function createMockSegmentDependencyNode(
   };
 }
 
-export function createMockCheckCardDependenciesRequest(
-  opts?: Partial<CheckCardDependenciesRequest>,
-): CheckCardDependenciesRequest {
+export function createMockDashboardDependencyNodeData(
+  opts?: Partial<DashboardDependencyNodeData>,
+): DashboardDependencyNodeData {
+  // Unjustified type cast. FIXME
+  return {
+    name: "Dashboard",
+    description: null,
+    created_at: "2020-01-01T00:00:00Z",
+    collection_id: null,
+    moderation_reviews: [],
+    ...opts,
+  } as DashboardDependencyNodeData;
+}
+
+export function createMockDashboardDependencyNode(
+  opts?: Partial<DashboardDependencyNode>,
+): DashboardDependencyNode {
   return {
     id: 1,
+    type: "dashboard",
+    data: createMockDashboardDependencyNodeData(),
+    dependents_count: {},
     ...opts,
   };
 }
 
-export function createMockCheckSnippetDependenciesRequest(
-  opts?: Partial<CheckSnippetDependenciesRequest>,
-): CheckSnippetDependenciesRequest {
+export function createMockDocumentDependencyNodeData(
+  opts?: Partial<DocumentDependencyNodeData>,
+): DocumentDependencyNodeData {
+  // Unjustified type cast. FIXME
+  return {
+    name: "Document",
+    created_at: "2020-01-01T00:00:00Z",
+    collection_id: null,
+    ...opts,
+  } as DocumentDependencyNodeData;
+}
+
+export function createMockDocumentDependencyNode(
+  opts?: Partial<DocumentDependencyNode>,
+): DocumentDependencyNode {
   return {
     id: 1,
+    type: "document",
+    data: createMockDocumentDependencyNodeData(),
+    dependents_count: {},
     ...opts,
   };
 }
 
-export function createMockCheckTransformDependenciesRequest(
-  opts?: Partial<CheckTransformDependenciesRequest>,
-): CheckTransformDependenciesRequest {
+export function createMockSandboxDependencyNodeData(
+  opts?: Partial<SandboxDependencyNodeData>,
+): SandboxDependencyNodeData {
   return {
-    id: 1,
+    table_id: 1,
     ...opts,
   };
 }
 
-export function createMockCheckDependenciesResponse(
-  opts?: Partial<CheckDependenciesResponse>,
-): CheckDependenciesResponse {
+export function createMockSandboxDependencyNode(
+  opts?: Partial<SandboxDependencyNode>,
+): SandboxDependencyNode {
   return {
-    success: true,
+    id: 1,
+    type: "sandbox",
+    data: createMockSandboxDependencyNodeData(),
+    dependents_count: {},
+    ...opts,
+  };
+}
+
+export function createMockMeasureDependencyNodeData(
+  opts?: Partial<MeasureDependencyNodeData>,
+): MeasureDependencyNodeData {
+  return {
+    name: "Measure",
+    description: null,
+    table_id: 1,
+    created_at: "2020-01-01T00:00:00Z",
+    creator_id: 1,
+    ...opts,
+  };
+}
+
+export function createMockMeasureDependencyNode(
+  opts?: Partial<MeasureDependencyNode>,
+): MeasureDependencyNode {
+  return {
+    id: 1,
+    type: "measure",
+    data: createMockMeasureDependencyNodeData(),
+    dependents_count: {},
+    ...opts,
+  };
+}
+
+export function createMockListBrokenGraphNodesRequest(
+  opts?: Partial<ListBreakingGraphNodesRequest>,
+): ListBreakingGraphNodesRequest {
+  return {
+    ...opts,
+  };
+}
+
+export function createMockListBrokenGraphNodesResponse(
+  opts?: Partial<ListBreakingGraphNodesResponse>,
+): ListBreakingGraphNodesResponse {
+  return {
+    data: [],
+    total: 0,
+    limit: null,
+    offset: null,
+    ...opts,
+  };
+}
+
+export function createMockListUnreferencedGraphNodesRequest(
+  opts?: Partial<ListUnreferencedGraphNodesRequest>,
+): ListUnreferencedGraphNodesRequest {
+  return {
+    ...opts,
+  };
+}
+
+export function createMockListUnreferencedGraphNodesResponse(
+  opts?: Partial<ListUnreferencedGraphNodesResponse>,
+): ListUnreferencedGraphNodesResponse {
+  return {
+    data: [],
+    total: 0,
+    limit: null,
+    offset: null,
     ...opts,
   };
 }

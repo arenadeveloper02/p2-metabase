@@ -11,7 +11,7 @@
   downstream entities in any order."
   (:require
    [medley.core :as m]
-   [metabase-enterprise.dependencies.native-validation :as deps.native]
+   [metabase-enterprise.dependencies.analysis :as deps.analysis]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.metadata.protocols :as lib.metadata.protocols]
@@ -23,7 +23,7 @@
 
 (defn- metadatas [delegate overrides {metadata-type :lib/type
                                       search-name :name
-                                      :keys [id card-id table-id]
+                                      :keys [id card-ids table-ids]
                                       :as metadata-spec}]
   (let [type-overrides  (get overrides metadata-type)
         metadata-keys   (set (or id search-name))]
@@ -35,7 +35,6 @@
            (seq metadata-keys))
       (let [overrides       (if (seq id)
                               (select-keys type-overrides id)
-
                               (into {} (keep #(when-let [x (deref %)]
                                                 (when (search-name (:name x))
                                                   [(:name x) %])))
@@ -57,19 +56,29 @@
         (into entities (lib.metadata.protocols/metadatas delegate metadata-spec))
         (m/distinct-by :id entities))
 
-      ;; For columns, return overrides if they're present.
+      ;; For columns, return overrides if they're present. `:card-ids` and `:table-ids` are sets of ids; entities
+      ;; with overrides use the overridden columns, the rest are delegated.
       (= metadata-type :metadata/column)
-      (if-let [overridden-columns (cond
-                                    card-id  (get-in overrides [::card-columns  card-id])
-                                    table-id (get-in overrides [::table-columns table-id]))]
-        @overridden-columns
-        (lib.metadata.protocols/metadatas delegate metadata-spec))
+      (let [[override-k spec-k ids] (cond
+                                      card-ids  [::card-columns  :card-ids  card-ids]
+                                      table-ids [::table-columns :table-ids table-ids])]
+        (if-not override-k
+          (lib.metadata.protocols/metadatas delegate metadata-spec)
+          (let [id->overridden (into {}
+                                     (keep (fn [id]
+                                             (when-let [columns (get-in overrides [override-k id])]
+                                               [id columns])))
+                                     ids)
+                missing-ids    (into #{} (remove id->overridden) ids)]
+            (concat (mapcat (comp deref val) id->overridden)
+                    (when (seq missing-ids)
+                      (lib.metadata.protocols/metadatas delegate (assoc metadata-spec spec-k missing-ids)))))))
 
       :else (throw (ex-info "Unknown :lib/metadata type for OverridingMetadataProvider" metadata-spec)))))
 
 (declare all-overrides setup-transform! setup-transforms!)
 
-(deftype OverridingMetadataProvider [delegate *overrides]
+(deftype OverridingMetadataProvider [delegate *overrides returned-columns-fn]
   lib.metadata.protocols/MetadataProvider
   (database [_this] (lib.metadata.protocols/database delegate))
   (metadatas [this metadata-spec]
@@ -112,24 +121,27 @@
                     (assoc-in m ks v))
                   % kvs)))
 
-(defn- get-returned-columns [mp queryable]
-  (let [query (lib/query mp queryable)]
-    (if (lib/native-only-query? query)
-      (deps.native/native-result-metadata (:engine (lib.metadata/database mp))
-                                          query)
-      (lib/returned-columns query))))
+(defn- returned-columns [^OverridingMetadataProvider mp queryable]
+  (let [returned-columns-fn (.returned-columns-fn mp)]
+    (or (and returned-columns-fn (returned-columns-fn mp queryable))
+        (deps.analysis/returned-columns (:engine (lib.metadata/database mp))
+                                        (lib/query mp queryable)))))
 
 (defmethod add-override :card [^OverridingMetadataProvider mp _entity-type id updates]
   (with-overrides mp
-    ;; If the `updates` contain `:result-metadata`, we want to use that. However, any `:result-metadata` from the
-    ;; inner-mp should be ignored.
-    {[:metadata/card id] (delay (merge (when id
-                                         (-> (inner-mp mp)
-                                             (lib.metadata/card id)
-                                             (dissoc :result-metadata)))
-                                       updates))
+    ;; If the `updates` contain `:result-metadata`, we want to use that. Similarly, if the user provides a way to
+    ;; calculate `result-metadata`, we should use that function.  However, any `:result-metadata` from the inner-mp
+    ;; should be ignored.
+    {[:metadata/card id] (delay (let [temp (merge (when id
+                                                    (-> (inner-mp mp)
+                                                        (lib.metadata.protocols/card id)))
+                                                  updates)
+                                      result-metadata (or (:result-metadata updates)
+                                                          (and (.returned-columns-fn mp)
+                                                               (returned-columns mp temp)))]
+                                  (assoc temp :result-metadata result-metadata)))
      ;; This uses the outer OMP and so the overrides are visible!
-     [::card-columns id] (delay (get-returned-columns mp (lib.metadata/card mp id)))}))
+     [::card-columns id] (delay (returned-columns mp (lib.metadata/card mp id)))}))
 
 (defonce ^:private last-fake-id (atom 2000000000))
 
@@ -158,7 +170,7 @@
                          (lib/returned-columns (lib/query (inner-mp mp) existing-table)))
         output-cols    (delay
                          ;; Note that this will analyze the query with any upstream changes included!
-                         (let [new-cols (get-returned-columns mp (:query source))
+                         (let [new-cols (returned-columns mp (:query source))
                                by-name  (m/index-by :lib/desired-column-alias existing-cols)]
                            (into [] (for [col new-cols
                                           :let [old-col (by-name (:lib/desired-column-alias col))]]
@@ -268,19 +280,18 @@
 (defn override-metadata-provider
   "Given an underlying `MetadataProvider`, wraps it to support in-memory overrides of cards, fields, etc.
 
-  Important note: all overrides must be added first, before this is used as a `MetadataProvider`.
-  The easiest way to do that is to call the 3-arity, which provides the overrides up front."
-  ([metadata-provider]
-   (->OverridingMetadataProvider metadata-provider (atom {})))
-
-  ([metadata-provider updated-entities dependent-ids]
-   (let [^OverridingMetadataProvider omp (override-metadata-provider metadata-provider)]
-     (doseq [[entity-type updates] updated-entities
-             updated-entity        updates]
-       (add-override omp entity-type (:id updated-entity) updated-entity))
-     (doseq [[entity-type dependents] dependent-ids
-             :let  [updated (into #{} (map :id) (get updated-entities entity-type))]
-             id    dependents
-             :when (not (updated id))]
-       (add-override omp entity-type id nil))
-     omp)))
+  Important note: all overrides must be added first, before this is used as a `MetadataProvider`.  The easiest way to
+  do that is to pass in updated entities and/or dependent ids, which will be immediately added as overrides."
+  [{:keys [base-provider updated-entities dependent-ids returned-columns-fn]}]
+  (let [^OverridingMetadataProvider omp (->OverridingMetadataProvider base-provider
+                                                                      (atom {})
+                                                                      returned-columns-fn)]
+    (doseq [[entity-type updates] updated-entities
+            updated-entity        updates]
+      (add-override omp entity-type (:id updated-entity) updated-entity))
+    (doseq [[entity-type dependents] dependent-ids
+            :let  [updated (into #{} (map :id) (get updated-entities entity-type))]
+            id    dependents
+            :when (not (updated id))]
+      (add-override omp entity-type id nil))
+    omp))

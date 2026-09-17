@@ -156,6 +156,7 @@
 
 (s/def ::field (s/keys :req-un [::id ::name ::base_type ::database_type ::position ::description]))
 
+(s/def ::measure (s/keys :req-un [::id ::name ::definition ::description]))
 (s/def ::metric (s/keys :req-un [::id ::name ::definition ::description]))
 (s/def ::segment (s/keys :req-un [::id ::name ::definition ::description]))
 (s/def ::table  (s/keys :req-un [::id ::active ::name ::description]))
@@ -299,9 +300,14 @@
                                   :spec      ::segment
                                   :insert!   {:model :model/Segment}
                                   :relations {:creator_id [:core-user :id]
-                                              :table_id   [:table :id]}}})
-   ;; :revision {}
-   ;; :task-history {}
+                                              :table_id   [:table :id]}}
+   :measure                       {:prefix    :msr
+                                   :spec      ::measure
+                                   :insert!   {:model :model/Measure}
+                                   :relations {:creator_id [:core-user :id]
+                                               :table_id   [:table :id]}}})
+;; :revision {}
+;; :task-history {}
 
 ;; * inserters
 (defn- spec-gen
@@ -368,8 +374,8 @@
     (catch clojure.lang.ExceptionInfo e
       (if (and (pos? num-retries)
                (str/includes? (ex-message e) "Couldn't satisfy such-that predicate"))
-           ;; We can't recur from here, and I don't think it's worth using a more complex trampoline.
-           ;; We are not going to overflow the stack, so this should be fine.
+        ;; We can't recur from here, and I don't think it's worth using a more complex trampoline.
+        ;; We are not going to overflow the stack, so this should be fine.
         (spec-gen-with-retries query (dec num-retries))
         (throw e)))))
 
@@ -389,7 +395,6 @@
        :insert! (fn [sm-db {:keys [schema-opts attrs] :as visit-opts}]
                   (try
                     (first (t2/insert-returning-instances! (:model schema-opts)
-                                                           #_{:clj-kondo/ignore [:deprecated-var]}
                                                            (rsg/spec-gen-assoc-relations
                                                             sm-db
                                                             (assoc visit-opts :visit-val (:spec-gen attrs)))))

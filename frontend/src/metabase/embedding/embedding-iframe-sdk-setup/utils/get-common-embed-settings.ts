@@ -1,4 +1,4 @@
-import { isQuestionOrDashboardExperience } from "metabase/embedding/embedding-iframe-sdk-setup/utils/is-question-or-dashboard-experience";
+import { hasAuthToSelect } from "metabase/embedding/embedding-iframe-sdk-setup/utils/has-auth-to-select";
 import { PLUGIN_EMBEDDING_IFRAME_SDK_SETUP } from "metabase/plugins";
 
 import type {
@@ -10,24 +10,27 @@ import type {
 } from "../types";
 
 const GET_ENABLE_GUEST_EMBED_SETTINGS: (data: {
+  isSimpleEmbedFeatureAvailable: boolean;
   experience: SdkIframeEmbedSetupExperience;
 }) => SdkIframeEmbedSetupGuestEmbedSettings &
   Pick<SdkIframeEmbedSetupSettings, "useExistingUserSession"> = ({
+  isSimpleEmbedFeatureAvailable,
   experience,
 }) => {
-  const isQuestionOrDashboardEmbed =
-    isQuestionOrDashboardExperience(experience);
+  const needsAuthChoice = hasAuthToSelect(experience);
 
   return {
-    ...(isQuestionOrDashboardEmbed
+    ...(needsAuthChoice
       ? {
           isGuest: true,
           isSso: false,
           useExistingUserSession: false,
-          ...(isQuestionOrDashboardEmbed && {
-            drills: true,
-            withDownloads: true,
-            withSubscriptions: true,
+          ...(needsAuthChoice && {
+            drills: false,
+            // We force set `downloads` to `true` when the `simple embedding` feature is not enabled (OSS)
+            ...(!isSimpleEmbedFeatureAvailable && {
+              withDownloads: true,
+            }),
           }),
         }
       : {
@@ -49,12 +52,10 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
     SdkIframeDashboardEmbedSettings | SdkIframeQuestionEmbedSettings,
     "lockedParameters"
   > = ({ experience, isSsoEnabledAndConfigured, useExistingUserSession }) => {
-  const isQuestionOrDashboardEmbed =
-    isQuestionOrDashboardExperience(experience);
-  const isQuestionEmbed = experience === "chart";
+  const needsAuthChoice = hasAuthToSelect(experience);
 
   return {
-    ...(isQuestionOrDashboardEmbed
+    ...(needsAuthChoice
       ? {
           isGuest: false,
           isSso: true,
@@ -68,8 +69,12 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
           useExistingUserSession:
             !isSsoEnabledAndConfigured || useExistingUserSession,
         }),
-    ...(isQuestionEmbed && {
-      // Currently, a chart should not have hidden parameters in non-guest embed mode
+    ...(needsAuthChoice && {
+      // Reset hiddenParameters when switching from guest to SSO.
+      // This is needed because when recentlyCreatedDashboards populates the
+      // dashboardId or questionId, the embed wizard starts in guest mode and
+      // sets all parameters as disabled in hiddenParameters. Without this reset,
+      // the guest restrictions would carry over into SSO mode.
       hiddenParameters: [],
     }),
   };
@@ -77,7 +82,6 @@ const GET_DISABLE_GUEST_EMBED_SETTINGS: (data: {
 
 export const getCommonEmbedSettings = ({
   experience,
-  isGuestEmbedsEnabled,
   isSsoEnabledAndConfigured,
   isGuest,
   useExistingUserSession,
@@ -92,9 +96,10 @@ export const getCommonEmbedSettings = ({
     PLUGIN_EMBEDDING_IFRAME_SDK_SETUP.isEnabled();
 
   if (isSimpleEmbedFeatureAvailable) {
-    return isGuestEmbedsEnabled && isGuest
+    return isGuest
       ? GET_ENABLE_GUEST_EMBED_SETTINGS({
           experience,
+          isSimpleEmbedFeatureAvailable,
         })
       : GET_DISABLE_GUEST_EMBED_SETTINGS({
           experience,
@@ -104,6 +109,7 @@ export const getCommonEmbedSettings = ({
   } else {
     return GET_ENABLE_GUEST_EMBED_SETTINGS({
       experience,
+      isSimpleEmbedFeatureAvailable,
     });
   }
 };

@@ -1,8 +1,3 @@
-.greetingRoot {
-  display: flex;
-  align-items: center;
-}
-
 .greetingLogoContainer {
   position: relative;
   width: 4rem;
@@ -30,24 +25,13 @@
 }
 
 .greetingMessage {
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
   font-weight: bold;
   line-height: 1.5rem;
+  font-size: 1.125rem;
+  margin-left: 0.5rem;
 
-  &.withLogo {
-    font-size: 1.125rem;
-    margin-left: 0.5rem;
-
-    @media (--breakpoint-min-xl) {
-      font-size: 1.25rem;
-    }
-  }
-
-  &.withoutLogo {
+  @media (--breakpoint-min-xl) {
     font-size: 1.25rem;
-
-    @media (--breakpoint-min-xl) {
-      font-size: 1.5rem;
-    }
   }
 }

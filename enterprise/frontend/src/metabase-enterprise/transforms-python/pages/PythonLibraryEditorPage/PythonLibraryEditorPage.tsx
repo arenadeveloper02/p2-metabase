@@ -1,28 +1,25 @@
 import { useLayoutEffect, useState } from "react";
-import type { Route } from "react-router";
 import { t } from "ttag";
 
 import { LeaveRouteConfirmModal } from "metabase/common/components/LeaveConfirmModal";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import { isResourceNotFoundError } from "metabase/lib/errors";
-import type * as Urls from "metabase/lib/urls";
+import { PageContainer } from "metabase/common/data-studio/components/PageContainer";
 import { useMetadataToasts } from "metabase/metadata/hooks";
-import { Box, Card } from "metabase/ui";
+import { useSelector } from "metabase/redux";
+import { useParams } from "metabase/router";
+import { Alert, Box, Card, Stack } from "metabase/ui";
+import type * as Urls from "metabase/urls";
+import { isResourceNotFoundError } from "metabase/utils/errors";
 import {
   useGetPythonLibraryQuery,
   useUpdatePythonLibraryMutation,
 } from "metabase-enterprise/api/python-transform-library";
-import { PageContainer } from "metabase-enterprise/data-studio/common/components/PageContainer";
+import { getIsRemoteSyncReadOnly } from "metabase-enterprise/remote_sync/selectors";
 
 import { PythonEditor } from "../../components/PythonEditor";
 
 import { PythonLibraryEditorHeader } from "./PythonLibraryEditorHeader";
 import S from "./PythonLibraryEditorPage.module.css";
-
-type PythonLibraryEditorPageProps = {
-  params: Urls.TransformPythonLibraryParams;
-  route: Route;
-};
 
 const EMPTY_LIBRARY_SOURCE = `
 # This is your Python library.
@@ -31,12 +28,18 @@ const EMPTY_LIBRARY_SOURCE = `
   .trim()
   .concat("\n");
 
-export function PythonLibraryEditorPage({
-  params,
-  route,
-}: PythonLibraryEditorPageProps) {
-  const { path } = params;
-  const [source, setSource] = useState("");
+export function PythonLibraryEditorPage() {
+  const { path } = useParams<Urls.TransformPythonLibraryParams>();
+  return path == null ? null : <PythonLibraryEditor path={path} />;
+}
+
+type PythonLibraryEditorProps = {
+  path: string;
+};
+
+function PythonLibraryEditor({ path }: PythonLibraryEditorProps) {
+  const [source, setSource] = useState(EMPTY_LIBRARY_SOURCE);
+  const isRemoteSyncReadOnly = useSelector(getIsRemoteSyncReadOnly);
 
   const {
     data: library,
@@ -73,12 +76,14 @@ export function PythonLibraryEditorPage({
 
   // When the library loads, set the source to the current library source
   useLayoutEffect(() => {
-    if (library != null) {
+    if (library?.source) {
       setSource(library.source);
+    } else {
+      setSource(EMPTY_LIBRARY_SOURCE);
     }
   }, [library]);
 
-  const isDirty = source !== (library?.source ?? EMPTY_LIBRARY_SOURCE);
+  const isDirty = source !== (library?.source || EMPTY_LIBRARY_SOURCE);
 
   if (isLoading || (error && !isResourceNotFoundError(error))) {
     return (
@@ -91,12 +96,24 @@ export function PythonLibraryEditorPage({
   return (
     <>
       <PageContainer>
-        <PythonLibraryEditorHeader
-          onSave={handleSave}
-          onRevert={handleRevert}
-          isDirty={isDirty}
-          isSaving={isSaving}
-        />
+        <Stack>
+          <PythonLibraryEditorHeader
+            onSave={handleSave}
+            onRevert={handleRevert}
+            isDirty={isDirty && !isRemoteSyncReadOnly}
+            isSaving={isSaving}
+          />
+
+          {isRemoteSyncReadOnly && (
+            <Alert
+              size="compact"
+              className={S.flexStart}
+              color="warning"
+              title={t`The Python library is not editable because Remote Sync is in read-only mode.`}
+              w="auto"
+            />
+          )}
+        </Stack>
 
         <Card withBorder p={0}>
           <PythonEditor
@@ -105,10 +122,11 @@ export function PythonLibraryEditorPage({
             withPandasCompletions
             className={S.editor}
             data-testid="python-editor"
+            readOnly={isRemoteSyncReadOnly}
           />
         </Card>
       </PageContainer>
-      <LeaveRouteConfirmModal route={route} isEnabled={isDirty} />
+      <LeaveRouteConfirmModal isEnabled={isDirty} />
     </>
   );
 }

@@ -1,7 +1,10 @@
-import type { FocusEvent } from "react";
 import { t } from "ttag";
 
-import { dataLayerColors } from "metabase/lib/colors";
+import {
+  DATA_LAYER_ICONS,
+  getDataLayerOptions,
+  isDataLayer,
+} from "metabase/metadata/utils/data-layer";
 import { Group, Icon, Select, SelectItem, type SelectProps } from "metabase/ui";
 import type { TableDataLayer } from "metabase-types/api";
 
@@ -10,20 +13,12 @@ interface Props extends Omit<SelectProps, "data" | "value" | "onChange"> {
   onChange: (value: TableDataLayer | null) => void;
 }
 
-const dataLayers = ["copper", "bronze", "silver", "gold"] as const;
-
 export const LayerInput = ({
   comboboxProps,
   value,
   onChange,
-  onFocus,
   ...props
 }: Props) => {
-  const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
-    event.target.select();
-    onFocus?.(event);
-  };
-
   return (
     <Select
       comboboxProps={{
@@ -36,44 +31,37 @@ export const LayerInput = ({
         position: "bottom-start",
         ...comboboxProps,
       }}
-      data={[
-        { value: "copper" as const, label: t`Copper` },
-        { value: "bronze" as const, label: t`Bronze` },
-        { value: "silver" as const, label: t`Silver` },
-        { value: "gold" as const, label: t`Gold` },
-      ]}
-      label={t`Visibility type`}
+      data={getDataLayerOptions()}
+      label={t`Visibility layer`}
       renderOption={(item) => {
         const selected = item.option.value === value;
 
         return (
           <SelectItem selected={selected}>
             <Group align="center" gap="sm" justify="center">
-              <Icon c={getColor(item.option.value)} name="medallion" />
+              <VisibilityIcon value={item.option.value} />
               <span>{item.option.label}</span>
             </Group>
           </SelectItem>
         );
       }}
-      leftSection={
-        value ? <Icon c={getColor(value)} name="medallion" /> : undefined
-      }
-      placeholder={t`Select a visibility type`}
+      leftSection={value ? <VisibilityIcon value={value} /> : undefined}
+      placeholder={t`Select visibility layer`}
       value={value}
       onChange={(value) => onChange(value)}
-      onFocus={handleFocus}
       {...props}
     />
   );
 };
 
-function isDataLayer(value: string): value is TableDataLayer {
-  return dataLayers.some((layer) => layer === value);
-}
-
-function getColor(value: TableDataLayer | string): string {
-  if (isDataLayer(value)) {
-    return dataLayerColors[value];
+function VisibilityIcon({ value }: { value: string | null }): React.ReactNode {
+  if (value == null) {
+    return null;
   }
-  return dataLayerColors.default;
+
+  if (isDataLayer(value)) {
+    return <Icon name={DATA_LAYER_ICONS[value]} />;
+  }
+
+  return null;
 }

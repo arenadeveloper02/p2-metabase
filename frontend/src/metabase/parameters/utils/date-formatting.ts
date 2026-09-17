@@ -1,58 +1,29 @@
-import {
-  formatDate,
-  getDateFilterDisplayName,
-} from "metabase/querying/filters/utils/dates";
+import { getDateFilterDisplayName } from "metabase/querying/filters/utils/dates";
 import { deserializeDateParameterValue } from "metabase/querying/parameters/utils/parsing";
-import {
-  dateParameterValueToRange,
-  dateParameterValueToSingleDate,
-} from "metabase/querying/parameters/utils/relative-date-to-range";
-import type { Parameter } from "metabase-types/api";
+import { getRollingDateDefaultLabel } from "metabase/querying/parameters/utils/rolling-date-defaults";
+import type {
+  DateFormattingSettings,
+  Parameter,
+  ParameterValueOrArray,
+} from "metabase-types/api";
 
 export function formatDateValue(
   parameter: Parameter,
-  value: string,
+  value: ParameterValueOrArray | null | undefined,
+  formattingSettings?: DateFormattingSettings,
 ): string | null {
+  const rollingLabel = getRollingDateDefaultLabel(value);
+  if (rollingLabel != null) {
+    return rollingLabel;
+  }
+
   const filter = deserializeDateParameterValue(value);
   if (filter == null) {
     return null;
   }
 
-  if (parameter.type === "date/single") {
-    const date =
-      filter.type === "relative"
-        ? dateParameterValueToSingleDate(value)
-        : filter.type === "specific" && filter.operator === "="
-          ? filter.values[0]
-          : null;
-
-    if (date != null) {
-      const hasTime =
-        filter.type === "specific" && filter.operator === "="
-          ? filter.hasTime
-          : false;
-      return formatDate(date, hasTime);
-    }
-  }
-
-  if (parameter.type === "date/range") {
-    const range =
-      filter.type === "relative"
-        ? dateParameterValueToRange(value)
-        : filter.type === "specific" && filter.operator === "between"
-          ? { start: filter.values[0], end: filter.values[1] }
-          : null;
-
-    if (range != null) {
-      const hasTime =
-        filter.type === "specific" && filter.operator === "between"
-          ? filter.hasTime
-          : false;
-      return `${formatDate(range.start, hasTime)} - ${formatDate(range.end, hasTime)}`;
-    }
-  }
-
   return getDateFilterDisplayName(filter, {
     withPrefix: parameter.type !== "date/single",
+    formattingSettings,
   });
 }

@@ -4,11 +4,13 @@ import type {
   FilterFn,
   OnChangeFn,
   Row,
+  RowPinningPosition,
   RowSelectionState,
   SortingState,
   Table,
 } from "@tanstack/react-table";
 import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
+import type { InitialTableState } from "@tanstack/table-core";
 import type {
   CSSProperties,
   KeyboardEvent,
@@ -16,6 +18,19 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
+
+export type RenderSubRow<TData> = (row: Row<TData>) => ReactNode;
+
+/**
+ * Wraps a row's content in a link. `props` carries the styling and content the
+ * row expects, so a call site only has to supply the destination:
+ * `(row, props) => <Link to={getHref(row)} {...props} />`. Return
+ * `props.children` for rows that should not be links.
+ */
+export type RenderRowLink<TData> = (
+  row: Row<TData>,
+  props: { className: string; children: ReactNode },
+) => ReactNode;
 
 /**
  * Base interface that all tree node data must extend.
@@ -37,6 +52,24 @@ export interface TreeTableColumnSizingDef {
   minWidth?: number | "auto";
   /** Maximum width in pixels. Only applies to stretching columns. */
   maxWidth?: number;
+  /**
+   * Maximum width for auto-measured content. Caps the measured content width,
+   * not the final rendered width. Only applies when `width` or `minWidth` is 'auto'.
+   *
+   * Use this to prevent extremely long content from creating oversized columns,
+   * while still allowing the column to stretch if the table has extra space.
+   *
+   * @example
+   * // Stretchable column with capped minimum (recommended pattern)
+   * { minWidth: "auto", maxAutoWidth: 480 }
+   * // → Minimum is min(content, 480px), stretches to fill available space
+   *
+   * @example
+   * // With absolute maximum
+   * { minWidth: "auto", maxAutoWidth: 480, maxWidth: 800 }
+   * // → Stretches between min(content, 480px) and 800px
+   */
+  maxAutoWidth?: number;
   /** Extra pixels added to measured width. Only applies when width or minWidth is 'auto'. */
   widthPadding?: number;
 }
@@ -73,6 +106,7 @@ export interface UseTreeTableInstanceOptions<TData extends TreeNodeData> {
   enableSubRowSelection?: boolean;
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: OnChangeFn<RowSelectionState>;
+  enableRowPinning?: boolean | ((row: Row<TData>) => boolean);
 
   enableSorting?: boolean;
   sorting?: SortingState;
@@ -103,6 +137,8 @@ export interface UseTreeTableInstanceOptions<TData extends TreeNodeData> {
    * Independent from keyboard navigation focus.
    */
   selectedRowId?: string | null;
+
+  initialState?: InitialTableState;
 }
 
 /**
@@ -121,6 +157,9 @@ export interface TreeTableInstance<TData extends TreeNodeData> {
   table: Table<TData>;
 
   rows: Row<TData>[];
+  topPinnedRows: Row<TData>[];
+  centerRows: Row<TData>[];
+  bottomPinnedRows: Row<TData>[];
 
   virtualizer: Virtualizer<HTMLDivElement, Element>;
   containerRef: RefObject<HTMLDivElement>;
@@ -153,11 +192,14 @@ export type TreeTableStylesNames =
   | "row"
   | "rowActive"
   | "rowDisabled"
+  | "rowPinned"
   | "cell"
   | "treeCell"
   | "treeCellContent"
   | "expandButton"
-  | "checkbox";
+  | "checkbox"
+  | "pinnedTop"
+  | "pinnedBottom";
 
 export type TreeTableHeaderVariant = "pill" | "plain";
 
@@ -174,8 +216,9 @@ export interface TreeTableStylesProps {
 /**
  * Props for TreeTable component.
  */
-export interface TreeTableProps<TData extends TreeNodeData>
-  extends TreeTableStylesProps {
+export interface TreeTableProps<
+  TData extends TreeNodeData,
+> extends TreeTableStylesProps {
   instance: TreeTableInstance<TData>;
 
   showCheckboxes?: boolean;
@@ -201,6 +244,18 @@ export interface TreeTableProps<TData extends TreeNodeData>
   onCheckboxClick?: (row: Row<TData>, index: number, event: MouseEvent) => void;
 
   /**
+   * Click handler for the header "select all" checkbox. When provided
+   * (and `showCheckboxes` is true), TreeTable renders a tri-state checkbox
+   * in the header's checkbox column. Its state is inferred from the visible
+   * rows via `getSelectionState` (or TanStack's built-in row selection when
+   * `getSelectionState` is omitted).
+   */
+  onHeaderCheckboxClick?: (event: MouseEvent) => void;
+
+  /** Custom aria-label for the header "select all" checkbox. */
+  headerCheckboxAriaLabel?: string;
+
+  /**
    * Callback to determine if a row's children are currently loading.
    * When true, shows a loading spinner instead of expand button.
    */
@@ -213,23 +268,44 @@ export interface TreeTableProps<TData extends TreeNodeData>
   isRowDisabled?: (row: Row<TData>) => boolean;
 
   /**
+   * Callback to determine if a row has an operation in progress. When true,
+   * the row's selection checkbox is replaced by a loading spinner.
+   */
+  isRowLoading?: (row: Row<TData>) => boolean;
+
+  /**
    * Callback to get additional props for each row element.
    * Useful for adding test IDs or custom data attributes.
    */
   getRowProps?: (row: Row<TData>) => Record<string, unknown>;
 
+  /**
+   * Renders a row's content inside a link, enabling Cmd+Click to open in a new tab.
+   * The tree table has no router of its own, so the call site supplies the link
+   * component.
+   */
+  renderRowLink?: RenderRowLink<TData>;
+
+  renderSubRow?: RenderSubRow<TData>;
+
+  /** When false, renders as a flat table without expand buttons or indentation. Defaults to true. */
+  hierarchical?: boolean;
+
   ariaLabel?: string;
   ariaLabelledBy?: string;
 }
 
+export type TreeTableRowPinnedPosition = Exclude<RowPinningPosition, false>;
+
 /**
  * Props for TreeTableRow component.
  */
-export interface TreeTableRowProps<TData extends TreeNodeData>
-  extends TreeTableStylesProps {
+export interface TreeTableRowProps<
+  TData extends TreeNodeData,
+> extends TreeTableStylesProps {
   row: Row<TData>;
   rowIndex: number;
-  virtualItem: VirtualItem;
+  virtualItemOrPinnedPosition: VirtualItem | TreeTableRowPinnedPosition;
   table: Table<TData>;
   columnWidths: Record<string, number>;
   showCheckboxes: boolean;
@@ -244,22 +320,32 @@ export interface TreeTableRowProps<TData extends TreeNodeData>
   onRowDoubleClick?: (row: Row<TData>, event: MouseEvent) => void;
   isDisabled?: boolean;
   isChildrenLoading?: boolean;
+  isLoading?: boolean;
   getSelectionState?: (row: Row<TData>) => SelectionState;
   onCheckboxClick?: (row: Row<TData>, index: number, event: MouseEvent) => void;
   getRowProps?: (row: Row<TData>) => Record<string, unknown>;
+  /** When provided, renders the row as a link for Cmd+Click support */
+  renderRowLink?: RenderRowLink<TData>;
+  renderSubRow?: RenderSubRow<TData>;
+  hierarchical?: boolean;
+  isClickable?: boolean;
 }
 
 /**
  * Props for TreeTableHeader component.
  */
-export interface TreeTableHeaderProps<TData extends TreeNodeData>
-  extends TreeTableStylesProps {
+export interface TreeTableHeaderProps<
+  TData extends TreeNodeData,
+> extends TreeTableStylesProps {
   table: Table<TData>;
   columnWidths: Record<string, number>;
   showCheckboxes: boolean;
   isMeasured?: boolean;
   totalContentWidth?: number;
   headerVariant?: TreeTableHeaderVariant;
+  getSelectionState?: (row: Row<TData>) => SelectionState;
+  onHeaderCheckboxClick?: (event: MouseEvent) => void;
+  headerCheckboxAriaLabel?: string;
 }
 
 /**
@@ -282,4 +368,5 @@ export interface SelectionCheckboxProps {
   disabled?: boolean;
   onClick: (event: MouseEvent) => void;
   className?: string;
+  ariaLabel?: string;
 }

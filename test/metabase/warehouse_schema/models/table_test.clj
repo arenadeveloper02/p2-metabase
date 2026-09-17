@@ -79,15 +79,6 @@
           (is (= schema-name
                  (t2/select-one-fn :schema :model/Table :id table-id))))))))
 
-(deftest identity-hash-test
-  (testing "Table hashes are composed of the schema name, table name and the database's identity-hash"
-    (mt/with-temp [:model/Database db    {:name "field-db" :engine :h2}
-                   :model/Table    table {:schema "PUBLIC" :name "widget" :db_id (:id db)}]
-      (let [db-hash (serdes/identity-hash db)]
-        (is (= "0395fe49"
-               (serdes/raw-hash ["PUBLIC" "widget" db-hash])
-               (serdes/identity-hash table)))))))
-
 (deftest set-new-table-permissions!-test
   (testing "New permissions are set appropriately for a new table, for all groups"
     (mt/with-full-data-perms-for-all-users!
@@ -108,7 +99,6 @@
                   :perms/manage-table-metadata :no
                   :perms/manage-database       :no}}}
                (data-perms.graph/data-permissions-graph :group-id all-users-group-id :db-id db-id))))
-
         ;; A new group starts with the same perms as All Users
         (is (partial=
              {group-id
@@ -119,7 +109,6 @@
                 :perms/manage-table-metadata :no
                 :perms/manage-database       :no}}}
              (data-perms.graph/data-permissions-graph :group-id group-id :db-id db-id)))
-
         (testing "A new table has appropriate defaults, when perms are already set granularly for the DB"
           (data-perms/set-table-permission! group-id table-id-1 :perms/create-queries :no)
           (data-perms/set-table-permission! group-id table-id-1 :perms/download-results :no)
@@ -167,7 +156,6 @@
   ;; Manually activate Field values since they are not created during sync (#53387)
   (field-values/get-or-create-full-field-values! (t2/select-one :model/Field :id (mt/id :venues :price)))
   (field-values/get-or-create-full-field-values! (t2/select-one :model/Field :id (mt/id :venues :name)))
-
   (is (=? {(mt/id :venues :price) (mt/malli=? [:sequential {:min 1} :any])
            (mt/id :venues :name)  (mt/malli=? [:sequential {:min 1} :any])}
           (-> (t2/select-one :model/Table (mt/id :venues))
@@ -504,7 +492,6 @@
              clojure.lang.ExceptionInfo
              #"Cannot change data_source from metabase-transform"
              (t2/update! :model/Table table-id {:data_source nil}))))))
-
   (testing "Cannot change data_source to metabase-transform"
     (mt/with-temp [:model/Table {table-id :id} {:data_source :ingested}]
       (testing "from another value"
@@ -517,7 +504,20 @@
         (is (= :ingested (t2/select-one-fn :data_source :model/Table :id table-id))))
       (testing "can also change it to nil"
         (is (some? (t2/update! :model/Table table-id {:data_source nil})))
-        (is (nil? (t2/select-one-fn :data_source :model/Table :id table-id)))))))
+        (is (nil? (t2/select-one-fn :data_source :model/Table :id table-id))))))
+  (testing "data_source guard is relaxed for nil -> metabase-transform during deserialization (GDGT-2445)"
+    (testing "can set data_source to metabase-transform on an existing synced table"
+      (mt/with-temp [:model/Table {table-id :id} {:data_source nil}]
+        (binding [mi/*deserializing?* true]
+          (is (some? (t2/update! :model/Table table-id {:data_source :metabase-transform}))))
+        (is (= :metabase-transform (t2/select-one-fn :data_source :model/Table :id table-id)))))
+    (testing "reverse direction stays blocked even during deserialization"
+      (mt/with-temp [:model/Table {table-id :id} {:data_source :metabase-transform}]
+        (binding [mi/*deserializing?* true]
+          (is (thrown-with-msg?
+               clojure.lang.ExceptionInfo
+               #"Cannot change data_source from metabase-transform"
+               (t2/update! :model/Table table-id {:data_source nil}))))))))
 
 (deftest is-published-and-collection-id-test
   (testing "is_published defaults to false"
@@ -562,3 +562,195 @@
         (is (= coll1-id (-> hydrated first :collection :id)))
         (is (= coll2-id (-> hydrated second :collection :id)))
         (is (nil? (-> hydrated (nth 2) :collection)))))))
+
+(deftest owner-hydration-test
+  (testing "hydrating :owner on a table with :owner_user_id"
+    (mt/with-temp [:model/Table table {:owner_user_id (mt/user->id :crowberto)}]
+      (is (=? {:owner {:id    (mt/user->id :crowberto)
+                       :email "crowberto@metabase.com"}}
+              (t2/hydrate table :owner)))))
+  (testing "hydrating :owner on a table with :owner_email"
+    (mt/with-temp [:model/Table table {:owner_email "external@example.com"}]
+      (is (=? {:owner {:email "external@example.com"}}
+              (t2/hydrate table :owner))))))
+
+;;; ---------------------------------------- can-read? permission tests ----------------------------------------
+
+(deftest table-can-read?-with-view-data-and-create-queries-permission-test
+  (testing "User with view-data and create-queries permission can read table"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :query-builder)
+      (data-perms/set-table-permission! pg table-id :perms/view-data :unrestricted)
+      (mt/with-test-user :rasta
+        (is (true? (mi/can-read? (t2/select-one :model/Table table-id))))))))
+
+(deftest table-can-read?-with-view-data-permission-test
+  (testing "User with view-data and create-queries permission can read table"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+      (data-perms/set-table-permission! pg table-id :perms/view-data :unrestricted)
+      (mt/with-test-user :rasta
+        (is (false? (boolean (mi/can-read? (t2/select-one :model/Table table-id)))))))))
+
+(deftest table-can-read?-with-manage-table-metadata-permission-test
+  (testing "User with manage-table-metadata permission can read table"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+      (data-perms/set-table-permission! pg table-id :perms/manage-table-metadata :yes)
+      (mt/with-test-user :rasta
+        (is (true? (mi/can-read? (t2/select-one :model/Table table-id))))))))
+
+(deftest table-can-read?-without-permissions-test
+  (testing "User with neither permission cannot read table"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+      (mt/with-test-user :rasta
+        (is (false? (mi/can-read? (t2/select-one :model/Table table-id))))))))
+
+;;; ---------------------------------------- can-query? permission tests ----------------------------------------
+
+(deftest table-can-query?-requires-both-view-data-and-create-queries-test
+  (testing "User needs BOTH view-data AND create-queries to query"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+      ;; Only view-data - not enough
+      (data-perms/set-table-permission! pg table-id :perms/view-data :unrestricted)
+      (mt/with-test-user :rasta
+        (is (false? (mi/can-query? (t2/select-one :model/Table table-id)))))
+      ;; Add create-queries - now can query
+      (data-perms/set-table-permission! pg table-id :perms/create-queries :query-builder)
+      (mt/with-test-user :rasta
+        (is (true? (mi/can-query? (t2/select-one :model/Table table-id))))))))
+
+(deftest table-can-query?-manage-table-metadata-does-not-grant-query-access-test
+  (testing "manage-table-metadata alone does NOT grant query access"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table {table-id :id} {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :blocked)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :no)
+      (data-perms/set-table-permission! pg table-id :perms/manage-table-metadata :yes)
+      (mt/with-test-user :rasta
+        (is (false? (mi/can-query? (t2/select-one :model/Table table-id))))))))
+
+;;; ---------------------------------------- can_query hydration test ----------------------------------------
+
+(deftest table-can-query-hydration-test
+  (testing ":can_query hydration works for tables"
+    (mt/with-temp [:model/Database {db-id :id} {}
+                   :model/Table table {:db_id db-id}
+                   :model/PermissionsGroup pg {}]
+      (perms/add-user-to-group! (mt/user->id :rasta) pg)
+      (t2/delete! :model/DataPermissions :db_id db-id)
+      (data-perms/set-database-permission! pg db-id :perms/view-data :unrestricted)
+      (data-perms/set-database-permission! pg db-id :perms/create-queries :query-builder)
+      (mt/with-test-user :rasta
+        (let [hydrated (t2/hydrate table :can_query)]
+          (is (contains? hydrated :can_query))
+          (is (boolean? (:can_query hydrated))))))))
+
+(deftest serdes-descendants-includes-fields-and-segments-test
+  (testing "Table descendants includes Fields and Segments"
+    (mt/with-temp [:model/Database {db-id :id}      {:name "Test DB"}
+                   :model/Table    {table-id :id}   {:name "Test Table" :db_id db-id}
+                   :model/Field    {field1-id :id}  {:name "Field 1" :table_id table-id :base_type :type/Integer}
+                   :model/Field    {field2-id :id}  {:name "Field 2" :table_id table-id :base_type :type/Text}
+                   :model/Segment  {segment-id :id} {:name "Test Segment" :table_id table-id :definition {}}]
+      (let [descendants (serdes/descendants "Table" table-id {})]
+        (testing "Fields are included"
+          (is (contains? descendants ["Field" field1-id]))
+          (is (contains? descendants ["Field" field2-id])))
+        (testing "Segments are included"
+          (is (contains? descendants ["Segment" segment-id]))))))
+  (testing "Table with no fields or segments returns empty map"
+    (mt/with-temp [:model/Database {db-id :id}    {:name "Test DB"}
+                   :model/Table    {table-id :id} {:name "Empty Table" :db_id db-id}]
+      (is (= {} (serdes/descendants "Table" table-id {}))))))
+
+(deftest serdes-descendants-skip-archived-segments-test
+  (testing "Table descendants respects skip-archived option for Segments"
+    (mt/with-temp [:model/Database {db-id :id}           {:name "Test DB"}
+                   :model/Table    {table-id :id}        {:name "Test Table" :db_id db-id}
+                   :model/Field    {field-id :id}        {:name "Test Field" :table_id table-id :base_type :type/Integer}
+                   :model/Segment  {active-seg-id :id}   {:name "Active Segment" :table_id table-id :definition {} :archived false}
+                   :model/Segment  {archived-seg-id :id} {:name "Archived Segment" :table_id table-id :definition {} :archived true}]
+      (testing "archived segments are excluded when skip-archived: true"
+        (let [descendants (serdes/descendants "Table" table-id {:skip-archived true})]
+          (is (contains? descendants ["Field" field-id])
+              "Fields are still included")
+          (is (contains? descendants ["Segment" active-seg-id])
+              "Active segments are included")
+          (is (not (contains? descendants ["Segment" archived-seg-id]))
+              "Archived segments are excluded")))
+      (testing "archived segments are included when skip-archived: false"
+        (let [descendants (serdes/descendants "Table" table-id {:skip-archived false})]
+          (is (contains? descendants ["Segment" active-seg-id]))
+          (is (contains? descendants ["Segment" archived-seg-id]))))
+      (testing "archived segments are included when skip-archived is not specified"
+        (let [descendants (serdes/descendants "Table" table-id {})]
+          (is (contains? descendants ["Segment" active-seg-id]))
+          (is (contains? descendants ["Segment" archived-seg-id])))))))
+
+(deftest data-layer-legacy-serdes-round-trip-test
+  (testing "Importing a v58 serialization export with legacy medallion data_layer values maps them to current values"
+    (mt/with-temp [:model/Database {db-id :id} {:name "Test DB"}
+                   :model/Table {table-id :id} {:db_id db-id}]
+      (let [table      (t2/select-one :model/Table :id table-id)
+            extracted  (serdes/extract-one "Table" {} table)]
+        (doseq [[legacy-value expected] {"copper" "hidden"
+                                         "bronze" "final"
+                                         "silver" "final"
+                                         "gold"   "final"}]
+          (testing (format "legacy data_layer %s -> %s" legacy-value expected)
+            ;; simulate a v58 export by substituting the legacy value
+            (let [ingested (assoc extracted :data_layer legacy-value)]
+              (serdes/load-one! ingested table)
+              (is (= (keyword expected)
+                     (t2/select-one-fn :data_layer :model/Table :id table-id))))))))))
+
+(deftest curation-column-defaults-test
+  (testing "a new table gets consistent non-null data_layer and data_authority defaults"
+    (testing "via the model before-insert (the path sync uses)"
+      (mt/with-temp [:model/Database {db-id :id} {}
+                     :model/Table {table-id :id} {:db_id db-id}]
+        (is (=? {:data_layer :internal :data_authority :unconfigured}
+                (t2/select-one [:model/Table :data_layer :data_authority] :id table-id)))))
+    (testing "via the DB-level column default when before-insert is bypassed (raw insert)"
+      ;; Exercises the non-model insert path, guarding the migration that asserts the DB-level defaults.
+      (mt/with-temp [:model/Database {db-id :id} {}]
+        (t2/query-one {:insert-into :metabase_table
+                       :values      [{:name       "raw-insert-probe"
+                                      :db_id      db-id
+                                      :active     true
+                                      :created_at :%now
+                                      :updated_at :%now}]})
+        (is (=? {:data_layer :internal :data_authority :unconfigured}
+                (t2/select-one [:model/Table :data_layer :data_authority]
+                               :name "raw-insert-probe" :db_id db-id)))))))

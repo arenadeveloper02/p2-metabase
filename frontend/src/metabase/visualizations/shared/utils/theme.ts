@@ -1,8 +1,10 @@
 import Color from "color";
 
-import { DEFAULT_METABASE_COMPONENT_THEME } from "metabase/embedding-sdk/theme";
-import { color } from "metabase/lib/colors";
-import type { MantineThemeOther } from "metabase/ui";
+import {
+  DEFAULT_METABASE_COMPONENT_THEME,
+  type MantineThemeOther,
+} from "metabase/ui";
+import { color } from "metabase/ui/colors";
 import { getSizeInPx } from "metabase/visualizations/shared/utils/size-in-px";
 import type { VisualizationTheme } from "metabase/visualizations/types";
 
@@ -15,7 +17,7 @@ function getPieBorderColor(
     return dashboardCardBg;
   }
   if (questionBg === "transparent") {
-    return "var(--mb-color-bg-white)";
+    return "var(--mb-color-background_page-primary)";
   }
   return questionBg;
 }
@@ -54,14 +56,14 @@ export function getVisualizationTheme({
       splitLine: {
         lineStyle: {
           color: isStaticViz
-            ? Color(color("border")).hex()
+            ? Color(color("border-neutral")).hex()
             : cartesian.splitLine.lineStyle.color,
         },
       },
     },
     pie: {
       borderColor: isStaticViz
-        ? Color(color("text-white")).hex()
+        ? Color(color("text-primary-inverse")).hex()
         : getPieBorderColor(
             dashboard.card.backgroundColor,
             question.backgroundColor,

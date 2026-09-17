@@ -1,6 +1,4 @@
-import dayjs from "dayjs";
-
-import "metabase/lib/dayjs";
+import { dayjs } from "metabase/dayjs";
 
 const { H } = cy;
 
@@ -36,7 +34,7 @@ describe("scenarios > question > relative-datetime", () => {
           date([[-30, unit]]),
         ]);
         withStartingFrom("Previous", [10, unit], [10, unit]);
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Showing 2 rows").should("exist");
       }),
     );
@@ -51,7 +49,7 @@ describe("scenarios > question > relative-datetime", () => {
           date([[30, unit]]),
         ]);
         withStartingFrom("Next", [10, unit], [10, unit]);
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Showing 2 rows").should("exist");
       }),
     );
@@ -262,7 +260,9 @@ const openCreatedAt = (tab) => {
   H.popover().within(() => {
     cy.findByText("Filter by this column").click();
     cy.findByText("Relative date range…").click();
-    tab && cy.findByText(tab).click();
+    if (tab) {
+      cy.findByText(tab).click();
+    }
   });
 };
 

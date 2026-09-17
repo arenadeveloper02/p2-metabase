@@ -49,8 +49,8 @@ export const pickDatabaseTables: CliStepMethod = async (state) => {
 
   try {
     // Scan the database tables in each schemas
-    for (const schemaKey of schemas) {
-      const url = `${instanceUrl}/api/database/${databaseId}/schema/${schemaKey}?include_hidden=true`;
+    for (const schema of schemas) {
+      const url = `${instanceUrl}/api/database/${databaseId}/schema/${encodeURIComponent(schema)}?include_hidden=true`;
 
       const res = await fetch(url, {
         method: "GET",
@@ -127,6 +127,7 @@ export const pickDatabaseTables: CliStepMethod = async (state) => {
 
           await propagateErrorResponse(res);
 
+          // Unjustified type cast. FIXME
           const metadataResult = (await res.json()) as { tables: Table[] };
           const table = metadataResult.tables.find((t) => t.id === tableId);
 

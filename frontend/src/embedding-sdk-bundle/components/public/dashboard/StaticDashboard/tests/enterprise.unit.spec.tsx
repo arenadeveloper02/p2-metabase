@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import { screen, waitFor, within } from "__support__/ui";
 import type { SdkDashboardProps } from "embedding-sdk-bundle/components/public/dashboard/SdkDashboard";
 
+import { addEnterpriseAutoRefreshTests } from "../../shared-tests/auto-refresh.spec";
 import { addEnterpriseSubscriptionsTests } from "../../shared-tests/subscriptions.spec";
 import {
   type SetupSdkDashboardOptions,
@@ -20,7 +21,8 @@ const setupEnterprise = async (
 ) => {
   return setupSdkDashboard({
     ...options,
-    enterprisePlugins: ["sdk_subscriptions"],
+    enterprisePlugins: ["sdk_notifications"],
+    // Unjustified type cast. FIXME
     component: StaticDashboard as ComponentType<SdkDashboardProps>,
   });
 };
@@ -28,6 +30,7 @@ console.warn = () => {};
 
 describe("StaticDashboard", () => {
   addEnterpriseSubscriptionsTests(setupEnterprise);
+  addEnterpriseAutoRefreshTests(setupEnterprise);
 
   it("should not allow users to click the dashcard title", async () => {
     await setupEnterprise();
