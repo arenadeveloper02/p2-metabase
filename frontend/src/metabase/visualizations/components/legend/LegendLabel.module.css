@@ -1,6 +1,8 @@
 .text {
   color: var(--mb-color-text-primary);
-  font-weight: bold;
+  /* font-weight: bold; */
+  font-size: 18px;
+  font-weight: 900;
 
   && {
     padding-top: 0;

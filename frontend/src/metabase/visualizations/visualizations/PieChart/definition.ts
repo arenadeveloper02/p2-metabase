@@ -198,6 +198,36 @@ export const PIE_CHART_DEFINITION: VisualizationDefinition = {
         marginBottom: "1rem",
       }),
     },
+    "pie.type": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Chart type`;
+      },
+      widget: "select",
+      getProps: () => ({
+        options: [
+          { name: t`Pie/Donut`, value: "pie" },
+          { name: t`Donut (Classic)`, value: "donut-classic" },
+        ],
+      }),
+      getDefault: () => "pie",
+    },
+    "pie.legend_position": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Legend position`;
+      },
+      widget: "select",
+      getProps: () => ({
+        options: [
+          { name: t`Top`, value: "top" },
+          { name: t`Bottom`, value: "bottom" },
+          { name: t`Left`, value: "left" },
+          { name: t`Right`, value: "right" },
+        ],
+      }),
+      getDefault: () => "left",
+    },
     "pie.show_total": {
       getSection: () => t`Display`,
       get title() {

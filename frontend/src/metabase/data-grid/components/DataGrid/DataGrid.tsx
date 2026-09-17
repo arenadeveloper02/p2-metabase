@@ -247,7 +247,8 @@ export const DataGrid = function DataGrid<TData>({
             role="grid"
             style={{
               backgroundColor,
-              color: theme?.cell?.textColor,
+              color:
+                theme?.cell?.textColor ?? "var(--mb-color-text-primary)",
               paddingRight:
                 hasAddColumnButton && isAddColumnButtonSticky
                   ? `${ADD_COLUMN_BUTTON_WIDTH}px`

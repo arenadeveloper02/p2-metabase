@@ -411,7 +411,7 @@ const PivotTableInner = forwardRef<HTMLDivElement, VisualizationProps>(
                     {rowIndexes.map((rowIndex: number, index: number) => (
                       <Cell
                         key={rowIndex}
-                        isEmphasized
+                        isHeader
                         isBold
                         isBorderedHeader
                         isTransparent

@@ -60,6 +60,7 @@ type ChartWithLegendProps = {
   isDocument?: boolean;
   isMetricsViewer?: boolean;
   onToggleSeriesVisibility?: (event: MouseEvent, index: number) => void;
+  legendPosition?: "top" | "bottom" | "left" | "right";
   forwardedRef?: Ref<HTMLDivElement>;
 };
 
@@ -82,6 +83,7 @@ const ChartWithLegendInner = ({
   isDocument,
   isMetricsViewer,
   onToggleSeriesVisibility = () => {},
+  legendPosition,
   forwardedRef,
 }: ChartWithLegendProps) => {
   const [stableWidth, setStableWidth] = useState(width);
@@ -106,8 +108,16 @@ const ChartWithLegendInner = ({
         gridSize,
         aspectRatio,
         legendTitles,
+        legendPosition,
       }),
-    [stableWidth, stableHeight, gridSize, aspectRatio, legendTitles],
+    [
+      stableWidth,
+      stableHeight,
+      gridSize,
+      aspectRatio,
+      legendTitles,
+      legendPosition,
+    ],
   );
 
   const legend =
@@ -130,6 +140,7 @@ const ChartWithLegendInner = ({
         DashboardS.fullscreenNormalText,
         styles.ChartWithLegend,
         styles[layout.type],
+        legendPosition ? styles[legendPosition] : styles[layout.type],
         layout.flexChart && styles.flexChart,
       )}
       style={{
@@ -193,12 +204,14 @@ export function getChartLayout({
   gridSize,
   aspectRatio,
   legendTitles,
+  legendPosition,
 }: {
   width: number;
   height: number;
   gridSize: GridSize | undefined;
   aspectRatio: number;
   legendTitles: LegendTitle[];
+  legendPosition?: "top" | "bottom" | "left" | "right";
 }): ChartLayout {
   const adjustedWidth = width - PADDING * 2;
   const adjustedHeight = height - PADDING;
@@ -208,6 +221,46 @@ export function getChartLayout({
     width: adjustedWidth / DEFAULT_GRID_SIZE,
     height: adjustedHeight / DEFAULT_GRID_SIZE,
   };
+
+  if (legendPosition) {
+    const isVerticalPosition =
+      legendPosition === "top" || legendPosition === "bottom";
+    const processedLegendTitles = isVerticalPosition
+      ? legendTitles.map((title) =>
+          Array.isArray(title) ? title.join(" ") : title,
+        )
+      : adjustedWidth < HIDE_SECONDARY_INFO_THRESHOLD
+        ? legendTitles.map((title) =>
+            Array.isArray(title) ? title.slice(0, 1) : title,
+          )
+        : legendTitles;
+
+    if (isVerticalPosition) {
+      const desiredHeight = adjustedWidth * (1 / aspectRatio);
+      const flexChart = desiredHeight > adjustedHeight * (3 / 4);
+      return {
+        type: "vertical",
+        LegendComponent: LegendHorizontal,
+        processedLegendTitles,
+        chartWidth: adjustedWidth,
+        chartHeight: flexChart ? undefined : desiredHeight,
+        flexChart,
+        hasDimensions,
+      };
+    }
+
+    const desiredWidth = adjustedHeight * aspectRatio;
+    const flexChart = desiredWidth > adjustedWidth * (4 / 5);
+    return {
+      type: "horizontal",
+      LegendComponent: LegendVertical,
+      processedLegendTitles,
+      chartWidth: flexChart ? undefined : desiredWidth,
+      chartHeight: adjustedHeight,
+      flexChart,
+      hasDimensions,
+    };
+  }
 
   const isHorizontal =
     calculatedGridSize.width > calculatedGridSize.height / GRID_ASPECT_RATIO;

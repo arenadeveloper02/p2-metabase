@@ -305,14 +305,58 @@ export const getCartesianChartOption = (
     yAxis = axes.yAxis;
   }
 
+  const hasBarSeries = dataSeriesOptions.some(
+    (series) => series.type === "bar",
+  );
+  const isDataZoomEnabled =
+    hasBarSeries && settings["bar.data_zoom_enabled"] === true;
+
   return {
     ...getSharedEChartsOptions(isAnimated, renderingContext),
     ...splitPanelOverrides,
-    grid,
+    grid: isDataZoomEnabled
+      ? Array.isArray(grid)
+        ? grid.map((panelGrid) => ({
+            ...panelGrid,
+            right: Math.max(Number(panelGrid.right) || 0, 50),
+          }))
+        : {
+            ...grid,
+            right: Math.max(Number(grid.right) || 0, 50),
+          }
+      : grid,
     xAxis,
     yAxis,
     dataset: buildEChartsDataset(chartModel),
     series: seriesOption,
+    ...(isDataZoomEnabled
+      ? {
+          dataZoom: [
+            {
+              show: true,
+              type: "slider" as const,
+              start: 0,
+              end: 100,
+              height: 20,
+              bottom: 10,
+            },
+            {
+              type: "inside" as const,
+              start: 0,
+              end: 100,
+            },
+            {
+              show: true,
+              yAxisIndex: 0,
+              filterMode: "empty" as const,
+              width: 30,
+              height: "80%",
+              showDataShadow: false,
+              right: 10,
+            },
+          ],
+        }
+      : {}),
   };
 };
 

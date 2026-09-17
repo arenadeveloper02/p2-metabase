@@ -43,32 +43,47 @@ interface PivotTableCellProps {
   isBold?: boolean;
   isEmphasized?: boolean;
   isGrandTotal?: boolean;
+  isHeader?: boolean;
   isBorderedHeader?: boolean;
   hasTopBorder?: boolean;
   isTransparent?: boolean;
 }
 
 const GRID_LINE = "var(--mb-color-border-neutral)";
+const CELL_BACKGROUND = "var(--mb-color-background_page-primary)";
+
+const mixWithPrimaryText = (base: string, amount: number) =>
+  `color-mix(in srgb, var(--mb-color-text-primary) ${amount}%, ${base})`;
 
 const getCellBackgroundColor = ({
   theme,
   isEmphasized,
   isGrandTotal,
+  isHeader,
   isTransparent,
 }: Partial<PivotTableCellProps> & { theme: MantineTheme }) => {
   const backgroundColor = theme.other.table.cell.backgroundColor;
+  const baseBackground = backgroundColor
+    ? color(backgroundColor)
+    : CELL_BACKGROUND;
 
   if (isTransparent) {
     return "transparent";
   }
 
-  if (isGrandTotal || isEmphasized) {
-    return "var(--mb-color-border-neutral)";
+  if (isGrandTotal) {
+    return mixWithPrimaryText(baseBackground, 16);
   }
 
-  return backgroundColor
-    ? color(backgroundColor)
-    : "var(--mb-color-background_page-primary)";
+  if (isEmphasized) {
+    return mixWithPrimaryText(baseBackground, 8);
+  }
+
+  if (isHeader) {
+    return `color-mix(in srgb, var(--mb-color-border-neutral) 12%, ${baseBackground})`;
+  }
+
+  return baseBackground;
 };
 
 const getCellHoverBackground = (
@@ -76,7 +91,7 @@ const getCellHoverBackground = (
 ) => {
   const backgroundColor = getCellBackgroundColor(props);
 
-  if (props.isEmphasized || props.isGrandTotal) {
+  if (props.isEmphasized || props.isGrandTotal || props.isHeader) {
     return `color-mix(in srgb, ${backgroundColor} 88%, transparent)`;
   }
 
@@ -90,7 +105,7 @@ const getCellHoverBackground = (
 };
 
 const getColor = ({ theme }: PivotTableCellProps & { theme: MantineTheme }) => {
-  return theme.other.table.cell.textColor;
+  return theme.other.table.cell.textColor ?? "var(--mb-color-text-primary)";
 };
 
 const borderRight = css`
@@ -111,7 +126,7 @@ export const PivotTableCell = styled.div<PivotTableCellProps>`
   line-height: ${CELL_HEIGHT}px;
   min-width: 0;
   min-height: 0;
-  font-weight: ${(props) => (props.isBold ? "bold" : "normal")};
+  font-weight: ${(props) => (props.isBold ? 700 : 400)};
   cursor: ${(props) => (props.onClick ? "pointer" : "default")};
   color: ${getColor};
   ${borderRight}
@@ -137,7 +152,7 @@ export const PivotTableTopLeftCellsContainer = styled.div`
   ${borderRight}
   background-color: ${(props) =>
     getCellBackgroundColor({
-      isEmphasized: true,
+      isHeader: true,
       theme: props.theme,
     })};
 `;
@@ -179,7 +194,20 @@ export const PivotTableRoot = styled.div<PivotTableRootProps>`
             -ms-overflow-style: none; /* IE and Edge */
           }
         `
-      : null}
+      : css`
+          /* Reserve space for scrollbar to prevent covering content */
+          scrollbar-gutter: stable both-edges;
+          scrollbar-width: thin;
+
+          /* Make scrollbar thinner on WebKit browsers */
+          &::-webkit-scrollbar {
+            height: 10px;
+          }
+
+          &::-webkit-scrollbar-thumb {
+            border-radius: 6px;
+          }
+        `}
 `;
 
 export const PivotTableSettingLabel = styled.span`

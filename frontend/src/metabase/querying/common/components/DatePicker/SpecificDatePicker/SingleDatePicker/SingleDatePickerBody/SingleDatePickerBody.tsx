@@ -1,5 +1,5 @@
 import type { DateStringValue } from "@mantine/dates";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "ttag";
 
 import { dayjs } from "metabase/dayjs";
@@ -23,6 +23,11 @@ export function SingleDatePickerBody({
   onChange,
 }: SingleDatePickerBodyProps) {
   const [date, setDate] = useState<Date>(value);
+  const valueTime = value.getTime();
+
+  useEffect(() => {
+    setDate(new Date(valueTime));
+  }, [valueTime]);
 
   const handleDateChange = (newDate: DateStringValue | null) => {
     if (newDate) {

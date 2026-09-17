@@ -13,6 +13,10 @@ import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
+import {
+  findRollingDateDefault,
+  resolveRollingDateParameterValue,
+} from "metabase/querying/parameters/utils/rolling-date-defaults";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
@@ -31,11 +35,29 @@ export function DateSingleWidget({
   onChange,
 }: DateSingleWidgetProps) {
   const [pickerValue, setPickerValue] = useState(
-    () => getPickerValue(value) ?? getPickerDefaultValue(),
+    () => getInitialPickerValue(value),
+  );
+  const [selectedShortcut, setSelectedShortcut] = useState(
+    () => findRollingDateDefault("date/single", value)?.value ?? null,
   );
 
+  const handleShortcutChange = (token: string) => {
+    const shortcut = findRollingDateDefault("date/single", token);
+    if (shortcut == null) {
+      return;
+    }
+
+    setPickerValue(getInitialPickerValue(shortcut.resolve()));
+    setSelectedShortcut(token);
+  };
+
+  const handlePickerChange = (nextValue: SingleDatePickerValue) => {
+    setPickerValue(nextValue);
+    setSelectedShortcut(null);
+  };
+
   const handleSubmit = () => {
-    onChange(getWidgetValue(pickerValue));
+    onChange(selectedShortcut ?? getWidgetValue(pickerValue));
   };
 
   return (
@@ -43,8 +65,8 @@ export function DateSingleWidget({
       {showRollingDefaults && (
         <RollingDateDefaultShortcuts
           parameterType="date/single"
-          value={value}
-          onChange={onChange}
+          value={selectedShortcut}
+          onChange={handleShortcutChange}
         />
       )}
       <SingleDatePicker
@@ -55,11 +77,18 @@ export function DateSingleWidget({
             {submitButtonLabel}
           </Button>
         )}
-        onChange={setPickerValue}
+        onChange={handlePickerChange}
         onSubmit={handleSubmit}
       />
     </>
   );
+}
+
+function getInitialPickerValue(
+  value: ParameterValueOrArray | null | undefined,
+): SingleDatePickerValue {
+  const resolved = resolveRollingDateParameterValue("date/single", value);
+  return getPickerValue(resolved) ?? getPickerDefaultValue();
 }
 
 function getPickerValue(

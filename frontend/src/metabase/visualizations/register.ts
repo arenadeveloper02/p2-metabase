@@ -56,6 +56,7 @@ import { BOXPLOT_CHART_DEFINITION } from "./visualizations/BoxPlot/definition";
 import { COMBO_CHART_DEFINITION } from "./visualizations/ComboChart/definition";
 import { FUNNEL_CHART_DEFINITION } from "./visualizations/Funnel/definition";
 import { GAUGE_CHART_DEFINITION } from "./visualizations/Gauge/definition";
+import { HEATMAP_CHART_DEFINITION } from "./visualizations/Heatmap";
 import { LINE_CHART_DEFINITION } from "./visualizations/LineChart/definition";
 import { LIST_DEFINITION } from "./visualizations/List/definition";
 import { MAP_VIZ_DEFINITION } from "./visualizations/Map/definition";
@@ -72,6 +73,7 @@ import { SCATTER_PLOT_DEFINITION } from "./visualizations/ScatterPlot/definition
 import { SmartScalarComparisonWidget } from "./visualizations/SmartScalar/SettingsComponents/SmartScalarSettingsWidgets";
 import { SMART_SCALAR_CHART_DEFINITION } from "./visualizations/SmartScalar/definition";
 import { TABLE_DEFINITION } from "./visualizations/Table/definition";
+import { TextScalar } from "./visualizations/TextScalar";
 import { TreemapGroupsPicker } from "./visualizations/TreemapChart/TreemapGroupsPicker";
 import { TREEMAP_CHART_DEFINITION } from "./visualizations/TreemapChart/definition";
 import { WATERFALL_CHART_DEFINITION } from "./visualizations/WaterfallChart/definition";
@@ -85,6 +87,7 @@ function registerVisualizationComponents() {
       (module) => module.Scalar,
     ),
   );
+  registerVisualization(TextScalar);
   registerVisualization(SMART_SCALAR_CHART_DEFINITION, () =>
     import(
       /* webpackChunkName: "viz-smart-scalar" */ "./visualizations/SmartScalar"
@@ -99,6 +102,11 @@ function registerVisualizationComponents() {
     import(/* webpackChunkName: "viz-gauge" */ "./visualizations/Gauge").then(
       (module) => module.Gauge,
     ),
+  );
+  registerVisualization(HEATMAP_CHART_DEFINITION, () =>
+    import(
+      /* webpackChunkName: "viz-heatmap" */ "./visualizations/Heatmap"
+    ).then((module) => module.Heatmap),
   );
   registerVisualization(TABLE_DEFINITION, () =>
     import(

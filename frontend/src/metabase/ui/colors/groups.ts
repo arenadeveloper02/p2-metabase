@@ -1,3 +1,4 @@
+/* eslint-disable no-color-literals */
 import Color from "color";
 import _ from "underscore";
 
@@ -79,6 +80,28 @@ export const getStatusColorRanges = (): string[][] => {
       color("feedback-warning"),
       color("feedback-positive"),
     ],
+  ];
+};
+
+/**
+ * Get status colors for errors/failures and other status indicators.
+ * These are separate from accent colors and are not automatically applied to charts.
+ * Users can manually select them from the color palette if needed.
+ */
+export const getStatusColors = (): string[] => {
+  return [
+    // Error/Failure reds
+    "#F54848", // Error/Failure red - medium shade
+    "#C21515", // Error/Failure red - dark shade
+    "#F87676", // Error/Failure red - light shade
+    // Blue status colors
+    "#488FED", // Blue - medium shade
+    "#155CBA", // Blue - dark shade
+    "#76ABF1", // Blue - light shade
+    // Orange status colors
+    "#FC9A6A", // Orange - medium shade
+    "#C96737", // Orange - dark shade
+    "#FDB38F", // Orange - light shade
   ];
 };
 

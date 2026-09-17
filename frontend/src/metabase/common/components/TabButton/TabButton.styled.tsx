@@ -54,8 +54,8 @@ export const TabButtonRoot = styled.div<TabButtonProps>`
     props.isSelected && !props.disabled
       ? "var(--mb-color-core-brand)"
       : "var(--mb-color-text-primary)"};
-  opacity: ${(props) => (props.disabled ? 0.3 : 1)};
-  font-size: var(--mantine-font-size-md);
+  opacity: ${props => (props.disabled ? 0.3 : 1)};
+  // font-size: 0.75rem;
   font-weight: 700;
   cursor: ${(props) => (props.disabled ? "default" : "pointer")};
   border-bottom: 0.125rem solid transparent;

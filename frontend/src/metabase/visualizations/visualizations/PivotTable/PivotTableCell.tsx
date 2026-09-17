@@ -21,6 +21,7 @@ interface CellProps {
   isBold?: boolean;
   isEmphasized?: boolean;
   isGrandTotal?: boolean;
+  isHeader?: boolean;
   isBorderedHeader?: boolean;
   isTransparent?: boolean;
   hasTopBorder?: boolean;
@@ -84,6 +85,7 @@ export function Cell({
   isBold,
   isEmphasized,
   isGrandTotal,
+  isHeader,
   isBorderedHeader,
   isTransparent,
   hasTopBorder,
@@ -101,6 +103,7 @@ export function Cell({
       isBold={isBold}
       isEmphasized={isEmphasized}
       isGrandTotal={isGrandTotal}
+      isHeader={isHeader}
       isBorderedHeader={isBorderedHeader}
       hasTopBorder={hasTopBorder}
       isTransparent={isTransparent}
@@ -163,7 +166,7 @@ export const TopHeaderCell = ({
         ...style,
       }}
       value={tc(value)}
-      isEmphasized
+      isHeader
       isGrandTotal={isGrandTotal}
       isBorderedHeader={maxDepthBelow === 0}
       isBold
@@ -198,6 +201,7 @@ export const LeftHeaderCell = ({
         ...(depth === 0 ? { paddingLeft: LEFT_HEADER_LEFT_SPACING } : {}),
       }}
       value={value}
+      isHeader
       isEmphasized={isSubtotal}
       isGrandTotal={isGrandTotal}
       isBold

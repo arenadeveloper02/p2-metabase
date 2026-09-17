@@ -31,9 +31,10 @@
    (liquibase.command.core AbstractRollbackCommandStep)
    (liquibase.database Database DatabaseFactory ObjectQuotingStrategy)
    (liquibase.database.jvm JdbcConnection)
-   (liquibase.exception LockException)
-   (liquibase.lockservice LockService LockServiceFactory)
-   (liquibase.resource ClassLoaderResourceAccessor)))
+   (liquibase.exception LiquibaseException LockException ValidationFailedException PreconditionFailedException DatabaseException)
+  (java.sql SQLIntegrityConstraintViolationException)
+  (liquibase.lockservice LockService LockServiceFactory)
+  (liquibase.resource ClassLoaderResourceAccessor)))
 
 (set! *warn-on-reflection* true)
 
@@ -203,7 +204,18 @@
   IMPORTANT: this function takes `data-source` but not `liquibase` because `.listUnrunChangeSets` is buggy. See #38257."
   [^DataSource data-source]
   (with-liquibase [liquibase data-source]
-    (.listUnrunChangeSets liquibase nil (LabelExpression.))))
+    (try
+      (.listUnrunChangeSets liquibase nil (LabelExpression.))
+      (catch ValidationFailedException e
+        (if (config/config-bool :mb-clear-checksums-on-validation-failure)
+          (do
+            (log/warn (u/format-color 'yellow
+                       (str (trs "Checksum validation failed. Clearing checksums (MB_CLEAR_CHECKSUMS_ON_VALIDATION_FAILURE=true).")
+                            "\n"
+                            (trs "This will allow migrations to proceed but may cause issues if migration files were modified incorrectly."))))
+            (.clearCheckSums liquibase)
+            (.listUnrunChangeSets liquibase nil (LabelExpression.)))
+          (throw e))))))
 
 (defn- migration-lock-exists?
   "Is a migration lock in place for `liquibase`?"
@@ -445,7 +457,53 @@
         (try
           (doseq [^ChangeSet change-set (.getChangeSets change-log)]
             (.setFailOnError change-set false))
-          (update-with-change-log liquibase {:exec-listener exec-listener})
+          (try
+            (update-with-change-log liquibase {:exec-listener exec-listener})
+            (catch PreconditionFailedException e
+              (if (config/config-bool :mb-skip-precondition-failures)
+                (do
+                  (log/warn (u/format-color 'yellow
+                             (str (trs "Precondition failed in force migration, but continuing (MB_SKIP_PRECONDITION_FAILURES=true).")
+                                  "\n"
+                                  (trs "Error: {0}" (.getMessage e))
+                                  "\n"
+                                  (trs "This migration will be skipped. The database may already be in the expected state."))))
+                  ;; Log the error but don't rethrow - force migration should continue
+                  (log/error e "Precondition failure details"))
+                (throw e)))
+            (catch LiquibaseException e
+              (if (and (config/config-bool :mb-skip-precondition-failures)
+                       (let [cause (.getCause e)
+                             msg (str (.getMessage e))
+                             cause-msg (when cause (str (.getMessage cause)))]
+                         (or (instance? SQLIntegrityConstraintViolationException cause)
+                             (and (instance? DatabaseException cause)
+                                  (or (instance? SQLIntegrityConstraintViolationException (.getCause cause))
+                                      (some? (re-find #"(?i)duplicate.*entry" (str (.getMessage cause))))))
+                             (some? (re-find #"(?i)duplicate.*entry" msg))
+                             (some? (re-find #"(?i)duplicate.*entry" cause-msg)))))
+                (do
+                  (log/warn (u/format-color 'yellow
+                             (str (trs "Duplicate entry error in force migration, but continuing (MB_SKIP_PRECONDITION_FAILURES=true).")
+                                  "\n"
+                                  (trs "Error: {0}" (.getMessage e))
+                                  "\n"
+                                  (trs "This migration may already be recorded in the database with a different filename."))))
+                  (log/error e "Duplicate entry error details"))
+                (throw e)))
+            (catch DatabaseException e
+              (if (and (config/config-bool :mb-skip-precondition-failures)
+                       (or (instance? SQLIntegrityConstraintViolationException (.getCause e))
+                           (some? (re-find #"(?i)duplicate.*entry" (str (.getMessage e))))))
+                (do
+                  (log/warn (u/format-color 'yellow
+                             (str (trs "Duplicate entry error in force migration, but continuing (MB_SKIP_PRECONDITION_FAILURES=true).")
+                                  "\n"
+                                  (trs "Error: {0}" (.getMessage e))
+                                  "\n"
+                                  (trs "This migration may already be recorded in the database with a different filename."))))
+                  (log/error e "Duplicate entry error details"))
+                (throw e))))
           (finally
             (doseq [[^ChangeSet change-set fail-on-error?] fail-on-errors]
               (.setFailOnError change-set fail-on-error?))))))))

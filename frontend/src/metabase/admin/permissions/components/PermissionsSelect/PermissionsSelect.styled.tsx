@@ -51,7 +51,7 @@ export const ToggleContainer = styled.div`
 `;
 
 export const ToggleLabel = styled.label`
-  font-size: 12px;
+  font-size: 14px;
   margin-right: 1rem;
 `;
 

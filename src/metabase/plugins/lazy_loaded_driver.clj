@@ -24,10 +24,14 @@
     (string? prop)
     (or (driver.common/default-options (keyword prop))
         (driver.common/default-connection-info-fields (keyword prop))
-        (throw (Exception. (trs "Default connection property {0} does not exist." prop))))
+        (do
+          (log/warn (trs "Default connection property {0} does not exist. Skipping." prop))
+          nil))
 
     (not (map? prop))
-    (throw (Exception. (trs "Invalid connection property {0}: not a string or map." prop)))
+    (do
+      (log/warn (trs "Invalid connection property {0}: not a string or map. Skipping." prop))
+      nil)
 
     (:group prop)
     ;; Handle nested group structure
@@ -36,7 +40,10 @@
      :fields (into [] (mapcat #(u/one-or-many (parse-connection-property %))) (:fields (:group prop)))}
 
     (:merge prop)
-    (into {} (map parse-connection-property) (:merge prop))
+    (let [parsed (keep parse-connection-property (:merge prop))]
+      (if (seq parsed)
+        (into {} parsed)
+        nil))
 
     :else
     prop))

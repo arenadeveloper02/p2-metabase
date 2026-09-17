@@ -1,6 +1,7 @@
 import { t } from "ttag";
 import _ from "underscore";
 
+import { getColorsForValues } from "metabase/ui/colors/charts";
 import { formatNullable } from "metabase/utils/formatting";
 import {
   ChartSettingsError,
@@ -23,6 +24,7 @@ import {
   type DatasetData,
   type RawSeries,
   type RowValue,
+  type SeriesOrderSetting,
   getRowsForStableKeys,
 } from "metabase-types/api";
 
@@ -108,19 +110,33 @@ export const FUNNEL_CHART_DEFINITION: VisualizationDefinition = {
           formatNullable(row[dimensionIndex]),
         );
 
-        const getDefault = (keys: RowValue[]) =>
-          keys.map((key) => ({
+        const getDefault = (
+          keys: RowValue[],
+          existingRows?: SeriesOrderSetting[],
+        ) => {
+          const colorMapping =
+            existingRows?.reduce<Record<string, string>>((acc, row) => {
+              if (row.color) {
+                acc[String(row.key)] = row.color;
+              }
+              return acc;
+            }, {}) ?? {};
+          const colors = getColorsForValues(keys.map(String), colorMapping);
+
+          return keys.map((key) => ({
             key,
             name: key,
             enabled: true,
+            color: colors[String(key)],
           }));
+        };
         if (
           !rowsOrder ||
           !_.isArray(rowsOrder) ||
           !rowsOrder.every((setting) => setting.key !== undefined) ||
           orderDimension !== dimension
         ) {
-          return getUniqueFunnelRows(getDefault(rowsKeys));
+          return getUniqueFunnelRows(getDefault(rowsKeys, rowsOrder));
         }
 
         const removeMissingOrder = (keys: RowValue[], order: any) =>
@@ -130,14 +146,38 @@ export const FUNNEL_CHART_DEFINITION: VisualizationDefinition = {
 
         const funnelRows = [
           ...removeMissingOrder(rowsKeys, rowsOrder),
-          ...getDefault(newKeys(rowsKeys, rowsOrder)),
+          ...getDefault(newKeys(rowsKeys, rowsOrder), rowsOrder),
         ];
 
         return getUniqueFunnelRows(funnelRows);
       },
-      getProps: () => ({
-        hasEditSettings: false,
-      }),
+      getProps: (
+        _series: RawSeries,
+        computedSettings: ComputedVisualizationSettings,
+        _onChange: unknown,
+        _extra: unknown,
+        onChangeSettings: (
+          settings: Partial<ComputedVisualizationSettings>,
+        ) => void,
+      ) => {
+        const funnelRows = computedSettings["funnel.rows"];
+
+        return {
+          hasEditSettings: true,
+          onChangeSeriesColor: (seriesKey: string, colorValue: string) => {
+            if (funnelRows) {
+              onChangeSettings({
+                "funnel.rows": funnelRows.map((row) => {
+                  if (row.key !== seriesKey) {
+                    return row;
+                  }
+                  return { ...row, color: colorValue };
+                }),
+              });
+            }
+          },
+        };
+      },
       getHidden: (series: RawSeries, settings: ComputedVisualizationSettings) =>
         settings["funnel.dimension"] === null ||
         settings["funnel.metric"] === null,
@@ -164,12 +204,26 @@ export const FUNNEL_CHART_DEFINITION: VisualizationDefinition = {
       getProps: () => ({
         options: [
           { name: t`Funnel`, value: "funnel" },
+          { name: t`Funnel (Vertical)`, value: "echarts" },
           { name: t`Bar chart`, value: "bar" },
         ],
       }),
       // legacy "bar" funnel was only previously available via multiseries
       getDefault: (series: RawSeries) => (series.length > 1 ? "bar" : "funnel"),
       useRawSeries: true,
+    },
+    "funnel.values_below_labels": {
+      getSection: () => t`Display`,
+      get title() {
+        return t`Show values below labels`;
+      },
+      widget: "toggle",
+      getDefault: () => false,
+      inline: true,
+      getHidden: (
+        _series: RawSeries,
+        settings: ComputedVisualizationSettings,
+      ) => settings["funnel.type"] !== "echarts",
     },
   },
 };

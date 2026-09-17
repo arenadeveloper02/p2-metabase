@@ -6,7 +6,7 @@ import { ColorSelector } from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { Box, Button, Icon, NumberInput, Text } from "metabase/ui";
 import { color } from "metabase/ui/colors";
-import { getAccentColors } from "metabase/ui/colors/groups";
+import { getAccentColors, getStatusColors } from "metabase/ui/colors/groups";
 import type { ChartSettingSegmentsEditorProps } from "metabase/visualizations/types";
 import type { ScalarSegment } from "metabase-types/api";
 
@@ -137,6 +137,7 @@ function getColorPalette() {
     Color(color("feedback-warning")).hex(),
     Color(color("feedback-positive")).hex(),
     Color(color("background_page-tertiary")).hex(),
+    ...getStatusColors(),
   ];
 }
 

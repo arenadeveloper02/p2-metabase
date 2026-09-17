@@ -20,11 +20,17 @@ export const DATE_PICKER_SHORTCUTS = [
   "today" as const,
   "yesterday" as const,
   "previous-week" as const,
+  "week-before-previous" as const,
   "previous-7-days" as const,
   "previous-30-days" as const,
   "previous-month" as const,
+  "month-before-previous" as const,
   "previous-3-months" as const,
   "previous-12-months" as const,
+  "previous-quarter" as const,
+  "quarter-before-previous" as const,
+  "previous-year" as const,
+  "year-before-previous" as const,
 ];
 
 export const DATE_PICKER_TRUNCATION_UNITS = [

@@ -25,6 +25,8 @@ const MCP_CHART_TYPE_ICONS: Record<CardDisplayType, IconName> = {
   treemap: "treemap",
   waterfall: "waterfall",
   list: "table2",
+  heatmap: "grid",
+  textscalar: "string",
 };
 
 // Chart types that can be the alternative.

@@ -35,6 +35,14 @@
   margin-top: 1rem;
 }
 
+.Header {
+  display: flex;
+  margin: 1rem 1rem 0.25rem 1rem;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--mb-color-tooltip-text-secondary);
+}
+
 .TableBody {
   width: 100%;
 }
@@ -45,7 +53,7 @@
 
 .SecondaryRow {
   color: var(--mb-color-tooltip-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .RowFocused {

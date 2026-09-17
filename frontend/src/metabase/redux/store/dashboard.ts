@@ -55,6 +55,7 @@ export type DashboardSidebarState =
 
 export type StoreDashboardTab = DashboardTab & {
   isRemoved?: boolean;
+  is_shown?: boolean;
 };
 
 export type StoreDashboard = Omit<Dashboard, "dashcards" | "tabs"> & {

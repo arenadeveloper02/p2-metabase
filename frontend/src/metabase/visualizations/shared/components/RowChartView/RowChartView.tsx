@@ -9,6 +9,7 @@ import { Text } from "@visx/text";
 import type { ScaleBand, ScaleContinuousNumeric } from "d3-scale";
 import * as React from "react";
 
+import { alpha } from "metabase/ui/colors/palette";
 import type { TextWidthMeasurer } from "metabase/utils/measure-text";
 import { truncateText } from "metabase/visualizations/lib/text";
 import type { HoveredData } from "metabase/visualizations/shared/types/events";
@@ -60,6 +61,7 @@ export interface RowChartViewProps<TDatum> {
     event: React.MouseEvent<Element>,
     bar: BarData<TDatum, SeriesInfo>,
   ) => void;
+  isModernDesign?: boolean;
 }
 
 const RowChartView = <TDatum,>({
@@ -87,6 +89,7 @@ const RowChartView = <TDatum,>({
   measureTextWidth,
   onHover,
   onClick,
+  isModernDesign = false,
 }: RowChartViewProps<TDatum>) => {
   const innerBarScale = isStacked
     ? null
@@ -125,8 +128,59 @@ const RowChartView = <TDatum,>({
     yTickFormatter,
   ]);
 
+  const gradientIds = React.useMemo(() => {
+    if (!isModernDesign) {
+      return {};
+    }
+    const uniqueBarColors = Array.from(
+      new Set(seriesData.map((series) => series.color)),
+    );
+    return uniqueBarColors.reduce<Record<string, string>>((acc, barColor, index) => {
+      acc[barColor] = `gradient-${index}-${barColor.replace("#", "")}`;
+      return acc;
+    }, {});
+  }, [seriesData, isModernDesign]);
+
+  const uniqueColors = React.useMemo(() => {
+    if (!isModernDesign) {
+      return [];
+    }
+    return Array.from(new Set(seriesData.map((series) => series.color)));
+  }, [seriesData, isModernDesign]);
+
   return (
     <svg width={width ?? undefined} height={height ?? undefined} style={style}>
+      <defs>
+        {isModernDesign &&
+          uniqueColors.map((barColor) => {
+            const gradientId = gradientIds[barColor];
+            if (!gradientId) {
+              return null;
+            }
+            return (
+              <linearGradient
+                key={gradientId}
+                id={gradientId}
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor={alpha(barColor, 0.5)}
+                  stopOpacity={1}
+                />
+                <stop
+                  offset="70%"
+                  stopColor={alpha(barColor, 0.85)}
+                  stopOpacity={1}
+                />
+                <stop offset="100%" stopColor={barColor} stopOpacity={1} />
+              </linearGradient>
+            );
+          })}
+      </defs>
       <Group top={margin.top} left={margin.left}>
         <GridColumns
           // Unjustified type cast. FIXME
@@ -178,6 +232,10 @@ const RowChartView = <TDatum,>({
             const barKey = `${seriesIndex}:${datumIndex}`;
             const ariaLabelledBy = `bar-${barKey}-value`;
 
+            const fillColor = isModernDesign
+              ? `url(#${gradientIds[series.color]})`
+              : series.color;
+
             return (
               <React.Fragment key={barKey}>
                 <Bar
@@ -191,7 +249,7 @@ const RowChartView = <TDatum,>({
                   y={y}
                   width={width}
                   height={height}
-                  fill={series.color}
+                  fill={fillColor}
                   opacity={opacity}
                   onClick={(event) => onClick?.(event, bar)}
                   onMouseEnter={(event) => onHover?.(event, bar)}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "ttag";
 
 import { dayjs } from "metabase/dayjs";
@@ -34,9 +34,19 @@ export function DateRangePickerBody({
   valueFormat = "LL",
 }: DateRangePickerBodyProps) {
   const [startDate, endDate] = value;
+  const startTime = startDate.getTime();
+  const endTime = endDate.getTime();
   const [inProgressDateRange, setInProgressDateRange] =
-    useState<DatesRangeValue | null>(value);
+    useState<DatesRangeValue | null>(null);
   const [displayedDate, setDisplayedDate] = useState(startDate);
+
+  useEffect(() => {
+    setInProgressDateRange(null);
+  }, [startTime, endTime]);
+
+  useEffect(() => {
+    setDisplayedDate(new Date(startTime));
+  }, [startTime]);
 
   const handleRangeChange = (newDateRange: DatesRangeValue) => {
     const [newStartDate, newEndDate] = newDateRange;

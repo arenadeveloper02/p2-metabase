@@ -487,6 +487,12 @@ export type VisualizationSettings = {
 
   /** Legacy slice color map. Prefer defaults unless exact colors matter. */
   "pie.colors"?: Record<string, string>;
+  "pie.legend_position"?: "top" | "bottom" | "left" | "right";
+  "pie.type"?: "pie" | "donut-classic";
+  "bar.modern_design"?: boolean;
+  "bar.data_zoom_enabled"?: boolean;
+  "funnel.values_below_labels"?: boolean;
+  "funnel.type"?: "funnel" | "bar" | "echarts";
 
   /** Result column name for the source node. */
   "sankey.source"?: string;

@@ -210,11 +210,12 @@ describe("Visualizations > PivotTable > PivotTable", () => {
 
         expect(grandTotalCell).toHaveAttribute("data-is-grand-total", "true");
         expect(grandTotalCell).toHaveStyle({
-          backgroundColor: "var(--mb-color-border-neutral)",
+          backgroundColor:
+            "color-mix(in srgb, var(--mb-color-text-primary) 16%, var(--mb-color-background_page-primary))",
         });
       });
 
-      it("should render all header cells, including leaves, in bold", () => {
+      it("should render all header cells, including leaves, at table-header weight", () => {
         setupPivotTable({ isDashboard: testCase.isDashboard });
 
         const headerCell = (label: string) =>
@@ -222,13 +223,13 @@ describe("Visualizations > PivotTable > PivotTable", () => {
             .getAllByTestId("pivot-table-cell")
             .find((cell) => within(cell).queryByText(label));
 
-        expect(headerCell("field-123")).toHaveStyle({ fontWeight: "bold" });
-        expect(headerCell("foo1")).toHaveStyle({ fontWeight: "bold" });
-        expect(headerCell("baz1")).toHaveStyle({ fontWeight: "bold" });
+        expect(headerCell("field-123")).toHaveStyle({ fontWeight: "700" });
+        expect(headerCell("foo1")).toHaveStyle({ fontWeight: "700" });
+        expect(headerCell("baz1")).toHaveStyle({ fontWeight: "700" });
         expect(headerCell("aggregation-1")).toHaveStyle({
-          fontWeight: "bold",
+          fontWeight: "700",
         });
-        expect(headerCell("111")).toHaveStyle({ fontWeight: "normal" });
+        expect(headerCell("111")).toHaveStyle({ fontWeight: "400" });
       });
 
       it("should use theme tokens for header text and background", () => {
@@ -240,7 +241,50 @@ describe("Visualizations > PivotTable > PivotTable", () => {
 
         expect(headerCell).toHaveStyle({
           color: "var(--mb-color-text-primary)",
-          backgroundColor: "var(--mb-color-border-neutral)",
+          backgroundColor:
+            "color-mix(in srgb, var(--mb-color-border-neutral) 12%, var(--mb-color-background_page-primary))",
+        });
+      });
+
+      it("should give totals and grand totals distinct theme-aware backgrounds", () => {
+        setupPivotTable({ isDashboard: testCase.isDashboard });
+
+        const grandTotalCell = screen
+          .getByText("Grand totals")
+          .closest("[data-testid='pivot-table-cell']");
+        const totalCell = screen
+          .getByText("Totals for bar1")
+          .closest("[data-testid='pivot-table-cell']");
+
+        expect(grandTotalCell).toHaveStyle({
+          backgroundColor:
+            "color-mix(in srgb, var(--mb-color-text-primary) 16%, var(--mb-color-background_page-primary))",
+        });
+        expect(totalCell).toHaveStyle({
+          backgroundColor:
+            "color-mix(in srgb, var(--mb-color-text-primary) 8%, var(--mb-color-background_page-primary))",
+        });
+      });
+
+      it("should give the top header and dimensions the same lighter grey background", () => {
+        setupPivotTable({ isDashboard: testCase.isDashboard });
+
+        const headerCell = (label: string) =>
+          screen
+            .getAllByTestId("pivot-table-cell")
+            .find((cell) => within(cell).queryByText(label));
+
+        const headerBackground =
+          "color-mix(in srgb, var(--mb-color-border-neutral) 12%, var(--mb-color-background_page-primary))";
+
+        expect(headerCell("aggregation-1")).toHaveStyle({
+          backgroundColor: headerBackground,
+        });
+        expect(headerCell("foo1")).toHaveStyle({
+          backgroundColor: headerBackground,
+        });
+        expect(headerCell("baz1")).toHaveStyle({
+          backgroundColor: headerBackground,
         });
       });
 

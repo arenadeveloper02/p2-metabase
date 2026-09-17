@@ -1,3 +1,4 @@
+import { formatNullable } from "metabase/utils/formatting";
 import { isNotNull } from "metabase/utils/types";
 import { formatValue } from "metabase/value-formatting";
 import type { TransformSeries } from "metabase/visualizations/components/TransformedVisualization";
@@ -17,16 +18,32 @@ export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
     (col) => col.name === settings["funnel.metric"],
   );
 
-  const rowByDimensionValue = rows.reduce((acc, row) => {
-    acc.set(row[dimensionIndex], row);
+  const rowByFormattedKey = rows.reduce((acc, row) => {
+    acc.set(String(formatNullable(row[dimensionIndex])), row);
     return acc;
-  }, new Map<RowValue, RowValue[]>());
+  }, new Map<string, RowValue[]>());
   const rowsOrder = settings["funnel.rows"];
+  const seriesSettings: Record<string, { color: string }> = {};
+  if (Array.isArray(rowsOrder)) {
+    rowsOrder.forEach((rowOrder) => {
+      const dataRow = rowByFormattedKey.get(String(rowOrder.key));
+      if (dataRow && rowOrder.color) {
+        const name = String(
+          formatValue(dataRow[dimensionIndex], {
+            column: cols[dimensionIndex],
+          }),
+        );
+        seriesSettings[name] = { color: rowOrder.color };
+      }
+    });
+  }
   const orderedRows =
     Array.isArray(rowsOrder) && rowsOrder.length > 0
       ? rowsOrder
           .map((rowOrder) =>
-            rowOrder.enabled ? rowByDimensionValue.get(rowOrder.key) : null,
+            rowOrder.enabled
+              ? rowByFormattedKey.get(String(rowOrder.key))
+              : null,
           )
           .filter(isNotNull)
       : rows;
@@ -51,6 +68,7 @@ export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
           "graph.y_axis.auto_split": false,
           "graph.y_axis.title_text": cols[metricIndex].display_name,
           "legend.is_reversed": false,
+          series_settings: seriesSettings,
         },
       },
       data: {

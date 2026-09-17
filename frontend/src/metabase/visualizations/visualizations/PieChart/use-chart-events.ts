@@ -231,7 +231,7 @@ function handleClick(
 export function useChartEvents(
   props: VisualizationProps,
   chartRef: MutableRefObject<EChartsType | undefined>,
-  chartModel: PieChartModel,
+  chartModel: PieChartModel | undefined,
 ) {
   const {
     onHoverChange,
@@ -249,7 +249,7 @@ export function useChartEvents(
 
   useEffect(
     function higlightChartOnLegendHover() {
-      if (chart == null || legendHoverIndex == null) {
+      if (chart == null || legendHoverIndex == null || chartModel == null) {
         return;
       }
 
@@ -276,7 +276,10 @@ export function useChartEvents(
   useClickedStateTooltipSync(chartRef.current, props.clicked);
 
   const eventHandlers: EChartsEventHandler[] = useMemo(
-    () => [
+    () => {
+      if (!chartModel) return [];
+      
+      return [
       {
         eventName: "mouseout",
         query: "series",
@@ -305,7 +308,8 @@ export function useChartEvents(
           );
         },
       },
-    ],
+    ];
+    },
     [
       onHoverChange,
       data,

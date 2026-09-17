@@ -250,6 +250,32 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       return t`E.g. Sum of revenue grouped by Country`;
     },
   },
+  heatmap: {
+    get imgSrc() {
+      return getSubpathSafeUrl(
+        "app/assets/img/empty-states/visualizations/bar.svg",
+      );
+    },
+    get primaryText() {
+      return t`Then pick two grouping columns and a metric for cell values.`;
+    },
+    get secondaryText() {
+      return t`E.g. Count of orders grouped by Hour and Day of week`;
+    },
+  },
+  textscalar: {
+    get imgSrc() {
+      return getSubpathSafeUrl(
+        "app/assets/img/empty-states/visualizations/scalar.svg",
+      );
+    },
+    get primaryText() {
+      return t`Then pick a text column to display.`;
+    },
+    get secondaryText() {
+      return t`E.g. Customer name`;
+    },
+  },
 };
 
 export const getEmptyVizConfig = (

@@ -7,7 +7,7 @@ import type {
 } from "echarts/types/src/util/types";
 import _ from "underscore";
 
-import { getTextColorForBackground } from "metabase/ui/colors/palette";
+import { alpha, getTextColorForBackground } from "metabase/ui/colors/palette";
 import { isNotNull } from "metabase/utils/types";
 import { formatValue } from "metabase/value-formatting";
 import {
@@ -586,6 +586,13 @@ const buildEChartsBarSeries = (
 ): BarSeriesOption | BarSeriesOption[] => {
   const stack = stackName ?? `bar_${seriesModel.dataKey}`;
   const isStacked = settings["stackable.stack_type"] != null;
+  const isModernDesign = settings["bar.modern_design"] === true;
+  const isTopmostInStack =
+    stackModel == null ||
+    stackModel.seriesKeys[stackModel.seriesKeys.length - 1] ===
+      seriesModel.dataKey;
+  const shouldHaveRoundedCorners =
+    isModernDesign && (!isStacked || isTopmostInStack);
 
   const seriesOption: BarSeriesOption = {
     id: seriesModel.dataKey,
@@ -593,7 +600,22 @@ const buildEChartsBarSeries = (
       focus: hasMultipleSeries ? "series" : "self",
       itemStyle: {
         color: seriesModel.color,
+        ...(isModernDesign
+          ? {
+              shadowBlur: 12,
+              shadowColor: seriesModel.color,
+              shadowOffsetY: 4,
+              borderWidth: 1,
+              borderColor: seriesModel.color,
+            }
+          : {}),
       },
+      ...(isModernDesign
+        ? {
+            scale: true,
+            scaleSize: 5,
+          }
+        : {}),
       blurScope: "global",
     },
     blur: {
@@ -657,8 +679,48 @@ const buildEChartsBarSeries = (
           },
         }),
     itemStyle: {
-      color: seriesModel.color,
+      color: isModernDesign
+        ? {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              {
+                offset: 0,
+                color: alpha(seriesModel.color, 0.5),
+              },
+              {
+                offset: 0.7,
+                color: alpha(seriesModel.color, 0.85),
+              },
+              {
+                offset: 1,
+                color: seriesModel.color,
+              },
+            ],
+          }
+        : seriesModel.color,
+      ...(shouldHaveRoundedCorners
+        ? {
+            borderRadius: [6, 6, 0, 0],
+            borderWidth: 0,
+          }
+        : isModernDesign && isStacked
+          ? {
+              borderRadius: [0, 0, 0, 0],
+              borderWidth: 0,
+            }
+          : {}),
     },
+    ...(isModernDesign
+      ? {
+          animation: true,
+          animationDuration: 800,
+          animationEasing: "cubicOut" as const,
+        }
+      : {}),
   };
 
   if (

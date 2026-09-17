@@ -28,7 +28,7 @@ export type LegacyStaticEmbeddingModalProps = {
 };
 
 const getDefaultPluginEmbeddingIframeSdkSetup = () => ({
-  isEnabled: () => false,
+  isEnabled: () => true,
 });
 
 export const PLUGIN_EMBEDDING_IFRAME_SDK_SETUP =
