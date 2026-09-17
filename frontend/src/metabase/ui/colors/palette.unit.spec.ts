@@ -21,6 +21,12 @@ describe("palette", () => {
   it("should get a computed color", () => {
     expect(color("accent1-light")).toBeDefined();
   });
+
+  it("should not expose aliases for removed accent8+ colors", () => {
+    expect(() => color("accent8-light")).not.toThrow();
+    expect(color("accent8-light")).toBe("accent8-light");
+    expect(color("accent8")).toBe("accent8");
+  });
 });
 
 describe("getTextColorForBackground", () => {

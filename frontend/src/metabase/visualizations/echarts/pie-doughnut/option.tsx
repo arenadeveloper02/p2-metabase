@@ -395,9 +395,9 @@ export function getDoughnutChartOption(
         center,
         avoidLabelOverlap: true,
         itemStyle: {
-          borderRadius: 10,
-          borderColor: "#fff",
           borderWidth: 2,
+          borderRadius: 10,
+          borderColor: "transparent",
         },
         label: {
           show: showLabels || showPercentOnChart,

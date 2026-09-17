@@ -175,4 +175,29 @@ describe("getColors", () => {
       ),
     ).toBe(true);
   });
+
+  it("should fall back when a leftover accent8 color name is stored", () => {
+    const columns = [
+      createMockColumn({ name: "Category" }),
+      createMockColumn({ name: "Count" }),
+    ];
+    const rawSeries = [
+      {
+        data: createMockDatasetData({
+          rows: [["Doohickey", 1]],
+          cols: columns,
+        }),
+      },
+    ] as RawSeries;
+    const settings = {
+      "pie.metric": "Count",
+      "pie.dimension": "Category",
+      "pie.colors": {
+        Doohickey: "accent8",
+      },
+    };
+
+    expect(() => getColors(rawSeries, settings)).not.toThrow();
+    expect(getColors(rawSeries, settings).Doohickey).toMatch(/^#[0-9A-F]{6}$/i);
+  });
 });

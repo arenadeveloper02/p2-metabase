@@ -32,7 +32,11 @@ import {
 } from "../constants";
 import { getDimensionFormatter } from "../format";
 import { getArrayFromMapValues } from "../util";
-import { createHexToAccentNumberMap, getRingColorAlias } from "../util/colors";
+import {
+  createHexToAccentNumberMap,
+  getRingColorAlias,
+  isKnownAccentKey,
+} from "../util/colors";
 
 import type {
   PieChartModel,
@@ -354,10 +358,14 @@ export function getPieChartModel(
       return hexColor;
     }
     const accentKey = hexToAccentColorMap.get(hexColor.toUpperCase());
-    if (accentKey == null) {
+    if (accentKey == null || !isKnownAccentKey(accentKey)) {
       return hexColor;
     }
-    return renderingContext.getColor(getRingColorAlias(accentKey, ring));
+    try {
+      return renderingContext.getColor(getRingColorAlias(accentKey, ring));
+    } catch {
+      return hexColor;
+    }
   }
 
   // Create sliceTree, fill out the innermost slice ring

@@ -1,4 +1,8 @@
-import { getPickerColorAlias, getRingColorAlias } from "./colors";
+import {
+  createHexToAccentNumberMap,
+  getPickerColorAlias,
+  getRingColorAlias,
+} from "./colors";
 
 describe("getRingColorAlias", () => {
   it("should return the correct color alias for inner ring", () => {
@@ -26,5 +30,13 @@ describe("getPickerColorAlias", () => {
   it("should return the correct color alias for non-numeric accent keys", () => {
     expect(getPickerColorAlias("gray")).toBe("accent-gray-dark");
     expect(getPickerColorAlias("something")).toBe("accent-something-dark");
+  });
+});
+
+describe("createHexToAccentNumberMap", () => {
+  it("should not throw when leftover accent8 aliases are absent from the palette", () => {
+    expect(() => createHexToAccentNumberMap()).not.toThrow();
+    const map = createHexToAccentNumberMap();
+    expect(map.size).toBeGreaterThan(0);
   });
 });
