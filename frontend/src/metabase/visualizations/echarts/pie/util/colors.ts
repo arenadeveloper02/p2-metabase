@@ -1,7 +1,7 @@
 import { match } from "ts-pattern";
 
-import { aliases, colors } from "metabase/lib/colors";
-import { isEmpty } from "metabase/lib/validate";
+import { ACCENT_COUNT, aliases, colors } from "metabase/ui/colors";
+import { isEmpty } from "metabase/utils/validate";
 
 const ACCENT_KEY_PREFIX = "accent";
 
@@ -24,8 +24,8 @@ export function createHexToAccentNumberMap() {
       continue;
     }
     const accentKey = extractAccentKey(colorKey);
-    if (accentKey) {
-      hexToAccentNumber.set(hex, accentKey);
+    if (accentKey && isKnownAccentKey(accentKey) && typeof hex === "string") {
+      hexToAccentNumber.set(hex.toUpperCase(), accentKey);
     }
   }
 
@@ -35,8 +35,14 @@ export function createHexToAccentNumberMap() {
     }
 
     const accentKey = extractAccentKey(colorKey);
-    if (accentKey) {
-      hexToAccentNumber.set(hexGetter(colors), accentKey);
+    if (!accentKey || !isKnownAccentKey(accentKey)) {
+      continue;
+    }
+
+    try {
+      hexToAccentNumber.set(hexGetter(colors).toUpperCase(), accentKey);
+    } catch {
+      // Skip aliases whose base color was removed (e.g. accent8-light).
     }
   }
 
@@ -57,6 +63,14 @@ export function getRingColorAlias(
 
 export function getPickerColorAlias(accentKey: AccentKey) {
   return getColorName(accentKey, "dark");
+}
+
+export function isKnownAccentKey(accentKey: AccentKey) {
+  if (accentKey === "gray") {
+    return true;
+  }
+  const index = Number(accentKey);
+  return Number.isInteger(index) && index >= 0 && index < ACCENT_COUNT;
 }
 
 function getColorName(accentKey: AccentKey, variant: string | null) {

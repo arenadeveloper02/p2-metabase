@@ -11,6 +11,7 @@ import {
   type InteractiveDashboardProps,
 } from "./InteractiveDashboard";
 
+// Unjustified type cast. FIXME
 const DASHBOARD_ID = (window as any).DASHBOARD_ID || dashboardIds.numberId;
 
 export default {
@@ -143,6 +144,9 @@ export default {
       },
       action: "onLoadWithoutCards",
     },
+  },
+  args: {
+    autoRefreshInterval: 0,
   },
 };
 

@@ -64,7 +64,7 @@ describe("scenarios > dashboard > title drill", () => {
           cy.findByTestId("loading-indicator").should("not.exist");
 
           H.getDashboardCard().findByRole("link", { name: "Q1" }).as("title");
-          cy.get("@title").realHover();
+          cy.get("@title").trigger("mouseover");
           cy.get("@title")
             .should("have.attr", "href")
             .and("include", `/question/${questionId}`);
@@ -152,7 +152,7 @@ describe("scenarios > dashboard > title drill", () => {
       it("'contains' filter should still work after title drill through IF the native question field filter's type matches exactly (metabase#16181)", () => {
         checkScalarResult("200");
 
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Text contains").click();
         cy.findByPlaceholderText("Enter some text").type("bb").blur();
         cy.button("Add filter").click();
@@ -161,7 +161,7 @@ describe("scenarios > dashboard > title drill", () => {
         checkScalarResult("12");
 
         // Drill through on the question's title
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("16181").click();
 
         checkFilterLabelAndValue("Filter", "bb");
@@ -178,7 +178,7 @@ describe("scenarios > dashboard > title drill", () => {
       it("'contains' filter should still work after title drill through IF the native question field filter's type matches exactly (metabase#16181)", () => {
         checkScalarResult("200");
 
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Text contains").click();
         cy.findByPlaceholderText("Enter some text").type("bb").blur();
         cy.button("Add filter").click();
@@ -187,7 +187,7 @@ describe("scenarios > dashboard > title drill", () => {
         checkScalarResult("12");
 
         // Drill through on the question's title
-        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+        // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
         cy.findByText("16181").click();
 
         checkFilterLabelAndValue("Filter", "bb");
@@ -337,7 +337,7 @@ describe("scenarios > dashboard > title drill", () => {
         H.queryBuilderMain().findByText("53").should("be.visible");
 
         // make sure the unset id parameter works
-        // eslint-disable-next-line no-unsafe-element-filtering
+        // eslint-disable-next-line metabase/no-unsafe-element-filtering
         H.filterWidget().last().click();
         H.dashboardParametersPopover().within(() => {
           H.fieldValuesCombobox().type("5");
@@ -499,12 +499,12 @@ describe("scenarios > dashboard > title drill", () => {
           { row: 6, col: 6, size_x: 6, size_y: 6 },
         ],
       }).then(({ dashboard, questions }) => {
-        H.visitDashboard(dashboard.id);
+        // Park the cursor off the grid before the dashcards render: a pointer
+        // resting over a title computes that title's href before it is asserted.
+        cy.get("body").realHover({ position: "topLeft" });
 
-        // make cursor start from a place where subsequent realHover() calls
-        // won't make the cursor move over the other cards during test
-        // (which would interfere with assertions)
-        cy.findByTestId("sidebar-toggle").realHover();
+        H.visitDashboard(dashboard.id);
+        H.waitForDashcardsToLoad({ count: 4 });
 
         H.getDashboardCard(0)
           .findByRole("link", { name: "Line chart" })
@@ -519,35 +519,58 @@ describe("scenarios > dashboard > title drill", () => {
           .findByRole("link", { name: "Funnel chart" })
           .as("funnel-chart-title");
 
-        assertTitleHrefOnFocus({
-          elementAlias: "@line-chart-title",
-          href: `/question/${questions[0].id}-line-chart`,
+        const titles = [
+          {
+            elementAlias: "@line-chart-title",
+            href: `/question/${questions[0].id}-line-chart`,
+            trigger: focusTitle,
+          },
+          {
+            elementAlias: "@row-chart-title",
+            href: `/question/${questions[1].id}-row-chart`,
+            trigger: focusTitle,
+          },
+          {
+            elementAlias: "@map-chart-title",
+            href: `/question/${questions[2].id}-map-chart`,
+            trigger: hoverTitle,
+          },
+          {
+            elementAlias: "@funnel-chart-title",
+            href: `/question/${questions[3].id}-funnel-chart`,
+            trigger: hoverTitle,
+          },
+        ];
+
+        cy.log("every title is an inert placeholder before focus and hover");
+        titles.forEach(({ elementAlias }) => {
+          cy.get(elementAlias).should("have.attr", "href", "#");
         });
-        assertTitleHrefOnFocus({
-          elementAlias: "@row-chart-title",
-          href: `/question/${questions[1].id}-row-chart`,
-        });
-        assertTitleHrefOnHover({
-          elementAlias: "@map-chart-title",
-          href: `/question/${questions[2].id}-map-chart`,
-        });
-        assertTitleHrefOnHover({
-          elementAlias: "@funnel-chart-title",
-          href: `/question/${questions[3].id}-funnel-chart`,
-        });
+
+        cy.log("focusing or hovering a title turns it into a question anchor");
+        titles.forEach(assertTitleBecomesQuestionAnchor);
       });
     });
 
-    function assertTitleHrefOnFocus({ elementAlias, href }) {
-      cy.get(elementAlias).should("have.attr", "href", "#");
-      cy.get(elementAlias).focus();
-      cy.get(elementAlias).should("have.attr", "href", href);
+    function focusTitle(element) {
+      element.focus();
     }
 
-    function assertTitleHrefOnHover({ elementAlias, href }) {
-      cy.get(elementAlias).should("have.attr", "href", "#");
-      cy.get(elementAlias).realHover();
-      cy.get(elementAlias).should("have.attr", "href", href);
+    function hoverTitle(element) {
+      const { MouseEvent } = element.ownerDocument.defaultView;
+      element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    }
+
+    /**
+     * The question href is computed lazily on focus/mouseenter, and the anchor
+     * is replaced when it resolves. Re-evaluating the trigger on each retry
+     * keeps the assertion anchored to the node currently in the DOM.
+     */
+    function assertTitleBecomesQuestionAnchor({ elementAlias, href, trigger }) {
+      cy.get(elementAlias).should(($el) => {
+        trigger($el[0]);
+        expect($el).to.have.attr("href", href);
+      });
     }
   });
 

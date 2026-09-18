@@ -61,8 +61,10 @@ export const getDefaultSdkIframeEmbedSettings = ({
         questionId: resourceId,
         drills: true,
         withDownloads: false,
+        withAlerts: false,
         withTitle: true,
         isSaveEnabled: false,
+        initialSqlParameters: {},
       }),
     )
     .with(
@@ -85,6 +87,7 @@ export const getDefaultSdkIframeEmbedSettings = ({
       "metabot",
       (): MetabotEmbedOptions => ({
         componentName: "metabase-metabot",
+        isSaveEnabled: false,
       }),
     )
     .exhaustive();

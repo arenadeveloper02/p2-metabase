@@ -1,5 +1,7 @@
 import {
   createMockCard,
+  createMockDataset,
+  createMockSingleSeries,
   createMockVisualizationSettings,
 } from "metabase-types/api/mocks";
 
@@ -8,7 +10,7 @@ import { getColors } from "./series";
 describe("Series unit settings", () => {
   describe("getColors", () => {
     it("should work for a card with a name", () => {
-      const series = [{ card: createMockCard({ name: "The card" }) }];
+      const series = [createMockSingleSeries({ name: "The card" })];
       const settings = createMockVisualizationSettings({
         "graph.metrics": ["count"],
         "graph.dimensions": ["CATEGORY"],
@@ -16,13 +18,16 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        "The card": "#7172AD",
+        "The card": "#6D717F",
       });
     });
 
     it("should work for a card with a _seriesKey", () => {
       const series = [
-        { card: { ...createMockCard({ name: "Count" }), _seriesKey: "count" } },
+        {
+          card: { ...createMockCard({ name: "Count" }), _seriesKey: "count" },
+          ...createMockDataset(),
+        },
       ];
       const settings = createMockVisualizationSettings({
         "graph.metrics": ["count"],
@@ -31,37 +36,36 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        count: "#509EE3",
+        count: "#1A73E8",
       });
     });
 
     it("should work for visualizer series", () => {
       const series = [
         {
+          card: {
+            ...createMockCard({ name: "Count" }),
+            _seriesKey: "COLUMN_2",
+          },
+          ...createMockDataset(),
           // columnValuesMapping is needed by the color assignment logic
           // because certain series have a specific color based on their name (count, for instance)
-          // see frontend/src/metabase/lib/colors/groups.ts, getPreferredColor()
+          // see frontend/src/metabase/ui/colors/groups.ts, getPreferredColor()
           columnValuesMapping: {
             COLUMN_1: [
               {
-                sourceId: "card:124",
+                sourceId: "card:124" as const,
                 originalName: "CATEGORY",
                 name: "COLUMN_1",
               },
             ],
             COLUMN_2: [
               {
-                sourceId: "card:124",
+                sourceId: "card:124" as const,
                 originalName: "count",
                 name: "COLUMN_2",
               },
             ],
-          },
-          card: {
-            ...createMockCard({
-              name: "Count",
-            }),
-            _seriesKey: "COLUMN_2",
           },
         },
       ];
@@ -82,7 +86,7 @@ describe("Series unit settings", () => {
 
       const colors = getColors(series, settings);
       expect(colors).toEqual({
-        COLUMN_2: "#509EE3", // This is the color for "count"
+        COLUMN_2: "#1A73E8", // This is the color for "count"
       });
     });
   });

@@ -4,11 +4,11 @@ import type { PillSize } from "metabase/common/components/ColorPill";
 import { ColorSelector } from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import { getAccentColors, getStatusColors } from "metabase/lib/colors/groups";
-import type { AccentColorOptions } from "metabase/lib/colors/types";
-import { Box, type BoxProps } from "metabase/ui";
+import { Box } from "metabase/ui";
+import { getAccentColors, getStatusColors } from "metabase/ui/colors/groups";
+import type { AccentColorOptions } from "metabase/ui/colors/types";
 
-interface ChartSettingColorPickerProps extends BoxProps {
+interface ChartSettingColorPickerProps {
   className?: string;
   value: string;
   title?: string;
@@ -32,38 +32,24 @@ export const ChartSettingColorPicker = ({
     gray: true,
   },
   additionalColors = [],
-  ...boxProps
 }: ChartSettingColorPickerProps) => {
   // For the SDK the ColorSelector is rendered inside a parent Mantine popover,
   // so as a nested popover it should not be rendered within a portal
   const withinPortal = !isEmbeddingSdk();
 
-  // Include status colors by default for all charts, but they won't be automatically applied
-  // Users can manually select them from the color palette if needed
-  const defaultAdditionalColors = getStatusColors();
-  const accentColors = getAccentColors(accentColorOptions);
-  
-  // Normalize all colors to uppercase hex format and remove duplicates
-  const normalizeColor = (color: string) => color.toUpperCase();
-  const allColors = [
-    ...accentColors.map(normalizeColor),
-    ...defaultAdditionalColors.map(normalizeColor),
-    ...additionalColors.map(normalizeColor),
-  ];
-  
-  // Remove duplicates while preserving order
-  const uniqueColors = Array.from(new Set(allColors));
-
-  // Filter out invalid Box props
-  const {
-    onChangeSettings,
-    onChangeSeriesColor,
-    onUpdate,
-    ...validBoxProps
-  } = boxProps as any;
+  const normalizeColor = (colorValue: string) => colorValue.toUpperCase();
+  const uniqueColors = Array.from(
+    new Set(
+      [
+        ...getAccentColors(accentColorOptions),
+        ...getStatusColors(),
+        ...additionalColors,
+      ].map(normalizeColor),
+    ),
+  );
 
   return (
-    <Box className={cx(CS.flex, CS.alignCenter, className)} {...validBoxProps}>
+    <Box className={cx(CS.flex, CS.alignCenter, className)}>
       <ColorSelector
         value={value}
         colors={uniqueColors}

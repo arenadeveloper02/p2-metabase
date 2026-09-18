@@ -12,16 +12,16 @@ import Visualization from "metabase/visualizations/components/Visualization";
 import type { RawSeries, Series } from "metabase-types/api";
 import { createMockCard } from "metabase-types/api/mocks";
 
-import RowChart from "./RowChart";
+import { RowChart } from "./RowChart";
 
 export default {
   title: "viz/RowChart",
   component: RowChart,
 };
 
-// @ts-expect-error: incompatible prop types with registerVisualization
 registerVisualization(RowChart);
 
+// Unjustified type cast. FIXME
 const MOCK_SERIES = [
   {
     card: createMockCard({ name: "Card", display: "row" }),
@@ -57,6 +57,7 @@ Default.parameters = {
 };
 
 export const WithLongNames = () => {
+  // Unjustified type cast. FIXME
   const [series, setSeries] = useState([
     {
       card: createMockCard({ name: "Card", display: "row" }),

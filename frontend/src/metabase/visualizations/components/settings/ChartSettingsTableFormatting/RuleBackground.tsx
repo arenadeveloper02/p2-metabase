@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
 
-import { ColorRange } from "metabase/common/components/ColorRange";
 import { Box } from "metabase/ui";
 import type { ColumnFormattingSetting } from "metabase-types/api";
+
+import { ColorRange } from "../ColorRange";
 
 export const RuleBackground = ({
   rule,
@@ -16,5 +17,6 @@ export const RuleBackground = ({
   rule.type === "range" ? (
     <ColorRange colors={rule.colors} className={className} style={style} />
   ) : rule.type === "single" ? (
+    // @ts-expect-error viz settings need to accept hex color values
     <Box className={className} style={style} bg={rule.color} />
   ) : null;

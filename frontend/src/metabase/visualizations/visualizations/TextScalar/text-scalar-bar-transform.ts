@@ -1,4 +1,4 @@
-import { formatValue } from "metabase/lib/formatting";
+import { formatValue } from "metabase/value-formatting";
 import type { TransformSeries } from "metabase/visualizations/components/TransformedVisualization";
 
 export const textScalarToBarTransform: TransformSeries = (rawSeries, settings) => {

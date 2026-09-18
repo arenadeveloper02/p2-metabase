@@ -1,21 +1,26 @@
 import { useField } from "formik";
-import type { ReactNode, Ref } from "react";
+import type { CSSProperties, ChangeEvent, ReactNode, Ref } from "react";
 import { forwardRef, useCallback } from "react";
 
-import FormField from "metabase/common/components/FormField";
-import type { ToggleProps } from "metabase/common/components/Toggle";
-import Toggle from "metabase/common/components/Toggle";
+import { FormField } from "metabase/common/components/FormField";
 import { useUniqueId } from "metabase/common/hooks/use-unique-id";
+import type { SwitchProps } from "metabase/ui";
+import { Switch } from "metabase/ui";
 
-export interface FormToggleProps extends Omit<ToggleProps, "value" | "onBlur"> {
+export interface FormToggleProps extends Omit<
+  SwitchProps,
+  "value" | "onBlur" | "style" | "onChange"
+> {
   name: string;
   title?: string;
   actions?: ReactNode;
   description?: ReactNode;
   optional?: boolean;
+  nullable?: boolean;
+  style?: CSSProperties;
 }
 
-const FormToggle = forwardRef(function FormToggle(
+export const FormToggle = forwardRef(function FormToggle(
   {
     name,
     className,
@@ -23,8 +28,8 @@ const FormToggle = forwardRef(function FormToggle(
     title,
     actions,
     description,
-    onChange,
     optional,
+    nullable: _nullable,
     ...props
   }: FormToggleProps,
   ref: Ref<HTMLDivElement>,
@@ -33,11 +38,10 @@ const FormToggle = forwardRef(function FormToggle(
   const [{ value, onBlur }, { error, touched }, { setValue }] = useField(name);
 
   const handleChange = useCallback(
-    (value: boolean) => {
-      setValue(value);
-      onChange?.(value);
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setValue(event.currentTarget.checked);
     },
-    [setValue, onChange],
+    [setValue],
   );
 
   return (
@@ -52,17 +56,14 @@ const FormToggle = forwardRef(function FormToggle(
       error={touched ? error : undefined}
       optional={optional}
     >
-      <Toggle
+      <Switch
         {...props}
         id={id}
         name={name}
-        value={value ?? false}
+        checked={value ?? false}
         onChange={handleChange}
         onBlur={onBlur}
       />
     </FormField>
   );
 });
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default FormToggle;

@@ -27,8 +27,6 @@
    :type                   :question
    :description            nil
    :display                :table
-   :enable_embedding       false
-   :embedding_params       nil
    :name                   (:name card)
    :parameters             []
    :parameter_mappings     []
@@ -49,9 +47,6 @@
    :cards               []
    :archived            false
    :collection_position nil
-   :enable_embedding    false
-   :embedding_params    nil
-   :embedding_type      nil
    :parameters          []
    :archived_directly   (:archived_directly dashboard)})
 
@@ -72,7 +67,7 @@
 (deftest card-update-test
   (testing :event/card-update
     (mt/with-temp [:model/Card {card-id :id, :as card} (card-properties)]
-      (events/publish-event! :event/card-update {:object card :user-id (mt/user->id :crowberto)})
+      (events/publish-event! :event/card-update {:object card :previous-object card :user-id (mt/user->id :crowberto)})
       (is (=? {:model        "Card"
                :model_id     card-id
                :user_id      (mt/user->id :crowberto)
@@ -86,7 +81,9 @@
 (deftest card-update-shoud-not-contains-public-info-test
   (testing :event/card-update
     (mt/with-temp [:model/Card {card-id :id, :as card} (card-properties)]
-      (events/publish-event! :event/card-update {:object card :user-id (mt/user->id :crowberto)})
+      (events/publish-event! :event/card-update {:object card
+                                                 :previous-object card
+                                                 :user-id (mt/user->id :crowberto)})
       ;; we don't want the public_uuid and made_public_by_id to be recorded in a revision
       ;; otherwise revert a card to earlier revision might toggle the public sharing settings
       (is (empty? (set/intersection #{:public_uuid :made_public_by_id}
@@ -130,9 +127,8 @@
     (mt/with-test-user :rasta
       (mt/with-temp [:model/Dashboard {dashboard-id :id, :as dashboard}]
         (events/publish-event! :event/dashboard-update {:object dashboard :user-id (mt/user->id :rasta)})
-
-       ;; we don't want the public_uuid and made_public_by_id to be recorded in a revision
-       ;; otherwise revert a card to earlier revision might toggle the public sharing settings
+        ;; we don't want the public_uuid and made_public_by_id to be recorded in a revision
+        ;; otherwise revert a card to earlier revision might toggle the public sharing settings
         (is (empty? (set/intersection #{:public_uuid :made_public_by_id}
                                       (->> (t2/select-one-fn :object :model/Revision
                                                              :model       "Dashboard"

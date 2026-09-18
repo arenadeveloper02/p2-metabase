@@ -1,6 +1,6 @@
-import { formatValue } from "metabase/lib/formatting";
-import { formatNullable } from "metabase/lib/formatting/nullable";
-import { isNotNull } from "metabase/lib/types";
+import { formatNullable } from "metabase/utils/formatting";
+import { isNotNull } from "metabase/utils/types";
+import { formatValue } from "metabase/value-formatting";
 import type { TransformSeries } from "metabase/visualizations/components/TransformedVisualization";
 import type { RowValue } from "metabase-types/api";
 
@@ -22,24 +22,21 @@ export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
     acc.set(String(formatNullable(row[dimensionIndex])), row);
     return acc;
   }, new Map<string, RowValue[]>());
-
-  const rowsOrder = settings["funnel.rows"] as any[];
-
+  const rowsOrder = settings["funnel.rows"];
   const seriesSettings: Record<string, { color: string }> = {};
   if (Array.isArray(rowsOrder)) {
-    rowsOrder.forEach((o) => {
-      const dataRow = rowByFormattedKey.get(String(o.key));
-      if (dataRow && o.color) {
+    rowsOrder.forEach((rowOrder) => {
+      const dataRow = rowByFormattedKey.get(String(rowOrder.key));
+      if (dataRow && rowOrder.color) {
         const name = String(
           formatValue(dataRow[dimensionIndex], {
             column: cols[dimensionIndex],
           }),
         );
-        seriesSettings[name] = { color: o.color };
+        seriesSettings[name] = { color: rowOrder.color };
       }
     });
   }
-
   const orderedRows =
     Array.isArray(rowsOrder) && rowsOrder.length > 0
       ? rowsOrder

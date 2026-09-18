@@ -3,37 +3,52 @@ import { useDeepCompareEffect } from "react-use";
 import { t } from "ttag";
 
 import { cardApi, collectionApi, databaseApi, tableApi } from "metabase/api";
-import type { DispatchFn } from "metabase/lib/redux";
-import { useDispatch } from "metabase/lib/redux";
+import { getCollectionItemsOptions } from "metabase/common/components/Pickers/utils";
+import { PLUGIN_LIBRARY } from "metabase/plugins";
+import type { DispatchFn } from "metabase/redux";
+import { useDispatch } from "metabase/redux";
 import type { SchemaName } from "metabase-types/api";
 
 import type { DataPickerValue } from "../DataPicker";
-import type { TablePickerValue } from "../TablePicker";
 
 import {
+  type MiniPickerCollectionFolderItem,
   type MiniPickerCollectionItem,
   type MiniPickerFolderItem,
   MiniPickerFolderModel,
   type MiniPickerItem,
   type MiniPickerPickableItem,
+  type MiniPickerTableItem,
 } from "./types";
 
-export const getOurAnalytics = (): MiniPickerFolderItem => ({
+export const getOurAnalytics = (): MiniPickerCollectionFolderItem => ({
   model: "collection",
-  id: "root" as any, // cmon typescript
+  id: "root",
   name: t`Our analytics`,
-  here: ["card"],
-  below: ["card"],
+  here: ["collection"],
+  below: [
+    "collection",
+    "dashboard",
+    "document",
+    "card",
+    "dataset",
+    "metric",
+    "table",
+    "snippet",
+    "transform",
+  ],
 });
 
 export function useGetPathFromValue({
   value,
   opened,
   libraryCollection,
+  models,
 }: {
   value?: DataPickerValue;
   opened: boolean;
   libraryCollection?: MiniPickerCollectionItem;
+  models: MiniPickerPickableItem["model"][];
 }) {
   const [path, setPath] = useState<MiniPickerFolderItem[]>([]);
   const [isLoadingPath, setIsLoadingPath] = useState(false);
@@ -45,11 +60,13 @@ export function useGetPathFromValue({
     }
     setIsLoadingPath(true);
 
-    getPathFromValue(value, dispatch, libraryCollection).then((newPath) => {
-      setPath(newPath);
-      setIsLoadingPath(false);
-    });
-  }, [value, opened, dispatch, libraryCollection]);
+    getPathFromValue(value, dispatch, libraryCollection, models).then(
+      (newPath) => {
+        setPath(newPath);
+        setIsLoadingPath(false);
+      },
+    );
+  }, [value, opened, dispatch, libraryCollection, models]);
 
   return [path, setPath, { isLoadingPath }] as const;
 }
@@ -57,22 +74,36 @@ export function useGetPathFromValue({
 async function getPathFromValue(
   value: DataPickerValue,
   dispatch: DispatchFn,
-  libraryCollection?: MiniPickerCollectionItem,
+  libraryCollection: MiniPickerCollectionItem | undefined,
+  models: MiniPickerPickableItem["model"][],
 ): Promise<MiniPickerFolderItem[]> {
   if (value.model !== "table") {
-    return getCollectionPathFromValue(value, dispatch, libraryCollection);
+    return getCollectionPathFromValue(
+      value,
+      dispatch,
+      libraryCollection,
+      models,
+    );
   }
 
   const table = await dispatch(
     tableApi.endpoints.getTable.initiate({ id: value.id }),
   ).unwrap();
+
   return table.collection == null
-    ? getTablePathFromValue(value, dispatch)
-    : getCollectionPathFromValue(value, dispatch, libraryCollection);
+    ? getTablePathFromValue(
+        {
+          ...table,
+          model: "table",
+          table_schema: table.schema,
+        },
+        dispatch,
+      )
+    : getCollectionPathFromValue(value, dispatch, libraryCollection, models);
 }
 
 async function getTablePathFromValue(
-  value: TablePickerValue,
+  value: MiniPickerTableItem,
   dispatch: DispatchFn,
 ): Promise<MiniPickerFolderItem[]> {
   // get the list endpoints instead of the single table endpoint
@@ -89,12 +120,19 @@ async function getTablePathFromValue(
   const db = dbs.data.find((db) => db.id === value.db_id);
   const schema: SchemaName | undefined =
     schemas?.length > 1
-      ? schemas.find((sch) => sch === value.schema)
+      ? schemas.find((sch) => sch === value.table_schema)
       : undefined;
   return [
     ...(db ? [{ id: db.id, name: db.name, model: "database" as const }] : []),
     ...(db && schema
-      ? [{ id: schema, name: schema, model: "schema" as const, dbId: db.id }]
+      ? [
+          {
+            id: schema,
+            name: schema,
+            model: "schema" as const,
+            database_id: db.id,
+          },
+        ]
       : []),
   ];
 }
@@ -102,7 +140,8 @@ async function getTablePathFromValue(
 async function getCollectionPathFromValue(
   value: DataPickerValue,
   dispatch: DispatchFn,
-  libraryCollection?: MiniPickerCollectionItem,
+  collectionItem: MiniPickerCollectionItem | undefined,
+  models: MiniPickerPickableItem["model"][],
 ): Promise<MiniPickerFolderItem[]> {
   const table =
     value.model === "table"
@@ -113,13 +152,15 @@ async function getCollectionPathFromValue(
   const card =
     value.model !== "table"
       ? await dispatch(
-          cardApi.endpoints.getCard.initiate({ id: value.id }),
+          cardApi.endpoints.getCard.initiate({ id: Number(value.id) }),
         ).unwrap()
       : null;
 
   const collection = table?.collection ?? card?.collection;
 
-  const location = collection?.effective_location ?? collection?.location;
+  const location = PLUGIN_LIBRARY.isLibrarySubCollectionType(collection?.type)
+    ? collection?.location
+    : (collection?.effective_location ?? collection?.location);
 
   if (!location) {
     return [getOurAnalytics()];
@@ -133,7 +174,7 @@ async function getCollectionPathFromValue(
     collection?.id,
   ].filter(Boolean);
 
-  if (collectionIds.includes(libraryCollection?.id)) {
+  if (collectionIds.includes(collectionItem?.id)) {
     collectionIds.shift(); // pretend the library is at the top level
     locationPath.shift();
   }
@@ -148,6 +189,7 @@ async function getCollectionPathFromValue(
     const collectionItems = await dispatch(
       collectionApi.endpoints.listCollectionItems.initiate({
         id: collectionId,
+        ...getCollectionItemsOptions({ models }),
       }),
     ).unwrap();
 
@@ -160,6 +202,42 @@ async function getCollectionPathFromValue(
     );
 
     if (!nextItem) {
+      if (
+        collectionId === collectionItem?.id &&
+        PLUGIN_LIBRARY.isLibrarySubCollectionType(collection?.type)
+      ) {
+        const promotedItem = collectionItems.data.find(
+          (item) =>
+            item.model === "collection" &&
+            item.id === collectionIds[i + 2] &&
+            item.type === collection.type,
+        );
+
+        const syntheticItem =
+          PLUGIN_LIBRARY.getEntityPickerSyntheticLibraryItem({
+            collectionId: collectionItem.id,
+            type: collection.type,
+            miniPicker: true,
+          });
+
+        if (syntheticItem) {
+          locationPath.push(syntheticItem);
+        }
+
+        if (promotedItem) {
+          locationPath.push({
+            id: promotedItem.id,
+            name: promotedItem.name,
+            model: "collection",
+            here: promotedItem.here,
+            below: promotedItem.below,
+            type: promotedItem.type,
+          });
+          i += 1;
+          continue;
+        }
+      }
+
       break;
     }
 
@@ -169,6 +247,7 @@ async function getCollectionPathFromValue(
       model: "collection",
       here: nextItem.here,
       below: nextItem.below,
+      type: nextItem.type,
     });
   }
 
@@ -188,11 +267,14 @@ export function getFolderAndHiddenFunctions(
       return false;
     }
 
-    if (
-      item.model === MiniPickerFolderModel.Database ||
-      item.model === MiniPickerFolderModel.Schema
-    ) {
+    if (item.model === MiniPickerFolderModel.Database) {
       return true;
+    }
+
+    if (item.model === MiniPickerFolderModel.Schema) {
+      // When the caller opts schemas into the pickable model set, schemas
+      // become terminal and don't drill into tables.
+      return !modelSet.has("schema");
     }
 
     if (item.model !== MiniPickerFolderModel.Collection) {
@@ -224,6 +306,7 @@ export function getFolderAndHiddenFunctions(
       return true;
     }
 
+    // Unjustified type cast. FIXME
     return (
       !modelSet.has(item.model as MiniPickerPickableItem["model"]) &&
       !isFolder(item)
@@ -240,6 +323,7 @@ export const focusFirstMiniPickerItem = () => {
       '[data-testid="mini-picker"] [role="menuitem"]',
     );
     if (firstItem) {
+      // Unjustified type cast. FIXME
       (firstItem as HTMLElement)?.focus?.();
     }
   }, 10);

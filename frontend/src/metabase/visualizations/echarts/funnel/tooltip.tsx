@@ -1,8 +1,9 @@
 import type { TooltipOption } from "echarts/types/dist/shared";
 import type React from "react";
 
-import { formatChangeWithSign, formatValue } from "metabase/lib/formatting";
-import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
+import { formatChangeWithSign } from "metabase/utils/formatting";
+import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
+import { formatValue } from "metabase/value-formatting";
 import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
 import { computeChange } from "metabase/visualizations/lib/numeric";
 import type { ComputedVisualizationSettings } from "metabase/visualizations/types";

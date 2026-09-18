@@ -19,6 +19,12 @@ import {
   SDK_TO_MAIN_APP_TOOLTIP_COLORS_MAPPING,
 } from "metabase/embedding-sdk/theme/embedding-color-palette";
 import type { MantineThemeOverride } from "metabase/ui";
+import type {
+  MetabaseAccentColorKey,
+  MetabaseColorKey,
+} from "metabase/ui/colors";
+import { mapChartColorsToAccents } from "metabase/ui/colors/accents";
+import type { ColorSettings } from "metabase-types/api";
 
 import { colorTuple } from "./color-tuple";
 
@@ -37,6 +43,7 @@ const stripUndefinedKeys = <T>(x: T): unknown =>
 export function getEmbeddingThemeOverride(
   theme: MetabaseTheme,
   font: string | undefined,
+  whitelabeledColors?: ColorSettings | undefined,
 ): MantineThemeOverride {
   const components: MetabaseComponentTheme = merge(
     DEFAULT_EMBEDDED_COMPONENT_THEME,
@@ -56,10 +63,42 @@ export function getEmbeddingThemeOverride(
     },
 
     components: getEmbeddingComponentOverrides(),
+    colors: {},
   };
 
+  // Apply whitelabeled colors from appearance settings
+  for (const key in whitelabeledColors) {
+    if (!override.colors) {
+      override.colors = {};
+    }
+
+    // Unjustified type cast. FIXME
+    override.colors[key as MetabaseColorKey] = colorTuple(
+      whitelabeledColors[key],
+    );
+  }
+
+  // Whitelabel keys flow in here directly (admin form + DB still use the
+  // legacy `brand`/`filter`/`summarize` names), bypassing
+  // SDK_TO_MAIN_APP_COLORS_MAPPING. Mirror them to the `core-*` counterparts
+  // so consumers reading `var(--mb-color-core-brand)` see the whitelabel value.
+  // Temporary compatibility layer for the colors migration (GDGT-2517).
+  if (override.colors) {
+    if (override.colors.brand) {
+      override.colors["core-brand"] = override.colors.brand;
+    }
+    if (override.colors.filter) {
+      override.colors["core-filter"] = override.colors.filter;
+    }
+    if (override.colors.summarize) {
+      override.colors["core-summarize"] = override.colors.summarize;
+    }
+  }
+
   if (theme.colors) {
-    override.colors = {};
+    if (!override.colors) {
+      override.colors = {};
+    }
 
     const userColors = { ...theme.colors };
 
@@ -67,6 +106,7 @@ export function getEmbeddingThemeOverride(
     // For example, if they forgot to define `background-secondary` but have
     // defined `background`, we use it as a fallback.
     for (const key in SDK_MISSING_COLORS_FALLBACK) {
+      // Unjustified type cast. FIXME
       const targetColor = key as MappableSdkColor;
       const fallbackColor = SDK_MISSING_COLORS_FALLBACK[targetColor];
 
@@ -81,10 +121,12 @@ export function getEmbeddingThemeOverride(
 
     // Apply color palette overrides
     for (const name in userColors) {
+      // Unjustified type cast. FIXME
       const color = userColors[name as MetabaseColor];
 
       if (color && typeof color === "string") {
         const themeColorNames =
+          // Unjustified type cast. FIXME
           SDK_TO_MAIN_APP_COLORS_MAPPING[name as MappableSdkColor];
 
         // If the sdk color does not exist in the mapping, skip it.
@@ -101,6 +143,22 @@ export function getEmbeddingThemeOverride(
         }
       }
     }
+
+    if (theme.colors.charts) {
+      const accents = mapChartColorsToAccents(theme.colors.charts);
+
+      for (const _accentKey in accents) {
+        // Unjustified type cast. FIXME
+        const accentKey = _accentKey as MetabaseAccentColorKey;
+        const accentColor = accents[accentKey];
+
+        if (!accentColor) {
+          continue;
+        }
+
+        override.colors[accentKey] = colorTuple(accentColor);
+      }
+    }
   }
 
   if (theme.components?.tooltip) {
@@ -110,6 +168,7 @@ export function getEmbeddingThemeOverride(
 
     for (const _tooltipKey in SDK_TO_MAIN_APP_TOOLTIP_COLORS_MAPPING) {
       type TooltipKey = keyof NonNullable<MetabaseComponentTheme["tooltip"]>;
+      // Unjustified type cast. FIXME
       const tooltipKey = _tooltipKey as TooltipKey;
       const colorKey = SDK_TO_MAIN_APP_TOOLTIP_COLORS_MAPPING[tooltipKey];
       const tooltipColor = theme.components.tooltip[tooltipKey];

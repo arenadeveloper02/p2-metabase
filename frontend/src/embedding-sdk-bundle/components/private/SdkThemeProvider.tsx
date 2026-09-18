@@ -3,36 +3,41 @@ import { Global } from "@emotion/react";
 import { useContext, useId, useMemo } from "react";
 
 import { DEFAULT_FONT } from "embedding-sdk-bundle/config";
-import { getEmbeddingThemeOverride } from "embedding-sdk-bundle/lib/theme";
-import type { MetabaseTheme } from "embedding-sdk-bundle/types/ui";
+import { useEmbeddingThemeOverride } from "embedding-sdk-bundle/hooks/private/use-embedding-theme-override";
+import type { SdkStore } from "embedding-sdk-bundle/store/types";
 import { EnsureSingleInstance } from "embedding-sdk-shared/components/EnsureSingleInstance/EnsureSingleInstance";
-import { applyThemePreset } from "embedding-sdk-shared/lib/apply-theme-preset";
-import { useSetting } from "metabase/common/hooks";
-import { setGlobalEmbeddingColors } from "metabase/embedding-sdk/theme/embedding-color-palette";
-import { useSelector } from "metabase/lib/redux";
+import {
+  type MetabaseEmbeddingTheme,
+  isEmbeddingThemeV1,
+} from "metabase/embedding-sdk/theme";
+import { MetabaseReduxProvider, useSelector } from "metabase/redux";
+import { useSetting } from "metabase/settings";
 import { getFont } from "metabase/styled-components/selectors";
 import { getMetabaseSdkCssVariables } from "metabase/styled-components/theme/css-variables";
 import { ThemeProvider, useMantineTheme } from "metabase/ui";
 import { ThemeProviderContext } from "metabase/ui/components/theme/ThemeProvider/context";
+import type { ResolvedColorScheme } from "metabase/utils/color-scheme";
 
 interface Props {
-  theme?: MetabaseTheme;
+  theme?: MetabaseEmbeddingTheme;
   children: React.ReactNode;
 }
 
+const getResolvedColorSchemeFromTheme = (
+  theme: MetabaseEmbeddingTheme | undefined,
+): ResolvedColorScheme | undefined => {
+  if (!isEmbeddingThemeV1(theme)) {
+    return undefined;
+  }
+  return theme.preset === "dark" || theme.preset === "light"
+    ? theme.preset
+    : undefined;
+};
+
 export const SdkThemeProvider = ({ theme, children }: Props) => {
-  const font = useSelector(getFont);
-  const appColors = useSetting("application-colors");
+  const themeOverride = useEmbeddingThemeOverride(theme);
 
-  const themeOverride = useMemo(() => {
-    const themeWithPreset = applyThemePreset(theme);
-
-    // !! Mutate the global colors object to apply the new colors.
-    // This must be done before ThemeProvider calls getThemeOverrides.
-    setGlobalEmbeddingColors(themeWithPreset?.colors, appColors ?? {});
-
-    return getEmbeddingThemeOverride(themeWithPreset || {}, font);
-  }, [appColors, theme, font]);
+  const resolvedColorScheme = getResolvedColorSchemeFromTheme(theme);
 
   const { withCssVariables, withGlobalClasses } =
     useContext(ThemeProviderContext);
@@ -51,7 +56,11 @@ export const SdkThemeProvider = ({ theme, children }: Props) => {
             withGlobalClasses: withGlobalClasses ?? isInstanceToRender,
           }}
         >
-          <ThemeProvider theme={themeOverride}>
+          <ThemeProvider
+            theme={themeOverride}
+            resolvedColorScheme={resolvedColorScheme}
+            cssVariablesSelector=".mb-wrapper"
+          >
             {isInstanceToRender && <GlobalSdkCssVariables />}
 
             {children}
@@ -62,16 +71,33 @@ export const SdkThemeProvider = ({ theme, children }: Props) => {
   );
 };
 
+/**
+ * `SdkThemeProvider` reads whitelabel colors and the font from the SDK redux
+ * store, so it can only render under a redux provider. Hosts that sit outside
+ * the SDK component tree (the data-app dev preview reaches this through the
+ * bundle global) use this variant, which brings its own provider — the same
+ * pattern as `MetabotSubscriber`.
+ */
+export const SdkThemeProviderWithStore = ({
+  store,
+  theme,
+  children,
+}: Props & { store: SdkStore }) => (
+  <MetabaseReduxProvider store={store}>
+    <SdkThemeProvider theme={theme}>{children}</SdkThemeProvider>
+  </MetabaseReduxProvider>
+);
+
 function GlobalSdkCssVariables() {
   const theme = useMantineTheme();
+  const whitelabelColors = useSetting("application-colors");
 
   // the default is needed for when the sdk can't connect to the instance and get the default from there
   const font = useSelector(getFont) ?? DEFAULT_FONT;
 
-  const styles = useMemo(
-    () => getMetabaseSdkCssVariables(theme, font),
-    [theme, font],
-  );
+  const styles = useMemo(() => {
+    return getMetabaseSdkCssVariables({ theme, font, whitelabelColors });
+  }, [theme, font, whitelabelColors]);
 
   return <Global styles={styles} />;
 }

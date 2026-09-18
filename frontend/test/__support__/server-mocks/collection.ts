@@ -1,7 +1,7 @@
 import fetchMock from "fetch-mock";
 import _ from "underscore";
 
-import { ROOT_COLLECTION } from "metabase/entities/collections/constants";
+import { ROOT_COLLECTION } from "metabase/common/collections/constants";
 import {
   SAVED_QUESTIONS_VIRTUAL_DB_ID,
   convertSavedQuestionToVirtualTable,
@@ -79,7 +79,11 @@ export function setupCollectionsEndpoints({
     const excludeOtherUserCollections =
       url.searchParams.get("exclude-other-user-collections") === "true";
 
+    // Support both singular "namespace" and plural "namespaces" params
     const namespace = url.searchParams.get("namespace");
+    const namespaces = url.searchParams.getAll("namespaces");
+    const requestedNamespaces =
+      namespaces.length > 0 ? namespaces : namespace ? [namespace] : null;
 
     return collections.filter((collection) => {
       // Filter out other users' personal collections if requested
@@ -97,16 +101,19 @@ export function setupCollectionsEndpoints({
         return false;
       }
 
-      // Filter by namespace if specified
-      if (namespace && collection.namespace !== namespace) {
-        return false;
-      }
-
-      // By default, exclude tenant collections unless explicitly requested via namespace
-      const isTenantCollection =
-        collection.namespace === "shared-tenant-collection";
-      if (isTenantCollection && namespace !== "shared-tenant-collection") {
-        return false;
+      // Filter by namespace(s) if specified
+      if (requestedNamespaces) {
+        const collectionNamespace = collection.namespace ?? "";
+        if (!requestedNamespaces.includes(collectionNamespace)) {
+          return false;
+        }
+      } else {
+        // By default, exclude tenant collections unless explicitly requested via namespace
+        const isTenantCollection =
+          collection.namespace === "shared-tenant-collection";
+        if (isTenantCollection) {
+          return false;
+        }
       }
 
       return true;
@@ -148,6 +155,16 @@ export function setupCollectionVirtualSchemaEndpoints(
   });
 }
 
+function matchesPinnedState(item: CollectionItem, pinnedState: string | null) {
+  if (pinnedState === "is_pinned") {
+    return item.collection_position != null;
+  }
+  if (pinnedState === "is_not_pinned") {
+    return item.collection_position == null;
+  }
+  return true;
+}
+
 function handleCollectionItemsResponse({
   call,
   collectionItems,
@@ -159,23 +176,40 @@ function handleCollectionItemsResponse({
 }) {
   const url = new URL(call.url);
   const models = modelsParam ?? url.searchParams.getAll("models");
+  const pinnedState = url.searchParams.get("pinned_state");
 
-  // When the models filter is an empty array, return all items.
-  // In the API, omitting the `models` param returns all collection items.
-  const matchedItems =
-    models.length === 0
-      ? collectionItems
-      : collectionItems.filter(({ model }) => models.includes(model));
+  // As in the API, requesting no models at all returns every item.
+  const matchedItems: CollectionItem[] = models.includes("no_models")
+    ? []
+    : collectionItems
+        .filter(({ model }) => models.length === 0 || models.includes(model))
+        .filter((item) => matchesPinnedState(item, pinnedState));
 
-  const limit = Number(url.searchParams.get("limit")) || matchedItems.length;
+  const q = url.searchParams.get("q")?.toLowerCase().trim();
+  const searchedItems = q
+    ? matchedItems.filter(({ name }) => name.toLowerCase().includes(q))
+    : matchedItems;
+
+  const limit = Number(url.searchParams.get("limit")) || searchedItems.length;
   const offset = Number(url.searchParams.get("offset")) || 0;
 
-  return {
-    data: matchedItems.slice(offset, offset + limit),
-    total: matchedItems.length,
+  const response = {
+    data: searchedItems.slice(offset, offset + limit),
+    total: searchedItems.length,
     models,
     limit,
     offset,
+  };
+
+  if (url.searchParams.get("include_available_models") !== "true") {
+    return response;
+  }
+
+  return {
+    ...response,
+    available_models: Array.from(
+      new Set(collectionItems.map((item) => item.model)),
+    ),
   };
 }
 
@@ -333,11 +367,12 @@ export function setupCollectionByIdEndpoint({
     setupCollectionWithErrorById({ error });
     return;
   }
-
-  fetchMock.get(/api\/collection\/(\d+|root)$/, (call) => {
+  // https://regexr.com/8jbva
+  const collectionPathRegex =
+    /api\/collection\/(\d+|root)(\?namespace=[\w\-]+)*$/;
+  fetchMock.get(collectionPathRegex, (call) => {
     const urlString = call.url;
-    const parts = urlString.split("/");
-    const collectionIdParam = parts[parts.length - 1];
+    const collectionIdParam = collectionPathRegex.exec(urlString)?.[1];
     const collectionId =
       collectionIdParam === "root" ? "root" : Number(collectionIdParam);
 
@@ -393,5 +428,47 @@ export function setupDashboardQuestionCandidatesEndpoint(
 export function setupStaleItemsEndpoint(total: number) {
   fetchMock.get("express:/api/ee/stale/:id", {
     total,
+  });
+}
+
+export function setupCreateCollectionEndpoint(
+  collection: Collection = createMockCollection(),
+) {
+  fetchMock.post("path:/api/collection", collection, {
+    name: "create-collection",
+  });
+}
+
+export function setupUpdateCollectionEndpoint(collection: Collection) {
+  fetchMock.put(`path:/api/collection/${collection.id}`, collection, {
+    name: `update-collection-${collection.id}`,
+  });
+}
+
+export function setupDeleteCollectionEndpoint(collectionId: number) {
+  fetchMock.delete(
+    `path:/api/collection/${collectionId}`,
+    { success: true },
+    {
+      name: `delete-collection-${collectionId}`,
+    },
+  );
+}
+
+export function setupGetCollectionEndpoint(collection: Collection) {
+  fetchMock.get(`path:/api/collection/${collection.id}`, collection, {
+    name: `get-collection-${collection.id}`,
+  });
+}
+
+/**
+ * Setup a simple collection tree endpoint that returns collections without filtering.
+ * Use this when you need to test components that use useListCollectionsTreeQuery
+ * without the complexity of namespace filtering.
+ */
+export function setupCollectionTreeEndpoint(collections: Collection[]) {
+  fetchMock.removeRoute("collection-tree-simple");
+  fetchMock.get("path:/api/collection/tree", collections, {
+    name: "collection-tree-simple",
   });
 }

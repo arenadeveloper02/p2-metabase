@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
-import { Box, Icon, type IconName, Text } from "metabase/ui";
+import { Box, Icon, Text } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import { EntityNameCell } from "./EntityNameCell";
 import { TreeTable } from "./TreeTable";
@@ -131,7 +132,7 @@ const detailedColumns: TreeTableColumnDef<CollectionItem>[] = [
     header: "Type",
     width: 100,
     cell: ({ row }) => (
-      <Text c="text-medium" size="sm" tt="capitalize">
+      <Text c="text-secondary" size="sm" tt="capitalize">
         {row.original.type}
       </Text>
     ),
@@ -142,7 +143,7 @@ const detailedColumns: TreeTableColumnDef<CollectionItem>[] = [
     width: 140,
     cell: ({ row }) =>
       row.original.owner ? (
-        <Text c="text-medium" size="sm">
+        <Text c="text-secondary" size="sm">
           {row.original.owner}
         </Text>
       ) : null,
@@ -153,7 +154,7 @@ const detailedColumns: TreeTableColumnDef<CollectionItem>[] = [
     width: 120,
     cell: ({ row }) =>
       row.original.lastEdited ? (
-        <Text c="text-medium" size="sm">
+        <Text c="text-secondary" size="sm">
           {row.original.lastEdited}
         </Text>
       ) : null,
@@ -246,6 +247,7 @@ export const LargeDataset = {
 export const EmptyState = {
   render: function EmptyStateStory() {
     const instance = useTreeTableInstance({
+      // Unjustified type cast. FIXME
       data: [] as CollectionItem[],
       columns: detailedColumns,
       getSubRows: (node) => node.children,
@@ -258,8 +260,8 @@ export const EmptyState = {
           instance={instance}
           emptyState={
             <Box ta="center" py="xl">
-              <Icon name="folder" size={48} c="text-light" />
-              <Text c="text-medium" mt="md">
+              <Icon name="folder" size={48} c="text-disabled" />
+              <Text c="text-secondary" mt="md">
                 This collection is empty
               </Text>
             </Box>

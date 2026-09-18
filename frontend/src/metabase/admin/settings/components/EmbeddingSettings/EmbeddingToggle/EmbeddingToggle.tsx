@@ -2,8 +2,11 @@ import { useDisclosure } from "@mantine/hooks";
 import type { ChangeEvent } from "react";
 import { t } from "ttag";
 
-import { useAdminSetting, useAdminSettings } from "metabase/api/utils";
-import { useSetting } from "metabase/common/hooks";
+import {
+  useAdminSetting,
+  useAdminSettings,
+  useSetting,
+} from "metabase/settings";
 import { Switch, type SwitchProps, Text } from "metabase/ui";
 
 import { EmbeddingLegaleseModal } from "../EmbeddingLegaleseModal";
@@ -38,9 +41,7 @@ export function EmbeddingToggle({
   ] = useDisclosure(false);
 
   if (settingDetails?.is_env_setting) {
-    return (
-      <Text c="var(--mb-color-text-secondary)">{t`Set via environment variable`}</Text>
-    );
+    return <Text c="text-secondary">{t`Set via environment variable`}</Text>;
   }
 
   const isEnabled =

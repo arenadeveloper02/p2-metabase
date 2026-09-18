@@ -14,9 +14,9 @@ import { useSdkSelector } from "embedding-sdk-bundle/store";
 import { getIsGuestEmbed } from "embedding-sdk-bundle/store/selectors";
 import { useLocale } from "metabase/common/hooks/use-locale";
 import CS from "metabase/css/core/index.css";
-import QueryVisualization from "metabase/query_builder/components/QueryVisualization";
+import { PLUGIN_CONTENT_TRANSLATION } from "metabase/plugins";
+import { QueryVisualization } from "metabase/querying/components/QueryVisualization";
 import type Question from "metabase-lib/v1/Question";
-import type { CardDisplayType } from "metabase-types/api";
 
 import { useSdkQuestionContext } from "../context";
 
@@ -52,7 +52,6 @@ export const QuestionVisualization = ({
     updateQuestion,
     originalId,
     onVisualizationChange,
-    token,
   } = useSdkQuestionContext();
   const isGuestEmbed = useSdkSelector(getIsGuestEmbed);
 
@@ -60,9 +59,21 @@ export const QuestionVisualization = ({
 
   useEffect(() => {
     if (display && onVisualizationChange) {
-      onVisualizationChange(display as CardDisplayType);
+      onVisualizationChange(display);
     }
   }, [display, onVisualizationChange]);
+
+  const [result] = queryResults ?? [];
+  const card = question?.card();
+
+  const untranslatedRawSeries = useMemo(
+    () => (card ? [{ card, data: result && result.data }] : []),
+    [card, result],
+  );
+
+  const rawSeries = PLUGIN_CONTENT_TRANSLATION.useTranslateSeries(
+    untranslatedRawSeries,
+  );
 
   // When visualizing a question for the first time, there is no query result yet.
   const isQueryResultLoading =
@@ -80,9 +91,6 @@ export const QuestionVisualization = ({
     }
   }
 
-  const [result] = queryResults ?? [];
-  const card = question.card();
-
   return (
     <FlexibleSizeComponent
       height={height}
@@ -93,16 +101,15 @@ export const QuestionVisualization = ({
       <QueryVisualization
         className={cx(CS.flexFull, CS.fullWidth, CS.fullHeight)}
         question={question}
-        rawSeries={[{ card, data: result && result.data }]}
+        rawSeries={rawSeries}
         isRunning={isQueryRunning}
         isObjectDetail={false}
         isResultDirty={false}
         isNativeEditorOpen={false}
         result={result}
         noHeader
-        mode={mode}
-        token={token}
-        navigateToNewCardInsideQB={navigateToNewCard}
+        mode={mode ?? undefined}
+        navigateToNewCardInsideQB={navigateToNewCard ?? undefined}
         onNavigateBack={onNavigateBack}
         onUpdateQuestion={(question: Question) =>
           updateQuestion(question, { run: false })

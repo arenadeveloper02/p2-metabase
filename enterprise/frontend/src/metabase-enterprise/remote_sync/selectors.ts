@@ -1,7 +1,8 @@
 import { createSelector } from "@reduxjs/toolkit";
 
+import type { State } from "metabase/redux/store";
+import { getSetting } from "metabase/settings";
 import { remoteSyncApi } from "metabase-enterprise/api";
-import type { State } from "metabase-types/store";
 
 import { initialState } from "./sync-task-slice";
 import type { RemoteSyncStoreState } from "./types";
@@ -39,9 +40,29 @@ export const getIsError = createSelector(
   (currentTask) => currentTask?.status === "errored",
 );
 
+export const getIsStalled = createSelector(
+  getCurrentTask,
+  (currentTask) => currentTask?.status === "timed-out",
+);
+
+export const getLastProgressReportAt = createSelector(
+  getCurrentTask,
+  (currentTask) => currentTask?.last_progress_report_at ?? null,
+);
+
+export const getIsSuccess = createSelector(
+  getCurrentTask,
+  (currentTask) => currentTask?.status === "successful",
+);
+
 export const getErrorMessage = createSelector(
   getCurrentTask,
   (currentTask) => currentTask?.error_message ?? "",
+);
+
+export const getTaskOutcome = createSelector(
+  getCurrentTask,
+  (currentTask) => currentTask?.outcome ?? null,
 );
 
 export const getHasPendingMutation = createSelector(
@@ -55,4 +76,19 @@ export const getHasPendingMutation = createSelector(
       (mutation) => mutation?.status === "pending",
     );
   },
+);
+
+/**
+ * Checks if the remote sync is enabled and in read-only mode.
+ */
+export const getIsRemoteSyncReadOnly = (state: State): boolean => {
+  return !!(
+    getSetting(state, "remote-sync-enabled") &&
+    getSetting(state, "remote-sync-type") === "read-only"
+  );
+};
+
+export const getSyncConflictVariant = createSelector(
+  getRemoteSyncState,
+  (state) => state.syncConflictVariant,
 );

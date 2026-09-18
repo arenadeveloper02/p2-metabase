@@ -37,7 +37,7 @@
   [response]
   (if (and (map? response) (contains? response :body))
     response
-    {:body response, :status 200}))
+    (with-meta {:body response, :status 200} (meta response))))
 
 (defn clear-session-cookie
   "Add a header to `response` to clear the current Metabase session cookie."
@@ -121,13 +121,16 @@
     metabase-embedded-session-cookie))
 
 (defn- use-permanent-cookies?
-  "Check if we should use permanent cookies for a given request, which are not cleared when a browser sesion ends."
+  "Check if we should use permanent cookies for a given request, which are not cleared when a browser session ends."
   [request]
   (if (session.settings/session-cookies)
     ;; Disallow permanent cookies if MB_SESSION_COOKIES is set
     false
     ;; Otherwise check whether the user selected "remember me" during login
-    (get-in request [:body :remember])))
+    (let [body (:body request)]
+      (if (map? body)
+        (or (get body "remember") (get body :remember))
+        false))))
 
 (mu/defn set-session-cookies
   "Add the appropriate cookies to the `response` for the Session."

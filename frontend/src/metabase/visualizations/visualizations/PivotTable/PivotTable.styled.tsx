@@ -3,8 +3,8 @@ import { css } from "@emotion/react";
 // eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
-import { adjustBrightness, alpha, color } from "metabase/lib/colors";
 import type { MantineTheme } from "metabase/ui";
+import { color } from "metabase/ui/colors";
 
 import { CELL_HEIGHT, RESIZE_HANDLE_WIDTH } from "./constants";
 
@@ -22,14 +22,19 @@ export const RowToggleIconRoot = styled.div`
 
 function getRowToggleStyle({ theme }: { theme: MantineTheme }) {
   const { textColor, backgroundColor } = theme.other.pivotTable.rowToggle;
-  const hoverColor = adjustBrightness(backgroundColor, 0.2, 0.2);
+  const resolvedText = color(textColor);
+  const resolvedBackground = color(backgroundColor);
 
   return css`
-    color: ${color(textColor)};
-    background-color: ${color(backgroundColor)};
+    color: ${resolvedText};
+    background-color: ${resolvedBackground};
 
     &:hover {
-      background-color: ${color(hoverColor)};
+      background-color: color-mix(
+        in srgb,
+        ${resolvedBackground} 80%,
+        var(--mb-color-text-primary) 20%
+      );
     }
   `;
 }
@@ -37,62 +42,70 @@ function getRowToggleStyle({ theme }: { theme: MantineTheme }) {
 interface PivotTableCellProps {
   isBold?: boolean;
   isEmphasized?: boolean;
+  isGrandTotal?: boolean;
+  isHeader?: boolean;
   isBorderedHeader?: boolean;
   hasTopBorder?: boolean;
   isTransparent?: boolean;
 }
 
+const GRID_LINE = "var(--mb-color-border-neutral)";
+const CELL_BACKGROUND = "var(--mb-color-background_page-primary)";
+
+const mixWithPrimaryText = (base: string, amount: number) =>
+  `color-mix(in srgb, var(--mb-color-text-primary) ${amount}%, ${base})`;
+
 const getCellBackgroundColor = ({
   theme,
   isEmphasized,
+  isGrandTotal,
+  isHeader,
   isTransparent,
 }: Partial<PivotTableCellProps> & { theme: MantineTheme }) => {
   const backgroundColor = theme.other.table.cell.backgroundColor;
-  const isDarkMode = theme.other.colorScheme === "dark";
+  const baseBackground = backgroundColor
+    ? color(backgroundColor)
+    : CELL_BACKGROUND;
 
   if (isTransparent) {
     return "transparent";
   }
 
+  if (isGrandTotal) {
+    return mixWithPrimaryText(baseBackground, 16);
+  }
+
   if (isEmphasized) {
-    if (isDarkMode) {
-      return color("bg-black");
-    }
-
-    if (backgroundColor) {
-      return adjustBrightness(backgroundColor, 0.15, 0.05);
-    }
-
-    return alpha("border", 0.25);
+    return mixWithPrimaryText(baseBackground, 8);
   }
 
-  if (isDarkMode) {
-    return alpha("bg-black", 0.1);
+  if (isHeader) {
+    return `color-mix(in srgb, var(--mb-color-border-neutral) 12%, ${baseBackground})`;
   }
 
-  return color(backgroundColor ?? "bg-white");
+  return baseBackground;
 };
 
 const getCellHoverBackground = (
   props: PivotTableCellProps & { theme: MantineTheme },
 ) => {
+  const backgroundColor = getCellBackgroundColor(props);
+
+  if (props.isEmphasized || props.isGrandTotal || props.isHeader) {
+    return `color-mix(in srgb, ${backgroundColor} 88%, transparent)`;
+  }
+
   const { cell: cellTheme } = props.theme.other.table;
 
   if (!cellTheme.backgroundColor) {
-    return "var(--mb-color-border)";
+    return "var(--mb-color-border-neutral)";
   }
 
-  const backgroundColor = getCellBackgroundColor(props);
-
-  return adjustBrightness(backgroundColor, 0.15, 0.1);
+  return `color-mix(in srgb, ${backgroundColor} 85%, var(--mb-color-text-primary) 15%)`;
 };
 
 const getColor = ({ theme }: PivotTableCellProps & { theme: MantineTheme }) => {
-  if (theme.other.colorScheme === "dark") {
-    return color("text-white");
-  }
-
-  return color(theme.other.table.cell.textColor);
+  return theme.other.table.cell.textColor ?? "var(--mb-color-text-primary)";
 };
 
 const borderRight = css`
@@ -102,7 +115,7 @@ const borderRight = css`
     top: 0;
     right: 0;
     height: 100%;
-    border-right: 1px solid ${color("border-subtle")};
+    border-right: 1px solid ${GRID_LINE};
   }
 `;
 
@@ -113,22 +126,18 @@ export const PivotTableCell = styled.div<PivotTableCellProps>`
   line-height: ${CELL_HEIGHT}px;
   min-width: 0;
   min-height: 0;
-  font-weight: ${(props) => (props.isBold ? "bold" : "normal")};
+  font-weight: ${(props) => (props.isBold ? 700 : 400)};
   cursor: ${(props) => (props.onClick ? "pointer" : "default")};
   color: ${getColor};
   ${borderRight}
-  border-bottom: 1px solid
-    ${(props) =>
-    props.isBorderedHeader
-      ? color("border-secondary")
-      : "var(--mb-color-table-border)"};
+  border-bottom: 1px solid ${GRID_LINE};
   background-color: ${getCellBackgroundColor};
   ${(props) =>
     props.hasTopBorder &&
     css`
       /* compensate the top border */
       line-height: ${CELL_HEIGHT - 1}px;
-      border-top: 1px solid ${color("border-subtle")};
+      border-top: 1px solid ${GRID_LINE};
     `}
 
   &:hover {
@@ -136,16 +145,14 @@ export const PivotTableCell = styled.div<PivotTableCellProps>`
   }
 `;
 
-interface PivotTableTopLeftCellsContainerProps {}
-
-export const PivotTableTopLeftCellsContainer = styled.div<PivotTableTopLeftCellsContainerProps>`
+export const PivotTableTopLeftCellsContainer = styled.div`
   display: flex;
   align-items: flex-end;
   position: relative;
   ${borderRight}
   background-color: ${(props) =>
     getCellBackgroundColor({
-      isEmphasized: true,
+      isHeader: true,
       theme: props.theme,
     })};
 `;
@@ -165,7 +172,7 @@ export const PivotTableRoot = styled.div<PivotTableRootProps>`
   ${(props) =>
     props.isDashboard
       ? css`
-          border-top: 1px solid ${color("border-subtle")};
+          border-top: 1px solid ${GRID_LINE};
         `
       : null}
 
@@ -205,7 +212,7 @@ export const PivotTableRoot = styled.div<PivotTableRootProps>`
 
 export const PivotTableSettingLabel = styled.span`
   font-weight: 700;
-  color: var(--mb-color-text-dark);
+  color: var(--mb-color-text-primary);
 `;
 
 export const ResizeHandle = styled.div`
@@ -218,10 +225,10 @@ export const ResizeHandle = styled.div`
   cursor: ew-resize;
 
   &:active {
-    background-color: var(--mb-color-brand);
+    background-color: var(--mb-color-core-brand);
   }
 
   &:hover {
-    background-color: var(--mb-color-brand);
+    background-color: var(--mb-color-core-brand);
   }
 `;

@@ -2,14 +2,15 @@ import type { FunctionComponent, ReactNode, Ref } from "react";
 import { forwardRef } from "react";
 
 import type { ActionFormFieldProps } from "metabase/actions/types";
-import FormInputWidget from "metabase/common/components/FormInput";
-import FormNumericInputWidget from "metabase/common/components/FormNumericInput";
-import FormSelectWidget from "metabase/common/components/FormSelect";
-import FormTextAreaWidget from "metabase/common/components/FormTextArea";
-import FormBooleanWidget from "metabase/common/components/FormToggle";
+import { FormToggle as FormBooleanWidget } from "metabase/common/components/FormToggle";
 import { FormRadioGroup, type FormRadioGroupProps } from "metabase/forms";
 import { Radio, Stack } from "metabase/ui";
 import type { InputComponentType } from "metabase-types/api";
+
+import { FormInputWidget } from "./FormInputWidget";
+import { FormNumberInputWidget } from "./FormNumberInputWidget";
+import { FormSelectWidget } from "./FormSelectWidget";
+import { FormTextareaWidget } from "./FormTextareaWidget";
 
 type RadioOption = {
   name: string;
@@ -47,8 +48,8 @@ const WIDGETS: Record<InputComponentType, FunctionComponent<any>> = {
   date: FormInputWidget,
   time: FormInputWidget,
   "datetime-local": FormInputWidget,
-  textarea: FormTextAreaWidget,
-  number: FormNumericInputWidget,
+  textarea: FormTextareaWidget,
+  number: FormNumberInputWidget,
   boolean: FormBooleanWidget,
   radio: VerticalRadio,
   select: FormSelectWidget,

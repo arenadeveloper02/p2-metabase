@@ -1,108 +1,106 @@
-import dayjs from "dayjs";
 import { useState } from "react";
+import { match } from "ts-pattern";
 import { t } from "ttag";
 
+import { dayjs } from "metabase/dayjs";
 import {
   SingleDatePicker,
   type SingleDatePickerValue,
-} from "metabase/querying/filters/components/DatePicker/SpecificDatePicker/SingleDatePicker";
-import type { RelativeDatePickerValue } from "metabase/querying/filters/types";
+} from "metabase/querying/common/components/DatePicker/SpecificDatePicker/SingleDatePicker";
+import type { DatePickerOperator } from "metabase/querying/common/types";
+import { RollingDateDefaultShortcuts } from "metabase/querying/parameters/components/RollingDateDefaultShortcuts";
 import {
   deserializeDateParameterValue,
   serializeDateParameterValue,
 } from "metabase/querying/parameters/utils/parsing";
 import {
-  dateParameterValueToSingleDate,
-  resolveDateSingleParameterValueToString,
-} from "metabase/querying/parameters/utils/relative-date-to-range";
+  findRollingDateDefault,
+  resolveRollingDateParameterValue,
+} from "metabase/querying/parameters/utils/rolling-date-defaults";
 import { Button } from "metabase/ui";
 import type { ParameterValueOrArray } from "metabase-types/api";
 
 type DateSingleWidgetProps = {
   value: ParameterValueOrArray | null | undefined;
   submitButtonLabel?: string;
+  showRollingDefaults?: boolean;
+  availableOperators?: DatePickerOperator[];
   onChange: (value: string) => void;
-};
-
-type WidgetState = {
-  pickerValue: SingleDatePickerValue;
-  relativeValue: RelativeDatePickerValue | null;
-  isSpecific: boolean;
 };
 
 export function DateSingleWidget({
   value,
   submitButtonLabel = t`Apply`,
+  showRollingDefaults = false,
   onChange,
 }: DateSingleWidgetProps) {
-  const [state, setState] = useState(() => getInitialState(value));
+  const [pickerValue, setPickerValue] = useState(
+    () => getInitialPickerValue(value),
+  );
+  const [selectedShortcut, setSelectedShortcut] = useState(
+    () => findRollingDateDefault("date/single", value)?.value ?? null,
+  );
 
-  const handlePickerChange = (pickerValue: SingleDatePickerValue) => {
-    setState({
-      pickerValue,
-      relativeValue: null,
-      isSpecific: true,
-    });
+  const handleShortcutChange = (token: string) => {
+    const shortcut = findRollingDateDefault("date/single", token);
+    if (shortcut == null) {
+      return;
+    }
+
+    setPickerValue(getInitialPickerValue(shortcut.resolve()));
+    setSelectedShortcut(token);
+  };
+
+  const handlePickerChange = (nextValue: SingleDatePickerValue) => {
+    setPickerValue(nextValue);
+    setSelectedShortcut(null);
   };
 
   const handleSubmit = () => {
-    if (!state.isSpecific && state.relativeValue != null) {
-      const resolved = resolveDateSingleParameterValueToString(
-        serializeDateParameterValue(state.relativeValue),
-      );
-      onChange(resolved ?? getSpecificWidgetValue(state.pickerValue));
-    } else {
-      onChange(getSpecificWidgetValue(state.pickerValue));
-    }
+    onChange(selectedShortcut ?? getWidgetValue(pickerValue));
   };
 
   return (
-    <SingleDatePicker
-      value={state.pickerValue}
-      hasTimeToggle
-      renderSubmitButton={() => (
-        <Button type="submit" variant="filled">
-          {submitButtonLabel}
-        </Button>
+    <>
+      {showRollingDefaults && (
+        <RollingDateDefaultShortcuts
+          parameterType="date/single"
+          value={selectedShortcut}
+          onChange={handleShortcutChange}
+        />
       )}
-      onChange={handlePickerChange}
-      onSubmit={handleSubmit}
-    />
+      <SingleDatePicker
+        value={pickerValue}
+        hasTimeToggle
+        renderSubmitButton={() => (
+          <Button type="submit" variant="filled">
+            {submitButtonLabel}
+          </Button>
+        )}
+        onChange={handlePickerChange}
+        onSubmit={handleSubmit}
+      />
+    </>
   );
 }
 
-function getInitialState(
+function getInitialPickerValue(
   value: ParameterValueOrArray | null | undefined,
-): WidgetState {
-  const filter = deserializeDateParameterValue(value);
+): SingleDatePickerValue {
+  const resolved = resolveRollingDateParameterValue("date/single", value);
+  return getPickerValue(resolved) ?? getPickerDefaultValue();
+}
 
-  if (filter?.type === "relative") {
-    const date = dateParameterValueToSingleDate(value);
-    if (date != null) {
-      return {
-        pickerValue: { date, hasTime: false },
-        relativeValue: filter,
-        isSpecific: false,
-      };
-    }
-  }
-
-  if (filter?.type === "specific" && filter.operator === "=") {
-    return {
-      pickerValue: {
-        date: filter.values[0],
-        hasTime: filter.hasTime,
-      },
-      relativeValue: null,
-      isSpecific: true,
-    };
-  }
-
-  return {
-    pickerValue: getPickerDefaultValue(),
-    relativeValue: null,
-    isSpecific: true,
-  };
+function getPickerValue(
+  value: ParameterValueOrArray | null | undefined,
+): SingleDatePickerValue | undefined {
+  return match(deserializeDateParameterValue(value))
+    .returnType<SingleDatePickerValue | undefined>()
+    .with({ type: "specific", operator: "=" }, ({ values, hasTime }) => ({
+      date: values[0],
+      hasTime,
+    }))
+    .otherwise(() => undefined);
 }
 
 function getPickerDefaultValue(): SingleDatePickerValue {
@@ -110,11 +108,11 @@ function getPickerDefaultValue(): SingleDatePickerValue {
   return { date: today, hasTime: false };
 }
 
-function getSpecificWidgetValue({ date, hasTime }: SingleDatePickerValue) {
+function getWidgetValue({ date, hasTime }: SingleDatePickerValue) {
   return serializeDateParameterValue({
     type: "specific",
     operator: "=",
     values: [date],
-    hasTime,
+    hasTime: hasTime,
   });
 }

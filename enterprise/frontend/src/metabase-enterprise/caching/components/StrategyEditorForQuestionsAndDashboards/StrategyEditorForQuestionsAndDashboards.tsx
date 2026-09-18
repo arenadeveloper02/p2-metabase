@@ -1,169 +1,120 @@
+import type { SortingState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
 import { SettingsPageWrapper } from "metabase/admin/components/SettingsSection";
+import { PerformancePageContent } from "metabase/admin/performance/components/PerformancePageContent";
 import { StrategyForm } from "metabase/admin/performance/components/StrategyForm";
+import {
+  defaultRootStrategy,
+  rootId,
+} from "metabase/admin/performance/constants/simple";
 import { useCacheConfigs } from "metabase/admin/performance/hooks/useCacheConfigs";
 import { useConfirmIfFormIsDirty } from "metabase/admin/performance/hooks/useConfirmIfFormIsDirty";
 import { useSaveStrategy } from "metabase/admin/performance/hooks/useSaveStrategy";
-import { skipToken, useSearchQuery } from "metabase/api";
+import { getShortStrategyLabel } from "metabase/admin/performance/utils";
+import { DebouncedSearchInput } from "metabase/common/components/DebouncedSearchInput";
 import { DelayedLoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper/DelayedLoadingAndErrorWrapper";
-import { Sidesheet } from "metabase/common/components/Sidesheet";
-import { ClientSortableTable } from "metabase/common/components/Table/ClientSortableTable";
-import type { ColumnItem } from "metabase/common/components/Table/types";
-import { Center, Flex, Repeat, Skeleton, Stack } from "metabase/ui";
+import { PaginationControls } from "metabase/common/components/PaginationControls";
+import { usePagination } from "metabase/common/hooks/use-pagination";
+import { useGetIcon } from "metabase/hooks/use-icon";
+import { Center, Flex, Text } from "metabase/ui";
 import type { CacheableModel } from "metabase-types/api";
-import { CacheDurationUnit } from "metabase-types/api";
-import { SortDirection } from "metabase-types/api/sorting";
 
-import type {
-  CacheableItem,
-  DashboardResult,
-  QuestionResult,
-  UpdateTarget,
-} from "../types";
+import { PolicySidePanel } from "../PolicySidePanel";
+import {
+  DEFAULT_POLICY_TABLE_SORTING,
+  PolicyTable,
+  type PolicyTableRowBase,
+  getAdjacentRows,
+  sortPolicyRows,
+} from "../PolicyTable";
+import type { UpdateTarget } from "../types";
 
-import Styles from "./StrategyEditorForQuestionsAndDashboards.module.css";
-import { TableRowForCacheableItem } from "./TableRowForCacheableItem";
-import { getConstants } from "./constants";
-import { formatValueForSorting } from "./utils";
+import {
+  type CachingFilters,
+  CachingPoliciesFilters,
+  EMPTY_CACHING_FILTERS,
+} from "./CachingPoliciesFilters";
 
-type CacheableItemResult = DashboardResult | QuestionResult;
+const PAGE_SIZE = 25;
+const MIN_ITEMS_TO_SHOW_SEARCH = 11;
+
+type ItemRow = PolicyTableRowBase & {
+  itemId: number;
+  model: CacheableModel;
+};
 
 export const StrategyEditorForQuestionsAndDashboards = () => {
+  const getIcon = useGetIcon();
+
   const [
     // The targetId is the id of the object that is currently being edited
     targetId,
     setTargetId,
   ] = useState<number | null>(null);
-
-  const { tableColumns } = useMemo(() => getConstants(), []);
-
   const [targetModel, setTargetModel] = useState<CacheableModel | null>(null);
-
-  const configurableModels: CacheableModel[] = useMemo(
-    () => ["dashboard", "question"],
-    [],
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<CachingFilters>(EMPTY_CACHING_FILTERS);
+  const [sorting, setSorting] = useState<SortingState>(
+    DEFAULT_POLICY_TABLE_SORTING,
   );
+  const { page, setPage, resetPage } = usePagination();
 
-  const {
-    configs,
-    setConfigs,
-    error: configsError,
-    loading: configsAreLoading,
-  } = useCacheConfigs({ configurableModels });
+  // Fetched without a limit so search/filter/sort/pagination can run client
+  // side: the list only holds items with their own policies, so it stays small
+  const { configs, error, isLoading } = useCacheConfigs({
+    model: ["root", "dashboard", "question"],
+  });
 
-  const dashboardIds = useMemo(
-    () =>
-      configs
-        .filter((config) => config.model === "dashboard")
-        .map((c) => c.model_id),
-    [configs],
-  );
+  const rootStrategy =
+    _.findWhere(configs ?? [], { model_id: rootId })?.strategy ??
+    defaultRootStrategy;
 
-  const questionIds = useMemo(
-    () =>
-      configs
-        .filter((config) => config.model === "question")
-        .map((c) => c.model_id),
-    [configs],
-  );
+  const allRows: ItemRow[] = useMemo(() => {
+    return (configs ?? [])
+      .filter((config) => config.model !== "root" && config.name !== undefined)
+      .map((config) => ({
+        id: `${config.model}:${config.model_id}`,
+        itemId: config.model_id,
+        model: config.model,
+        name: config.name ?? "",
+        icon: getIcon({
+          model: config.model === "question" ? "card" : "dashboard",
+        }).name,
+        collection: config.collection ?? null,
+        policyLabel: getShortStrategyLabel(config.strategy) ?? null,
+        usesDefaultPolicy: _.isEqual(config.strategy, rootStrategy),
+      }));
+  }, [configs, rootStrategy, getIcon]);
 
-  const dashboardsResult = useSearchQuery(
-    dashboardIds.length
-      ? {
-          models: ["dashboard"],
-          ids: dashboardIds,
-          //FIXME: Add `ancestors: true` once jds/ancestors-for-all-the-things is merged
-        }
-      : skipToken,
-  );
-  const questionsResult = useSearchQuery(
-    questionIds.length
-      ? {
-          models: ["card"],
-          ids: questionIds,
-          include_dashboard_questions: true,
-          //FIXME: Add `ancestors: true` once jds/ancestors-for-all-the-things is merged
-        }
-      : skipToken,
-  );
-
-  const dashboardsAndQuestions = useMemo(
-    () =>
-      (dashboardsResult.data?.data || []).concat(
-        questionsResult.data?.data || [],
-      ) as CacheableItemResult[],
-    [dashboardsResult.data, questionsResult.data],
-  );
-
-  const cacheableItems = useMemo(() => {
-    const items = new Map<string, CacheableItem>();
-    for (const config of configs) {
-      items.set(`${config.model}${config.model_id}`, {
-        ..._.omit(config, "model_id"),
-        id: config.model_id,
-      });
-    }
-
-    // Hydrate data from the search results into the cacheable items
-    for (const result of dashboardsAndQuestions ?? []) {
-      const normalizedModel =
-        result.model === "card" ? "question" : result.model;
-      const item = items.get(`${normalizedModel}${result.id}`);
-      if (item) {
-        item.name = result.name;
-        item.collection = result.collection;
-        item.iconModel = result.model;
-      }
-    }
-    // Filter out items that have no match in the dashboard and question list
-    const hydratedCacheableItems: CacheableItem[] = [...items.values()].filter(
-      (item) => item.name !== undefined,
-    );
-
-    return hydratedCacheableItems;
-  }, [configs, dashboardsAndQuestions]);
-
-  useEffect(
-    /** When the user configures an item to 'Use default' and that item
-     * disappears from the table, it should no longer be the target */
-    function removeTargetIfNoLongerInTable() {
-      const isTargetIdInTable = cacheableItems.some(
-        (item) => item.id === targetId,
-      );
-      if (targetId !== null && !isTargetIdInTable) {
-        setTargetId(null);
-        setTargetModel(null);
-      }
-    },
-    [targetId, cacheableItems],
-  );
-
-  /** The config for the object currently being edited */
-  const targetConfig = targetModel
-    ? _.findWhere(configs, {
-        model_id: targetId ?? undefined,
-        model: targetModel,
-      })
-    : undefined;
-  const savedStrategy = targetConfig?.strategy;
-
-  const targetName = useMemo(() => {
-    if (targetId === null || targetModel === null) {
-      return;
-    }
-    const item = _.findWhere(cacheableItems, {
-      id: targetId,
-      model: targetModel,
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return allRows.filter((row) => {
+      const matchesSearch =
+        query === "" ||
+        row.name.toLowerCase().includes(query) ||
+        row.collection?.name?.toLowerCase().includes(query);
+      const matchesPolicy =
+        filters.policy === null ||
+        (filters.policy === "default") === row.usesDefaultPolicy;
+      const matchesType = filters.type === null || filters.type === row.model;
+      return matchesSearch && matchesPolicy && matchesType;
     });
-    return item?.name;
-  }, [targetId, targetModel, cacheableItems]);
+  }, [allRows, searchQuery, filters]);
 
-  if (savedStrategy?.type === "duration") {
-    savedStrategy.unit = CacheDurationUnit.Hours;
-  }
+  const sortedRows = useMemo(
+    () => sortPolicyRows(filteredRows, sorting),
+    [filteredRows, sorting],
+  );
+
+  const paginatedRows = useMemo(
+    () => sortedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [sortedRows, page],
+  );
+
+  const shouldShowControls = allRows.length >= MIN_ITEMS_TO_SHOW_SEARCH;
 
   const {
     askBeforeDiscardingChanges,
@@ -172,7 +123,42 @@ export const StrategyEditorForQuestionsAndDashboards = () => {
     setIsStrategyFormDirty,
   } = useConfirmIfFormIsDirty();
 
-  /** Change the target, but first confirm if the form is unsaved */
+  useEffect(
+    /** When the user configures an item to 'Use default' and that item
+     * disappears from the table, it should no longer be the target */
+    function removeTargetIfNoLongerInTable() {
+      const isTargetInTable = allRows.some(
+        (row) => row.itemId === targetId && row.model === targetModel,
+      );
+      if (targetId !== null && !isTargetInTable) {
+        setTargetId(null);
+        setTargetModel(null);
+        // The form unmounts mid-save with its values still differing from the
+        // deleted config, so nothing else would clear the dirty flag
+        setIsStrategyFormDirty(false);
+      }
+    },
+    [targetId, targetModel, allRows, setIsStrategyFormDirty],
+  );
+
+  const targetConfig =
+    configs && targetModel
+      ? _.findWhere(configs, {
+          model_id: targetId ?? undefined,
+          model: targetModel,
+        })
+      : undefined;
+
+  const savedStrategy = targetConfig?.strategy;
+
+  const targetRow = useMemo(
+    () =>
+      allRows.find(
+        (row) => row.itemId === targetId && row.model === targetModel,
+      ),
+    [allRows, targetId, targetModel],
+  );
+
   const updateTarget: UpdateTarget = useCallback(
     ({ id: newTargetId, model: newTargetModel }, isFormDirty) => {
       if (targetId !== newTargetId || targetModel !== newTargetModel) {
@@ -181,7 +167,11 @@ export const StrategyEditorForQuestionsAndDashboards = () => {
           setTargetModel(newTargetModel);
           setIsStrategyFormDirty(false);
         };
-        isFormDirty ? askBeforeDiscardingChanges(update) : update();
+        if (isFormDirty) {
+          askBeforeDiscardingChanges(update);
+        } else {
+          update();
+        }
       }
     },
     [
@@ -194,92 +184,125 @@ export const StrategyEditorForQuestionsAndDashboards = () => {
     ],
   );
 
-  const saveStrategy = useSaveStrategy(
-    targetId,
-    configs,
-    setConfigs,
-    targetModel,
+  const saveStrategy = useSaveStrategy(targetId, targetModel);
+
+  const targetRowIndex = paginatedRows.findIndex(
+    (row) => row.itemId === targetId && row.model === targetModel,
+  );
+  const { previousRow, nextRow } = getAdjacentRows(
+    paginatedRows,
+    targetRowIndex,
   );
 
-  const cacheableItemsAreLoading = configs.length > 0 && !cacheableItems.length;
-
-  const error = configsError || dashboardsResult.error || questionsResult.error;
-  const loading =
-    configsAreLoading ||
-    dashboardsResult.isLoading ||
-    questionsResult.isLoading ||
-    cacheableItemsAreLoading;
-
-  const rowRenderer = useCallback(
-    (item: CacheableItem) => (
-      <TableRowForCacheableItem
-        updateTarget={updateTarget}
-        currentTargetId={targetId}
-        currentTargetModel={targetModel}
-        forId={item.id}
-        item={item}
-        isFormDirty={isStrategyFormDirty}
-      />
-    ),
-    [updateTarget, targetId, targetModel, isStrategyFormDirty],
+  const navigateToRow = useCallback(
+    (row: ItemRow) =>
+      updateTarget({ id: row.itemId, model: row.model }, isStrategyFormDirty),
+    [updateTarget, isStrategyFormDirty],
   );
-
-  const explanatoryAsideId = "mb-explanatory-aside";
 
   const closeForm = useCallback(() => {
     updateTarget({ id: null, model: null }, isStrategyFormDirty);
   }, [updateTarget, isStrategyFormDirty]);
 
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  const handleFiltersChange = useCallback(
+    (nextFilters: CachingFilters) => {
+      setFilters(nextFilters);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  const handleSortingChange = useCallback(
+    (nextSorting: SortingState) => {
+      setSorting(nextSorting);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  if (error || isLoading) {
+    return <DelayedLoadingAndErrorWrapper error={error} loading={isLoading} />;
+  }
+
   return (
-    <SettingsPageWrapper
-      title={t`Caching for dashboards and questions`}
-      description={t`Here are the dashboards and questions that have their own caching policies, which override any default or database policies you’ve set.`}
-    >
-      <Stack
-        gap="xl"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-        }}
-      >
-        {confirmationModal}
-        <Flex>
-          <DelayedLoadingAndErrorWrapper
-            error={error}
-            loading={loading}
-            loader={<TableSkeleton columns={tableColumns} />}
-          >
-            <Flex align="flex-start">
-              <ClientSortableTable<CacheableItem>
-                className={Styles.CacheableItemTable}
-                columns={tableColumns}
-                data-testid="cache-config-table"
-                rows={cacheableItems}
-                rowRenderer={rowRenderer}
-                defaultSortColumn="name"
-                defaultSortDirection={SortDirection.Asc}
-                formatValueForSorting={formatValueForSorting}
-                emptyBody={<NoResultsTableRow />}
-                aria-labelledby={explanatoryAsideId}
-                cols={
-                  <>
-                    <col />
-                    <col />
-                    <col />
-                  </>
-                }
+    <Flex h="100%" wrap="nowrap">
+      <PerformancePageContent>
+        <SettingsPageWrapper
+          title={t`Dashboard and question caching`}
+          description={t`These dashboards and questions have custom caching policies that override default or database-level policies.`}
+          descriptionProps={{ maw: "100%" }}
+          h="calc(100vh - 9rem)"
+        >
+          {confirmationModal}
+          {shouldShowControls && (
+            <Flex gap="md" align="center">
+              <DebouncedSearchInput
+                value={searchQuery}
+                placeholder={t`Search by name or collection…`}
+                onChange={handleSearchChange}
+              />
+              <CachingPoliciesFilters
+                filters={filters}
+                onChange={handleFiltersChange}
               />
             </Flex>
-          </DelayedLoadingAndErrorWrapper>
-        </Flex>
-      </Stack>
-
-      <Sidesheet
-        isOpen={targetId !== null && targetModel !== null}
-        onClose={closeForm}
-        title={targetName ?? `Untitled ${targetModel}`}
-      >
-        {targetModel && (
+          )}
+          <PolicyTable
+            rows={paginatedRows}
+            withCollectionColumn
+            sorting={sorting}
+            onSortingChange={handleSortingChange}
+            selectedRowId={targetRow?.id ?? null}
+            onRowClick={navigateToRow}
+            emptyState={
+              <Center p="xl">
+                <Text fw="bold" c="text-secondary">
+                  {allRows.length === 0
+                    ? t`No dashboards or questions have their own caching policies yet.`
+                    : t`No results`}
+                </Text>
+              </Center>
+            }
+            data-testid="cache-config-table"
+          />
+          {sortedRows.length > PAGE_SIZE && (
+            <Flex justify="end">
+              <PaginationControls
+                page={page}
+                pageSize={PAGE_SIZE}
+                itemsLength={paginatedRows.length}
+                total={sortedRows.length}
+                showTotal
+                onPreviousPage={() => setPage(page - 1)}
+                onNextPage={() => setPage(page + 1)}
+              />
+            </Flex>
+          )}
+        </SettingsPageWrapper>
+      </PerformancePageContent>
+      {targetId !== null && targetModel !== null && (
+        <PolicySidePanel
+          title={
+            targetRow?.name ??
+            (targetModel === "dashboard"
+              ? t`Untitled dashboard`
+              : t`Untitled question`)
+          }
+          subtitle={targetRow?.collection?.name}
+          onPrevious={
+            previousRow ? () => navigateToRow(previousRow) : undefined
+          }
+          onNext={nextRow ? () => navigateToRow(nextRow) : undefined}
+          onClose={closeForm}
+        >
           <StrategyForm
             targetId={targetId}
             targetModel={targetModel}
@@ -289,33 +312,11 @@ export const StrategyEditorForQuestionsAndDashboards = () => {
             savedStrategy={savedStrategy}
             shouldAllowInvalidation={true}
             shouldShowName={false}
-            isInSidebar
+            onCancel={closeForm}
+            layout="sidebar"
           />
-        )}
-      </Sidesheet>
-    </SettingsPageWrapper>
+        </PolicySidePanel>
+      )}
+    </Flex>
   );
 };
-
-const TableSkeleton = ({ columns }: { columns: ColumnItem[] }) => (
-  <ClientSortableTable<{ id: number }>
-    columns={columns}
-    rows={[{ id: 0 }, { id: 1 }, { id: 2 }]}
-    rowRenderer={() => (
-      <tr className={Styles.SkeletonTableRow}>
-        <Repeat times={3}>
-          <td>
-            <Skeleton h="1rem" natural />
-          </td>
-        </Repeat>
-      </tr>
-    )}
-    className={Styles.CacheableItemTable}
-  />
-);
-
-const NoResultsTableRow = () => (
-  <Center fw="bold" c="text-light">
-    {t`No dashboards or questions have their own caching policies yet.`}
-  </Center>
-);

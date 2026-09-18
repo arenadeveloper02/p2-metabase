@@ -8,71 +8,10 @@ import {
 } from "e2e/support/cypress_sample_instance_data";
 
 const { ALL_USERS_GROUP, DATA_GROUP, COLLECTION_GROUP } = USER_GROUPS;
-const { ORDERS_ID, PRODUCTS_ID, PEOPLE_ID, REVIEWS_ID, PRODUCTS } =
-  SAMPLE_DATABASE;
+const { PRODUCTS_ID, PEOPLE_ID, PRODUCTS } = SAMPLE_DATABASE;
 const { nocollection } = USERS;
 
 const PG_DB_ID = 2;
-
-// NOTE: This issue wasn't specifically related to PostgreSQL. We simply needed to add another DB to reproduce it.
-describe("issue 13347", { tags: ["@external", "@skip"] }, () => {
-  beforeEach(() => {
-    cy.intercept("POST", "/api/dataset").as("dataset");
-
-    H.restore("postgres-12");
-    cy.signInAsAdmin();
-
-    cy.updatePermissionsGraph({
-      [ALL_USERS_GROUP]: {
-        1: {
-          "view-data": "unrestricted",
-          "create-queries": "query-builder-and-native",
-        },
-        [PG_DB_ID]: {
-          "view-data": "unrestricted",
-          "create-queries": "no",
-        },
-      },
-    });
-
-    cy.updateCollectionGraph({
-      [ALL_USERS_GROUP]: { root: "read" },
-    });
-
-    H.withDatabase(
-      PG_DB_ID,
-      ({ ORDERS_ID }) =>
-        H.createQuestion({
-          name: "Q1",
-          query: { "source-table": ORDERS_ID },
-          database: PG_DB_ID,
-        }),
-
-      H.createNativeQuestion({
-        name: "Q2",
-        native: { query: "SELECT * FROM ORDERS" },
-        database: PG_DB_ID,
-      }),
-    );
-  });
-
-  ["QB", "Native"].forEach((test) => {
-    it(`${test.toUpperCase()} version:\n should be able to select question (from "Saved Questions") which belongs to the database user doesn't have data-permissions for (metabase#13347)`, () => {
-      cy.signIn("none");
-
-      H.startNewQuestion();
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-      cy.findByText("Saved Questions").click();
-
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-      test === "QB" ? cy.findByText("Q1").click() : cy.findByText("Q2").click();
-
-      cy.wait("@dataset", { timeout: 5000 });
-      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-      cy.contains("37.65");
-    });
-  });
-});
 
 describe("postgres > user > query", { tags: "@external" }, () => {
   beforeEach(() => {
@@ -149,46 +88,6 @@ describe("postgres > user > query", { tags: "@external" }, () => {
   });
 });
 
-describe("issue 17777", { tags: "@skip" }, () => {
-  function hideTables(tables) {
-    cy.request("PUT", "/api/table", {
-      ids: tables,
-      visibility_type: "hidden",
-    });
-  }
-
-  beforeEach(() => {
-    H.restore();
-    cy.signInAsAdmin();
-
-    hideTables([ORDERS_ID, PRODUCTS_ID, PEOPLE_ID, REVIEWS_ID]);
-  });
-
-  it("should still be able to set permissions on individual tables, even though they are hidden in data model (metabase#17777)", () => {
-    cy.visit(`/admin/permissions/data/group/${ALL_USERS_GROUP}`);
-
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
-    cy.findByText("Permissions for the All Users group");
-    cy.findByTextEnsureVisible("Sample Database").click();
-
-    cy.location("pathname").should(
-      "eq",
-      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}`,
-    );
-
-    cy.findByTestId("permission-table").within(() => {
-      cy.findByText("Orders");
-      cy.findByText("Products");
-      cy.findByText("Reviews");
-      cy.findByText("People");
-    });
-
-    cy.findAllByText("No self-service").first().click();
-
-    H.popover().contains("Unrestricted");
-  });
-});
-
 describe("issue 19603", () => {
   beforeEach(() => {
     H.restore();
@@ -205,9 +104,9 @@ describe("issue 19603", () => {
   it("archived subcollection should not show up in permissions (metabase#19603)", () => {
     cy.visit("/admin/permissions/collections");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("First collection").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Second collection").should("not.exist");
   });
 });
@@ -267,7 +166,7 @@ describe("issue 20436", () => {
     cy.wait("@updatePermissions");
 
     cy.visit(url);
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Query builder only");
   });
 });
@@ -283,14 +182,17 @@ describe("UI elements that make no sense for users without data permissions (met
     H.visitQuestion(ORDERS_QUESTION_ID);
 
     cy.findByTestId("viz-settings-button");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Visualization").click();
 
     cy.findByTestId("display-options-sensible");
-    cy.icon("line").click();
-    cy.findByTestId("Line-button").realHover();
-    cy.findByTestId("Line-container").within(() => {
-      cy.icon("gear").click();
+    H.leftSidebar().within(() => {
+      cy.findByTestId("more-charts-toggle").click();
+      cy.icon("line").click();
+      cy.findByTestId("Line-button").realHover();
+      cy.findByTestId("Line-container").within(() => {
+        cy.icon("gear").click();
+      });
     });
 
     cy.findByTextEnsureVisible("Line options");
@@ -299,7 +201,7 @@ describe("UI elements that make no sense for users without data permissions (met
       .should("have.attr", "data-disabled");
 
     cy.get("@saveButton").realHover();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("You don't have permission to save this question.");
 
     cy.findByTestId("qb-header-action-panel").within(() => {
@@ -353,8 +255,8 @@ describe("issue 22473", () => {
 
   it("nocollection user should be able to view and unsubscribe themselves from a subscription", () => {
     cy.visit(`/dashboard/${ORDERS_DASHBOARD_ID}`);
-    H.openSharingMenu("Subscriptions");
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    H.toggleDashboardSubscriptionsSidebar();
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Email it").click();
     cy.findByPlaceholderText("Enter user names or email addresses")
       .click()
@@ -367,7 +269,7 @@ describe("issue 22473", () => {
     cy.signIn("nocollection");
     cy.visit("/account/notifications");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Orders in a dashboard").should("exist");
     cy.findByTestId("notifications-list").within(() => {
       cy.findByLabelText("close icon").click();
@@ -375,7 +277,7 @@ describe("issue 22473", () => {
     H.modal().within(() => {
       cy.button("Unsubscribe").click();
     });
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Orders in a dashboard").should("not.exist");
   });
 });
@@ -475,12 +377,12 @@ describe("issue 22727", () => {
     // We already have a reproduction that makes sure "Our analytics" is not offered when starting from an ad-hoc question (table).
     H.visitQuestion(ORDERS_QUESTION_ID);
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("31.44").click();
     H.popover().contains("=").click();
     cy.wait("@dataset");
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
     cy.findByTestId("save-question-modal").then((modal) => {
@@ -522,9 +424,9 @@ describe("issue 23981", () => {
       },
     });
 
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
-    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    // eslint-disable-next-line metabase/no-unscoped-text-selectors -- deprecated usage
     cy.findByText(
       `${H.getFullName(nocollection)}'s Personal Collection`,
     ).click();

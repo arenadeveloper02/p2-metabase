@@ -73,7 +73,7 @@
 
 (defmulti fallback-metadata-query
   "SELECT columns from a given table so we can get column metadata. By default doesn't return any rows. This can be
-  overriden because SQLite is silly and only returns column information for views if the query returns a non-zero
+  overridden because SQLite is silly and only returns column information for views if the query returns a non-zero
   number of rows.
 
     (fallback-metadata-query :postgres \"my_database\" \"public\" \"my_table\")
@@ -145,6 +145,14 @@
   This version receives additional kw-args `opts` (as passed to [[driver/alter-table-columns!]])."
   {:added "0.54.0"
    :arglists '([driver table-name column-definitions & opts])}
+  driver/dispatch-on-initialized-driver
+  :hierarchy #'driver/hierarchy)
+
+(defmulti db-tables
+  "Fetch a JDBC Metadata ResultSet of tables in the DB, optionally limited to ones belonging to a given
+    schema. Returns a reducible sequence of results."
+  {:added "0.64.0"
+   :arglists '([driver metadata schema-or-nil db-name-or-nil])}
   driver/dispatch-on-initialized-driver
   :hierarchy #'driver/hierarchy)
 

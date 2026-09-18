@@ -10,7 +10,7 @@
 (mr/def ::metadata-type-excluding-database
   "Database metadata is stored separately/in a special way. These are the types of metadata that are stored with the
   other non-Database methods."
-  [:enum :metadata/table :metadata/column :metadata/card :metadata/metric :metadata/segment :metadata/native-query-snippet :metadata/transform])
+  [:enum :metadata/table :metadata/column :metadata/card :metadata/measure :metadata/metric :metadata/segment :metadata/native-query-snippet :metadata/transform])
 
 (mr/def ::metadata-spec
   "Spec for fetching objects from a metadata provider. `:lib/type` is the type of the object to fetch, and the other
@@ -19,31 +19,47 @@
   `:id` and `:name` are mutually exclusive.
 
   When fetching metadata that can be inactive/archived/hidden, only active/unarchived/unhidden objects are fetched
-  unless `:id` or `:name` is specifed."
+  unless `:id` or `:name` is specified.
+
+  `:include-sensitive?` can be set to `true` to include Fields with `:visibility-type` `:sensitive` in the results."
   [:and
    [:map
     {:closed true}
-    [:lib/type [:ref ::metadata-type-excluding-database]]
-    [:id       {:optional true} [:set {:min 1} pos-int?]]
-    [:name     {:optional true} [:set {:min 1} :string]]
-    [:table-id {:optional true} ::lib.schema.id/table]
-    [:card-id  {:optional true} ::lib.schema.id/card]]
+    [:lib/type           [:ref ::metadata-type-excluding-database]]
+    [:id                 {:optional true} [:set {:min 1} pos-int?]]
+    [:name               {:optional true} [:set {:min 1} :string]]
+    [:table-ids          {:optional true} [:set {:min 1} ::lib.schema.id/table]]
+    [:card-ids           {:optional true} [:set {:min 1} ::lib.schema.id/card]]
+    [:include-sensitive? {:optional true} :boolean]]
    [:fn
     {:error/message ":id and :name cannot be used at the same time."}
     (complement (every-pred :id :name))]
    [:fn
-    {:error/message ":table-id is currently only supported for Fields, Metrics, and Segments."}
+    {:error/message ":table-ids is currently only supported for Fields, Measures, Metrics, and Segments."}
     (fn [spec]
-      (or (not (:table-id spec))
-          (#{:metadata/column :metadata/metric :metadata/segment} (:lib/type spec))))]
+      (or (not (:table-ids spec))
+          (#{:metadata/column :metadata/measure :metadata/metric :metadata/segment} (:lib/type spec))))]
    [:fn
-    {:error/message ":card-id is currently only supported for Metrics."}
+    {:error/message ":card-ids is currently only supported for Metrics."}
     (fn [spec]
-      (or (not (:card-id spec))
+      (or (not (:card-ids spec))
           (#{:metadata/metric} (:lib/type spec))))]
    [:fn
     {:error/message "All metadata types except for :metadata/table and :metadata/transform must include at least one filter"}
-    (some-fn :id :name :table-id :card-id #(= (:lib/type %) :metadata/table) #(= (:lib/type %) :metadata/transform))]])
+    (some-fn :id :name :table-ids :card-ids #(= (:lib/type %) :metadata/table) #(= (:lib/type %) :metadata/transform))]])
+
+(defn active-column-pred
+  "Returns a predicate that filters out columns that should not be visible based on `:active` status and
+  `:visibility-type` (e.g., `:sensitive`, `:retired`). Used by [[default-spec-filter-xform]] and by
+  [[metabase.lib.metadata/active-column-filter-xform]]."
+  ([]
+   (active-column-pred nil))
+  ([{:keys [include-sensitive?]}]
+   (let [excluded-visibility-types (cond-> #{:retired}
+                                     (not include-sensitive?) (conj :sensitive))]
+     #(and
+       (not (false? (:active %)))
+       (not (excluded-visibility-types (:visibility-type %)))))))
 
 (mu/defn default-spec-filter-xform
   "Create a `filter` transducer to a sequence of objects according to `metadata-spec`. Assumes objects are all the
@@ -53,21 +69,21 @@
 
   This should match [[metabase.lib-be.metadata.jvm/metadata-spec->honey-sql]] as closely as
   possible."
-  [{metadata-type :lib/type, id-set :id, name-set :name, :keys [table-id card-id], :as _metadata-spec} :- ::metadata-spec]
+  [{metadata-type :lib/type, id-set :id, name-set :name, :keys [table-ids card-ids include-sensitive?], :as _metadata-spec} :- ::metadata-spec]
   (let [active-only? (not (or id-set name-set))
         metric?      (= metadata-type :metadata/metric)
         preds        [(when id-set
                         #(contains? id-set (:id %)))
                       (when name-set
                         #(contains? name-set (:name %)))
-                      (when table-id
-                        #(= (:table-id %) table-id))
-                      (when (and table-id metric?)
+                      (when table-ids
+                        #(contains? table-ids (:table-id %)))
+                      (when (and table-ids metric?)
                         #(nil? (:source-card-id %)))
-                      (when card-id
+                      (when card-ids
                         (if metric?
-                          #(= (:source-card-id %) card-id)
-                          #(= (:card-id %) card-id)))
+                          #(contains? card-ids (:source-card-id %))
+                          #(contains? card-ids (:card-id %))))
                       (when active-only?
                         (case metadata-type
                           :metadata/table
@@ -76,11 +92,9 @@
                             (not (#{:hidden :technical :cruft} (:visibility-type %))))
 
                           :metadata/column
-                          #(and
-                            (not (false? (:active %)))
-                            (not (#{:sensitive :retired} (:visibility-type %))))
+                          (active-column-pred {:include-sensitive? include-sensitive?})
 
-                          (:metadata/card :metadata/metric :metadata/segment)
+                          (:metadata/card :metadata/measure :metadata/metric :metadata/segment)
                           #(not (:archived %))
 
                           #_else
@@ -129,7 +143,7 @@
   side-effects (to warm the cache).
 
   When fetching metadata that can be inactive/archived/hidden, only active/unarchived/unhidden objects are fetched
-  unless `:id` or `:name` is specifed.")
+  unless `:id` or `:name` is specified.")
 
   (setting [metadata-provider setting-key]
     "Return the value of the given Metabase setting with keyword `setting-name`."))
@@ -204,12 +218,12 @@
   (metadatas metadata-provider {:lib/type :metadata/table}))
 
 (mu/defn metadatas-for-table :- [:maybe [:sequential ::metadata]]
-  "Return active (non-archived) metadatas associated with a particular Table, either Fields, Metrics, or
-  Segments -- `metadata-type` must be one of either `:metadata/column`, `:metadata/metric`, or `:metadata/segment`."
+  "Return active (non-archived) metadatas associated with a particular Table, either Fields, Measures, Metrics, or
+  Segments -- `metadata-type` must be one of `:metadata/column`, `:metadata/measure`, `:metadata/metric`, or `:metadata/segment`."
   [metadata-provider :- ::metadata-provider
-   metadata-type     :- [:enum :metadata/column :metadata/metric :metadata/segment]
+   metadata-type     :- [:enum :metadata/column :metadata/measure :metadata/metric :metadata/segment]
    table-id          :- ::lib.schema.id/table]
-  (metadatas metadata-provider {:lib/type metadata-type, :table-id table-id}))
+  (metadatas metadata-provider {:lib/type metadata-type, :table-ids #{table-id}}))
 
 (mu/defn metadatas-for-card :- [:maybe [:sequential ::metadata]]
   "Return active (non-archived) metadatas associated with a particular Card, currently only Metrics, so
@@ -217,7 +231,7 @@
   [metadata-provider :- ::metadata-provider
    metadata-type     :- [:enum :metadata/column :metadata/metric :metadata/segment]
    card-id           :- ::lib.schema.id/card]
-  (metadatas metadata-provider {:lib/type metadata-type, :card-id card-id}))
+  (metadatas metadata-provider {:lib/type metadata-type, :card-ids #{card-id}}))
 
 (mu/defn table :- [:maybe ::lib.schema.metadata/table]
   "Return metadata for a specific Table. Metadata should satisfy `:metabase.lib.schema.metadata/table`."
@@ -270,19 +284,43 @@
    segment-id        :- ::lib.schema.id/segment]
   (metadata-by-id metadata-provider :metadata/segment segment-id))
 
+(mu/defn measure :- [:maybe ::lib.schema.metadata/measure]
+  "Return metadata for a particular Measure, i.e. something from the `measure` table in the application
+  database. Metadata should match `:metabase.lib.schema.metadata/measure`."
+  [metadata-provider :- ::metadata-provider
+   measure-id        :- ::lib.schema.id/measure]
+  (metadata-by-id metadata-provider :metadata/measure measure-id))
+
 (mu/defn fields :- [:maybe [:sequential ::lib.schema.metadata/column]]
   "Return a sequence of Fields associated with a Table with the given `table-id`. Fields should satisfy
-  the `:metabase.lib.schema.metadata/column` schema. If no such Table exists, this should error."
-  [metadata-provider :- ::metadata-provider
-   table-id          :- ::lib.schema.id/table]
-  (metadatas metadata-provider {:lib/type :metadata/column, :table-id table-id}))
+  the `:metabase.lib.schema.metadata/column` schema. If no such Table exists, this should error.
+
+  `opts` is an optional map that can contain:
+  - `:include-sensitive?` - if `true`, include Fields with `:visibility-type` `:sensitive` in the results."
+  ([metadata-provider :- ::metadata-provider
+    table-id          :- ::lib.schema.id/table]
+   (fields metadata-provider table-id nil))
+  ([metadata-provider :- ::metadata-provider
+    table-id          :- ::lib.schema.id/table
+    opts              :- [:maybe [:map [:include-sensitive? {:optional true} :boolean]]]]
+   ;; only include `:include-sensitive?` when truthy, so that this shares cached-provider cache entries with other
+   ;; ways of fetching the fields for a table, e.g. [[metadatas-for-tables]]
+   (metadatas metadata-provider (cond-> {:lib/type :metadata/column, :table-ids #{table-id}}
+                                  (:include-sensitive? opts) (assoc :include-sensitive? true)))))
 
 (mu/defn segments :- [:maybe [:sequential ::lib.schema.metadata/segment]]
   "Return a sequence of legacy Segments associated with a Table with the given `table-id`. Segments should satisfy
   the `:metabase.lib.schema.metadata/segment` schema. If no Table with ID `table-id` exists, this should error."
   [metadata-provider :- ::metadata-provider
    table-id          :- ::lib.schema.id/table]
-  (metadatas metadata-provider {:lib/type :metadata/segment, :table-id table-id}))
+  (metadatas metadata-provider {:lib/type :metadata/segment, :table-ids #{table-id}}))
+
+(mu/defn measures :- [:maybe [:sequential ::lib.schema.metadata/measure]]
+  "Return a sequence of Measures associated with a Table with the given `table-id`. Measures should satisfy
+  the `:metabase.lib.schema.metadata/measure` schema. If no Table with ID `table-id` exists, this should error."
+  [metadata-provider :- ::metadata-provider
+   table-id          :- ::lib.schema.id/table]
+  (metadatas metadata-provider {:lib/type :metadata/measure, :table-ids #{table-id}}))
 
 (#?(:clj p/defprotocol+ :cljs defprotocol) CachedMetadataProvider
   "Optional. A protocol for a MetadataProvider that some sort of internal cache. This is mostly useful for
@@ -374,7 +412,7 @@
 
 (#?(:clj p/defprotocol+ :cljs defprotocol) InvocationTracker
   "Optional. A protocol for a MetadataProvider that records the arguments of method invocations during query execution.
-  This is useful for tracking which metdata ids were used during a query execution. The main purpose of this is to power
+  This is useful for tracking which metadata ids were used during a query execution. The main purpose of this is to power
   updating card.last_used_at during query execution. see [[metabase.query-processor.middleware.update-used-cards/update-used-cards!]]"
   (invoked-ids [this metadata-type]
     "Get all invoked ids of a metadata type thus far."))

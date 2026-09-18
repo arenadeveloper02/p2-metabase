@@ -2,15 +2,16 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useMount } from "react-use";
 
 import { useSearchQuery } from "metabase/api";
-import { useSetting } from "metabase/common/hooks";
 import { trackEmbedWizardOpened } from "metabase/embedding/embedding-iframe-sdk-setup/analytics";
 import { useEmbeddingParameters } from "metabase/embedding/embedding-iframe-sdk-setup/hooks/use-embedding-parameters";
 import { useGetGuestEmbedSignedToken } from "metabase/embedding/embedding-iframe-sdk-setup/hooks/use-get-guest-embed-signed-token";
 import { useIsSsoEnabledAndConfigured } from "metabase/embedding/embedding-iframe-sdk-setup/hooks/use-is-sso-enabled-and-configured";
+import { shouldAllowPreviewAndNavigation } from "metabase/embedding/embedding-iframe-sdk-setup/utils/should-allow-preview-and-navigation";
 import {
   PLUGIN_EMBEDDING_IFRAME_SDK_SETUP,
   type SdkIframeEmbedSetupModalInitialState,
 } from "metabase/plugins";
+import { useSetting } from "metabase/settings";
 
 import {
   SdkIframeEmbedSetupContext,
@@ -26,6 +27,7 @@ import {
 import { useSdkIframeEmbedSettings } from "../hooks/use-sdk-iframe-embed-settings";
 import type { SdkIframeEmbedSetupStep } from "../types";
 import { getExperienceFromSettings } from "../utils/get-default-sdk-iframe-embed-setting";
+import { getResourceCustomVisualizations } from "../utils/get-resource-custom-visualizations";
 
 interface SdkIframeEmbedSetupProviderProps {
   children: ReactNode;
@@ -66,6 +68,7 @@ export const SdkIframeEmbedSetupProvider = ({
   const { data: searchData } = useSearchQuery({
     limit: 0,
     models: ["dataset"],
+    context: "embedding-setup",
   });
 
   const modelCount = searchData?.total ?? 0;
@@ -110,6 +113,15 @@ export const SdkIframeEmbedSetupProvider = ({
     dashboardId: settings.dashboardId,
     questionId: settings.questionId,
   });
+
+  const embedSettings = useMemo(() => {
+    const allowedCustomVisualizations =
+      getResourceCustomVisualizations(resource);
+
+    return allowedCustomVisualizations.length > 0
+      ? { ...settings, allowedCustomVisualizations }
+      : settings;
+  }, [resource, settings]);
 
   const { availableParameters, initialAvailableParameters } =
     useAvailableParameters({
@@ -162,6 +174,16 @@ export const SdkIframeEmbedSetupProvider = ({
       embeddingParameters,
     });
 
+  const isGuestEmbed = !!settings.isGuest;
+  const allowPreviewAndNavigation = shouldAllowPreviewAndNavigation({
+    isGuestEmbed,
+    isGuestEmbedsEnabled,
+    isGuestEmbedsTermsAccepted,
+    isSimpleEmbedFeatureAvailable,
+    isSimpleEmbeddingEnabled,
+    isSimpleEmbeddingTermsAccepted,
+  });
+
   const value: SdkIframeEmbedSetupContextType = {
     isSimpleEmbedFeatureAvailable,
     isSimpleEmbeddingEnabled,
@@ -177,13 +199,14 @@ export const SdkIframeEmbedSetupProvider = ({
     isFirstStep,
     isLastStep,
     initialState,
+    allowPreviewAndNavigation,
     experience,
     resource,
     isError,
     isLoading,
     isFetching,
     isRecentsLoading,
-    settings,
+    settings: embedSettings,
     defaultSettings,
     replaceSettings,
     updateSettings,

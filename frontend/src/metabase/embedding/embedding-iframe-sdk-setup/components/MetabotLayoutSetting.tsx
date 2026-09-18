@@ -18,7 +18,7 @@ export const MetabotLayoutSetting = () => {
 
         <HoverCard position="right-start">
           <HoverCard.Target>
-            <Icon name="info" size={14} c="text-medium" cursor="pointer" />
+            <Icon name="info" size={14} c="text-secondary" cursor="pointer" />
           </HoverCard.Target>
 
           <HoverCard.Dropdown>
@@ -34,6 +34,7 @@ export const MetabotLayoutSetting = () => {
         onChange={(layout) =>
           updateSettings({
             layout:
+              // Unjustified type cast. FIXME
               layout === "auto" ? undefined : (layout as "stacked" | "sidebar"),
           })
         }

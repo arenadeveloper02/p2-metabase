@@ -35,7 +35,7 @@
    col
    :semantic_type
    (fn [original-value]
-     ;; If we already know the semantic type, becouse it is stored, don't classify again, but try to refine semantic
+     ;; If we already know the semantic type, because it is stored, don't classify again, but try to refine semantic
      ;; type set upstream for aggregation cols (which come back as :type/Number).
      (case original-value
        (nil :type/Number) (classifiers.name/infer-semantic-type-by-name col)
@@ -60,7 +60,7 @@
                (try
                  (maybe-infer-semantic-type (col->ResultColumnMetadata col))
                  (catch Throwable e
-                   (log/errorf e "Error generating insights for column: %s" col)
+                   (log/errorf "Error generating insights for column %s: %s" (pr-str (:name col)) (ex-message e))
                    col)))]
     (redux/post-complete
      (redux/juxt

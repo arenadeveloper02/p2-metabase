@@ -4,6 +4,8 @@ import { Flex, Icon, SortableHeaderPill } from "metabase/ui";
 
 import type { TreeTableHeaderVariant } from "../../types";
 
+import S from "./HeaderCell.module.css";
+
 interface HeaderCellProps {
   name: string;
   sort?: "asc" | "desc";
@@ -26,9 +28,10 @@ export const HeaderCell = memo(function HeaderCell({
       gap="0.25rem"
       fz="0.75rem"
       fw={700}
-      c="text-medium"
+      c="text-secondary"
+      miw={0}
     >
-      {name}
+      <span className={S.name}>{name}</span>
       {sort && (
         <Icon name={sort === "asc" ? "chevronup" : "chevrondown"} size={10} />
       )}

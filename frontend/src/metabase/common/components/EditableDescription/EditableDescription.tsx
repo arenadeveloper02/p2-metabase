@@ -1,24 +1,22 @@
 import { t } from "ttag";
 
-import EditableText, {
+import {
+  EditableText,
   type EditableTextProps,
 } from "metabase/common/components/EditableText";
 import { Box, type BoxProps } from "metabase/ui";
 
 export interface EditableDescriptionProps
-  extends BoxProps,
-    Omit<EditableTextProps, "style"> {
+  extends BoxProps, Omit<EditableTextProps, "style"> {
   description: string | null;
   canWrite: boolean;
   onChange: (newDescription: string) => void;
-  key?: string | number;
 }
 
 export const EditableDescription = ({
   description,
   canWrite,
   onChange,
-  key,
   ...props
 }: EditableDescriptionProps) => {
   return (
@@ -33,7 +31,6 @@ export const EditableDescription = ({
       isOptional
       isMultiline
       isMarkdown
-      key={key}
       lh={1.57}
       {...props}
     />

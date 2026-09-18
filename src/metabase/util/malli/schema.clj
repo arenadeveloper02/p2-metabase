@@ -155,6 +155,10 @@
                      (str message))
       :api/regex   #"-[1-9]\d*"}]))
 
+(def LocalizedString
+  "Schema that is a localized string."
+  [:fn i18n/localized-string?])
+
 (def KeywordOrString
   "Schema for something that can be either a `Keyword` or a `String`."
   (mu/with-api-error-message
@@ -211,9 +215,9 @@
    (deferred-tru "value must be a valid entity type (keyword or string).")))
 
 (def Map
-  "Schema for a valid map."
+  "Schema for a valid map. Open: it constrains nothing about its keys, so its contents pass through as they arrived."
   (mu/with-api-error-message
-   :map
+   [:map {:closed false}]
    (deferred-tru "Value must be a map.")))
 
 (def Email
@@ -237,6 +241,14 @@
     :string
     [:fn {:error/message "valid password that is not too common"} (every-pred string? #'u.password/is-valid?)]]
    (deferred-tru "password is too common.")))
+
+(def TemporalInstant
+  "Schema for temporal values (java.time objects) that serialize to ISO-8601 strings in JSON responses."
+  (mu/with-api-error-message
+   [:fn {:json-schema {:type "string" :format "date-time"}
+         :description "ISO-8601 date-time string"}
+    #(instance? java.time.temporal.Temporal %)]
+   (deferred-tru "value must be a valid date/time/datetime")))
 
 (def TemporalString
   "Schema for a string that can be parsed by date2/parse."
@@ -262,7 +274,7 @@
   "Schema for a valid representation of a boolean
   (one of `\"true\"` or `true` or `\"false\"` or `false`.).
   Used by [[metabase.api.common/defendpoint]] to coerce the value for this schema to a boolean.
-   Garanteed to evaluate to `true` or `false` when passed through a json decoder."
+   Guaranteed to evaluate to `true` or `false` when passed through a json decoder."
   (-> [:enum {:decode/json (fn [b] (contains? #{"true" true} b))
               :json-schema {:type "boolean"}}
        "true" "false" true false]

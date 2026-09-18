@@ -1,88 +1,96 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDisclosure } from "@mantine/hooks";
+import { useCallback, useEffect, useState } from "react";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import { usePrevious } from "react-use";
+import { match } from "ts-pattern";
 import { t } from "ttag";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
-import { deletePermanently } from "metabase/archive/actions";
-import { ArchivedEntityBanner } from "metabase/archive/components/ArchivedEntityBanner";
-import { trackCollectionBookmarked } from "metabase/collections/analytics";
-import { CollectionBulkActions } from "metabase/collections/components/CollectionBulkActions";
 import {
-  type CollectionContentTableColumn,
-  DEFAULT_VISIBLE_COLUMNS_LIST,
-} from "metabase/collections/components/CollectionContent/constants";
-import PinnedItemOverview from "metabase/collections/components/PinnedItemOverview";
-import Header from "metabase/collections/containers/CollectionHeader";
+  Api,
+  useCreateBookmarkMutation,
+  useDeleteBookmarkMutation,
+  useDeleteCollectionMutation,
+} from "metabase/api";
+import { listTag } from "metabase/api/tags";
+import { ArchivedEntityBanner } from "metabase/archive/components/ArchivedEntityBanner";
+import { useSetArchive } from "metabase/archive/hooks";
+import { CollectionBulkActions } from "metabase/collections/components/CollectionBulkActions";
+import { CollectionHeader } from "metabase/collections/components/CollectionHeader";
+import { PinnedItemsGrid } from "metabase/collections/components/PinnedItemsGrid";
+import {
+  trackCollectionBookmarked,
+  trackCollectionSelectModeEntered,
+} from "metabase/common/collections/analytics";
+import { getComposedDragProps } from "metabase/common/collections/dropzone";
 import type {
   CollectionOrTableIdProps,
-  CreateBookmark,
-  DeleteBookmark,
   OnFileUpload,
-  UploadFile,
-} from "metabase/collections/types";
-import {
-  isRootTrashCollection,
-  isTrashedCollection,
-} from "metabase/collections/utils";
-import { getVisibleColumnsMap } from "metabase/common/components/ItemsTable/utils";
-import ItemsDragLayer from "metabase/common/components/dnd/ItemsDragLayer";
+} from "metabase/common/collections/types";
+import { isTrashedCollection } from "metabase/common/collections/utils";
+import { ItemsDragLayer } from "metabase/common/components/dnd/ItemsDragLayer";
+import { useSetCollection, useToast } from "metabase/common/hooks";
 import { useListSelect } from "metabase/common/hooks/use-list-select";
-import { useToggle } from "metabase/common/hooks/use-toggle";
-import { Bookmarks } from "metabase/entities/bookmarks";
-import { Collections } from "metabase/entities/collections";
-import { Search } from "metabase/entities/search";
-import { useDispatch } from "metabase/lib/redux";
+import { useDispatch } from "metabase/redux";
 import { addUndo } from "metabase/redux/undo";
-import type Database from "metabase-lib/v1/metadata/Database";
+import {
+  MAX_UPLOAD_SIZE,
+  MAX_UPLOAD_STRING,
+  uploadFile as uploadFileAction,
+} from "metabase/redux/uploads";
+import { useNavigate } from "metabase/router";
+import { Box } from "metabase/ui";
 import type {
   Bookmark,
   Collection,
   CollectionId,
   CollectionItem,
+  Database,
 } from "metabase-types/api";
-import { SortDirection } from "metabase-types/api/sorting";
-import type { State } from "metabase-types/store";
 
 import { ModelUploadModal } from "../ModelUploadModal";
 import UploadOverlay from "../UploadOverlay";
 
-import { CollectionMain, CollectionRoot } from "./CollectionContent.styled";
+import S from "./CollectionContent.module.css";
 import { CollectionItemsTable } from "./CollectionItemsTable";
-import { getComposedDragProps } from "./utils";
+import { useCollectionChartPaste } from "./use-collection-chart-paste";
 
 const itemKeyFn = (item: CollectionItem) => `${item.id}:${item.model}`;
 
-const CollectionContentViewInner = ({
+export const CollectionContentView = ({
   databases,
   bookmarks,
   collection,
   collectionId,
-  createBookmark,
-  deleteBookmark,
   isAdmin,
-  list,
-  loading,
-  uploadFile,
   uploadsEnabled,
   canCreateUploadInDb,
-  visibleColumns = DEFAULT_VISIBLE_COLUMNS_LIST,
 }: {
   databases?: Database[];
   bookmarks?: Bookmark[];
   collection: Collection;
   collectionId: CollectionId;
-  createBookmark: CreateBookmark;
-  deleteBookmark: DeleteBookmark;
   isAdmin: boolean;
-  list: CollectionItem[] | undefined;
-  loading: boolean;
-  uploadFile: UploadFile;
   uploadsEnabled: boolean;
   canCreateUploadInDb: boolean;
-  visibleColumns?: CollectionContentTableColumn[];
 }) => {
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [deleteCollection] = useDeleteCollectionMutation();
+  const [createBookmark] = useCreateBookmarkMutation();
+  const [deleteBookmark] = useDeleteBookmarkMutation();
+  const archive = useSetArchive();
+  const setCollection = useSetCollection();
+  const [sendToast] = useToast();
+
+  useCollectionChartPaste(collection);
+
+  const isBookmarked =
+    bookmarks?.some(
+      (bookmark) =>
+        bookmark.type === "collection" && bookmark.item_id === collectionId,
+    ) ?? false;
+
   const [selectedItems, setSelectedItems] = useState<CollectionItem[] | null>(
     null,
   );
@@ -90,32 +98,14 @@ const CollectionContentViewInner = ({
 
   const [
     isModelUploadModalOpen,
-    { turnOn: openModelUploadModal, turnOff: closeModelUploadModal },
-  ] = useToggle(false);
+    { open: openModelUploadModal, close: closeModelUploadModal },
+  ] = useDisclosure(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-
-  const saveFile = (file: File) => {
-    setUploadedFile(file);
-    openModelUploadModal();
-  };
-
-  const handleUploadFile = useCallback<OnFileUpload>(
-    (uploadFileArgs: CollectionOrTableIdProps) => {
-      const { collectionId, tableId } = uploadFileArgs;
-      if (uploadedFile && (collectionId || tableId)) {
-        closeModelUploadModal();
-        uploadFile({
-          file: uploadedFile,
-          ...uploadFileArgs,
-        });
-      }
-    },
-    [uploadFile, uploadedFile, closeModelUploadModal],
-  );
 
   const { clear, getIsSelected, selected, selectOnlyTheseItems, toggleItem } =
     useListSelect(itemKeyFn);
   const previousCollection = usePrevious(collection);
+  const previousSelectedCount = usePrevious(selected.length);
 
   useEffect(() => {
     if (previousCollection && previousCollection.id !== collection.id) {
@@ -124,37 +114,82 @@ const CollectionContentViewInner = ({
   }, [previousCollection, collection, clear]);
 
   useEffect(() => {
-    const shouldBeBookmarked = !!bookmarks?.some(
-      (bookmark) =>
-        bookmark.type === "collection" && bookmark.item_id === collectionId,
-    );
-    setIsBookmarked(shouldBeBookmarked);
-  }, [bookmarks, collectionId]);
+    if (previousSelectedCount === 0 && selected.length > 0) {
+      trackCollectionSelectModeEntered(collectionId);
+    }
+  }, [collectionId, previousSelectedCount, selected.length]);
 
-  const dispatch = useDispatch();
-
-  const visibleColumnsMap = useMemo(
-    () => getVisibleColumnsMap(visibleColumns),
-    [visibleColumns],
+  const saveFile = useCallback(
+    (file: File) => {
+      setUploadedFile(file);
+      openModelUploadModal();
+    },
+    [openModelUploadModal],
   );
 
-  const onDrop = (acceptedFiles: File[]) => {
-    if (!acceptedFiles.length) {
-      dispatch(
-        addUndo({
-          message: t`Invalid file type`,
-          toastColor: "error",
+  const handleUploadFile = useCallback<OnFileUpload>(
+    (uploadFileArgs: CollectionOrTableIdProps) => {
+      const { collectionId, tableId } = uploadFileArgs;
+      if (uploadedFile && (collectionId || tableId)) {
+        closeModelUploadModal();
+        dispatch(uploadFileAction({ file: uploadedFile, ...uploadFileArgs }));
+      }
+    },
+    [dispatch, uploadedFile, closeModelUploadModal],
+  );
+
+  const handleFileRejections = useCallback(
+    (rejected: FileRejection[]) => {
+      if (!rejected.length) {
+        return;
+      }
+
+      if (rejected.length > 1) {
+        sendToast({
+          message: t`Please upload files individually`,
+          toastColor: "feedback-negative",
           icon: "warning",
-        }),
-      );
-      return;
-    }
-    saveFile(acceptedFiles[0]);
-  };
+        });
+        return;
+      }
+
+      const errorCode = rejected[0].errors[0].code;
+
+      const errorMessage = match(errorCode)
+        .with(
+          "file-invalid-type",
+          () => t`Sorry, this file type is not supported`,
+        )
+        .with(
+          "file-too-large",
+          () => t`Sorry, this file is too large (max ${MAX_UPLOAD_STRING} MB)`,
+        )
+        .otherwise(() => t`An error has occurred`);
+
+      sendToast({
+        message: errorMessage,
+        toastColor: "feedback-negative",
+        icon: "warning",
+      });
+    },
+    [sendToast],
+  );
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+      if (fileRejections.length) {
+        handleFileRejections(fileRejections);
+      } else if (acceptedFiles.length === 1) {
+        saveFile(acceptedFiles[0]);
+      }
+    },
+    [handleFileRejections, saveFile],
+  );
 
   const { getRootProps, isDragActive } = useDropzone({
     onDrop,
     maxFiles: 1,
+    maxSize: MAX_UPLOAD_SIZE,
     noClick: true,
     noDragEventsBubbling: true,
     accept: { "text/csv": [".csv"], "text/tab-separated-values": [".tsv"] },
@@ -171,12 +206,12 @@ const CollectionContentViewInner = ({
   };
 
   const handleCreateBookmark = () => {
-    createBookmark(collectionId.toString(), "collection");
+    createBookmark({ id: collectionId, type: "collection" });
     trackCollectionBookmarked();
   };
 
   const handleDeleteBookmark = () => {
-    deleteBookmark(collectionId.toString(), "collection");
+    deleteBookmark({ id: collectionId, type: "collection" });
   };
 
   const canCreateUpload =
@@ -188,12 +223,14 @@ const CollectionContentViewInner = ({
     ? getComposedDragProps(getRootProps())
     : {};
 
-  const pinnedItems = list && !isRootTrashCollection(collection) ? list : [];
-  const hasPinnedItems = pinnedItems.length > 0;
-  const actionId = { id: collectionId };
-
   return (
-    <CollectionRoot {...dropzoneProps}>
+    <Box
+      className={S.root}
+      h="100%"
+      pos="relative"
+      bg="background_page-secondary"
+      {...dropzoneProps}
+    >
       {canCreateUpload && (
         <>
           <ModelUploadModal
@@ -214,22 +251,35 @@ const CollectionContentViewInner = ({
           canRestore={collection.can_restore}
           canDelete={collection.can_delete}
           onUnarchive={async () => {
-            const input = { ...actionId, name: collection.name };
-            await dispatch(Collections.actions.setArchived(input, false));
-            await dispatch(Bookmarks.actions.invalidateLists());
+            await archive({ id: collectionId, model: "collection" }, false);
+            dispatch(Api.util.invalidateTags([listTag("bookmark")]));
           }}
           onMove={({ id }) =>
-            dispatch(Collections.actions.setCollection(actionId, { id }))
+            setCollection({ model: "collection", id: collectionId }, { id })
           }
-          onDeletePermanently={() =>
-            dispatch(deletePermanently(Collections.actions.delete(actionId)))
-          }
+          onDeletePermanently={async () => {
+            try {
+              await deleteCollection({ id: collectionId }).unwrap();
+              navigate("/trash");
+              dispatch(
+                addUndo({
+                  message: t`This item has been permanently deleted.`,
+                }),
+              );
+            } catch {
+              dispatch(
+                addUndo({
+                  message: t`There was an error permanently deleting this item.`,
+                }),
+              );
+            }
+          }}
         />
       )}
 
-      <CollectionMain>
+      <Box className={S.main} mx="auto" mah="100%" px="5%" py="md">
         <ErrorBoundary>
-          <Header
+          <CollectionHeader
             collection={collection}
             isAdmin={isAdmin}
             isBookmarked={isBookmarked}
@@ -237,20 +287,23 @@ const CollectionContentViewInner = ({
             onDeleteBookmark={handleDeleteBookmark}
             canUpload={canCreateUpload}
             uploadsEnabled={uploadsEnabled}
-            saveFile={saveFile}
+            onSaveFile={saveFile}
           />
         </ErrorBoundary>
 
         <ErrorBoundary>
-          <PinnedItemOverview
+          <PinnedItemsGrid
             databases={databases}
             bookmarks={bookmarks}
             createBookmark={createBookmark}
             deleteBookmark={deleteBookmark}
-            items={pinnedItems}
+            collectionId={collectionId}
             collection={collection}
             onMove={handleMove}
             onCopy={handleCopy}
+            selected={selected}
+            getIsSelected={getIsSelected}
+            onToggleSelected={toggleItem}
           />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -263,8 +316,7 @@ const CollectionContentViewInner = ({
             bookmarks={bookmarks}
             createBookmark={createBookmark}
             deleteBookmark={deleteBookmark}
-            loadingPinnedItems={loading}
-            hasPinnedItems={hasPinnedItems}
+            showFilterBar
             selected={selected}
             toggleItem={toggleItem}
             clear={clear}
@@ -273,6 +325,7 @@ const CollectionContentViewInner = ({
           />
           <CollectionBulkActions
             collection={collection}
+            bookmarks={bookmarks}
             selected={selected}
             clearSelected={clear}
             selectedItems={selectedItems}
@@ -281,24 +334,8 @@ const CollectionContentViewInner = ({
             setSelectedAction={setSelectedAction}
           />
         </ErrorBoundary>
-      </CollectionMain>
-      <ItemsDragLayer
-        selectedItems={selected}
-        pinnedItems={pinnedItems}
-        collection={collection}
-        visibleColumnsMap={visibleColumnsMap}
-      />
-    </CollectionRoot>
+      </Box>
+      <ItemsDragLayer />
+    </Box>
   );
 };
-
-export const CollectionContentView = Search.loadList({
-  query: (_state: State, { collectionId }: { collectionId: CollectionId }) => ({
-    collection: collectionId,
-    pinned_state: "is_pinned",
-    sort_column: "name",
-    sort_direction: SortDirection.Asc,
-  }),
-  loadingAndErrorWrapper: false,
-  wrapped: true,
-})(CollectionContentViewInner);

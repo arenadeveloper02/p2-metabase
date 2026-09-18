@@ -2,8 +2,9 @@ import { useState } from "react";
 
 import type { DatasetColumn, VisualizationSettings } from "metabase-types/api";
 
-import { PivotTable } from "./PivotTable";
+import { PivotTableView } from "./PivotTableInner";
 
+// Unjustified type cast. FIXME
 const cols = [
   {
     name: "field-123",
@@ -67,6 +68,7 @@ const pivotSettings = {
   column_settings: {},
 };
 
+// Unjustified type cast. FIXME
 const settings = {
   ...pivotSettings,
   column: (c: any) => ({
@@ -87,7 +89,7 @@ export function PivotTableTestWrapper(props?: any) {
   );
 
   return (
-    <PivotTable
+    <PivotTableView
       settings={vizSettings}
       data={{ rows, cols }}
       onVisualizationClick={() => {}}

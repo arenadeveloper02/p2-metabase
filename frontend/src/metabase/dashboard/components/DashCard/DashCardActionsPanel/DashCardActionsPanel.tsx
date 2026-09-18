@@ -8,16 +8,17 @@ import { AddFilterParameterMenu } from "metabase/dashboard/components/AddFilterP
 import {
   isHeadingDashCard,
   isLinkDashCard,
-  isQuestionDashCard,
-  isVirtualDashCard,
   supportsInlineParameters,
 } from "metabase/dashboard/utils";
-import { trackSimpleEvent } from "metabase/lib/analytics";
 import type { NewParameterOpts } from "metabase/parameters/utils/dashboards";
 import { Box, Icon } from "metabase/ui";
+import {
+  isQuestionDashCard,
+  isVirtualDashCard,
+} from "metabase/utils/dashboard";
 import { getVisualizationRaw } from "metabase/visualizations";
 import {
-  isVisualizerDashboardCard,
+  isDisabledForVisualizer,
   isVisualizerSupportedVisualization,
 } from "metabase/visualizer/utils";
 import type Question from "metabase-lib/v1/Question";
@@ -27,6 +28,7 @@ import type {
   Series,
   VisualizationSettings,
 } from "metabase-types/api";
+import { isVisualizerDashboardCard } from "metabase-types/guards/dashboard";
 
 import { canEditQuestion } from "../DashCardMenu/utils";
 
@@ -36,6 +38,7 @@ import { DashCardActionButton } from "./DashCardActionButton/DashCardActionButto
 import S from "./DashCardActionsPanel.module.css";
 import { DashCardTabMenu } from "./DashCardTabMenu/DashCardTabMenu";
 import { LinkCardEditButton } from "./LinkCardEditButton/LinkCardEditButton";
+import { trackVisualizeAnotherWayClicked } from "./analytics";
 
 interface Props {
   series: Series;
@@ -221,6 +224,7 @@ function DashCardActionsPanelInner({
       !isVisualizerDashboardCard(dashcard) &&
       !isVisualizerSupportedVisualization(dashcard?.card.display) &&
       !isVirtualDashCard(dashcard) &&
+      !isDisabledForVisualizer(dashcard?.card.display) &&
       onEditVisualization
     ) {
       buttons.push(
@@ -229,10 +233,7 @@ function DashCardActionsPanelInner({
           tooltip={t`Visualize another way`}
           aria-label={t`Visualize another way`}
           onClick={() => {
-            trackSimpleEvent({
-              event: "visualize_another_way_clicked",
-              triggered_from: "dashcard-actions-panel",
-            });
+            trackVisualizeAnotherWayClicked();
             onEditVisualization();
           }}
         >
@@ -334,9 +335,6 @@ function DashCardActionsPanelInner({
         },
         className,
       )}
-      pos="absolute"
-      top={0}
-      right="20px"
       data-testid="dashboardcard-actions-panel"
       data-dontdrag // allows to interact with the actions panel while in the edit mode
       onMouseDown={onMouseDown}

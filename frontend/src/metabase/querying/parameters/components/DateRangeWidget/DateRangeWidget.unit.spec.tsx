@@ -1,5 +1,4 @@
-import dayjs from "dayjs";
-import _userEvent from "@testing-library/user-event";
+import userEvent from "@testing-library/user-event";
 
 import { render, screen } from "__support__/ui";
 
@@ -7,26 +6,29 @@ import { DateRangeWidget } from "./DateRangeWidget";
 
 type SetupOpts = {
   value?: string;
+  showRollingDefaults?: boolean;
 };
 
-const userEvent = _userEvent.setup({
-  advanceTimers: jest.advanceTimersByTime,
-});
-
-function setup({ value }: SetupOpts = {}) {
+function setup({ value, showRollingDefaults }: SetupOpts = {}) {
   const onChange = jest.fn();
-  render(<DateRangeWidget value={value} onChange={onChange} />);
+  render(
+    <DateRangeWidget
+      value={value}
+      onChange={onChange}
+      showRollingDefaults={showRollingDefaults}
+    />,
+  );
   return { onChange };
 }
 
-describe("DateRangeWidget", () => {
-  beforeAll(() => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date(2016, 5, 7, 12, 13, 55));
-    dayjs.updateLocale("en", { weekStart: 1 });
-  });
+function getVisibleDay(label: string) {
+  return screen
+    .getAllByLabelText(label)
+    .find((day) => day.getAttribute("data-hidden") !== "true");
+}
 
-  it("should allow to select a fixed date range", async () => {
+describe("DateRangeWidget", () => {
+  it("should allow to select a date range", async () => {
     const { onChange } = setup();
     const startInput = screen.getByLabelText("Start date");
     await userEvent.clear(startInput);
@@ -38,25 +40,63 @@ describe("DateRangeWidget", () => {
     expect(onChange).toHaveBeenCalledWith("2020-02-15~2020-03-05");
   });
 
-  it("should accept a previously selected fixed date range", () => {
+  it("should accept a previously selected date range", async () => {
     setup({ value: "2020-02-15~2020-03-05" });
     expect(screen.getByText("February 2020")).toBeInTheDocument();
   });
 
-  it("should resolve a previously selected relative date range on apply", async () => {
-    const { onChange } = setup({ value: "past1weeks" });
-    await userEvent.click(screen.getByText("Apply"));
-    expect(onChange).toHaveBeenCalledWith("2016-05-30~2016-06-05");
-  });
-
-  it("should resolve previous month presets on apply", async () => {
-    const { onChange } = setup({ value: "past1months" });
-    await userEvent.click(screen.getByText("Apply"));
-    expect(onChange).toHaveBeenCalledWith("2016-05-01~2016-05-31");
-  });
-
-  it("should not render a period preset dropdown", () => {
+  it("should not show rolling defaults unless requested", () => {
     setup();
-    expect(screen.queryByLabelText("Period")).not.toBeInTheDocument();
+    expect(screen.queryByText("Previous month")).not.toBeInTheDocument();
+  });
+
+  it("should fill the date range and wait for Apply before committing a rolling default", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2025-03-12T15:00:00"));
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const { onChange } = setup({ showRollingDefaults: true });
+
+    await user.click(screen.getByText("Previous month"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Start date")).toHaveValue("February 1, 2025");
+    expect(screen.getByLabelText("End date")).toHaveValue("February 28, 2025");
+    expect(getVisibleDay("1 February 2025")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(getVisibleDay("28 February 2025")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+
+    await user.click(screen.getByText("Apply"));
+    expect(onChange).toHaveBeenCalledWith("previous-month");
+
+    jest.useRealTimers();
+  });
+
+  it("should use Monday-Sunday weeks for previous week shortcuts", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2025-03-12T15:00:00"));
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const { onChange } = setup({ showRollingDefaults: true });
+
+    await user.click(screen.getByText("Previous week"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Start date")).toHaveValue("March 3, 2025");
+    expect(screen.getByLabelText("End date")).toHaveValue("March 9, 2025");
+    expect(getVisibleDay("3 March 2025")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(getVisibleDay("9 March 2025")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+
+    await user.click(screen.getByText("Apply"));
+    expect(onChange).toHaveBeenCalledWith("previous-week");
+
+    jest.useRealTimers();
   });
 });

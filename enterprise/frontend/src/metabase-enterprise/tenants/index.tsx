@@ -1,8 +1,6 @@
 import { Fragment } from "react";
-import { IndexRedirect, IndexRoute, Route } from "react-router";
 import { t } from "ttag";
 
-import { AdminPeopleApp } from "metabase/admin/people/containers/AdminPeopleApp";
 import { EditUserModal } from "metabase/admin/people/containers/EditUserModal";
 import { NewUserModal } from "metabase/admin/people/containers/NewUserModal";
 import { UserActivationModal } from "metabase/admin/people/containers/UserActivationModal";
@@ -12,210 +10,221 @@ import {
   useGetCollectionQuery,
   useListCollectionsTreeQuery,
 } from "metabase/api";
-import { useSetting } from "metabase/common/hooks/use-setting";
 import {
   type CollectionTreeItem,
   buildCollectionTree,
   getCollectionIcon,
-} from "metabase/entities/collections";
-import { ModalRoute } from "metabase/hoc/ModalRoute";
-import { getGroupNameLocalized } from "metabase/lib/groups";
-import { useSelector } from "metabase/lib/redux";
+} from "metabase/common/collections/utils";
+import { modalRoute } from "metabase/common/components/ModalRoute";
+import { getGroupNameLocalized } from "metabase/common/utils/groups";
+import { getIsTenantUser, getUserIsAdmin } from "metabase/current-user";
 import {
   PLUGIN_ADMIN_PERMISSIONS_TABS,
   PLUGIN_ADMIN_USER_MENU_ROUTES,
   PLUGIN_TENANTS,
 } from "metabase/plugins";
-import type { TenantCollectionPathItem } from "metabase/plugins/oss/tenants";
-import { getIsTenantUser } from "metabase/selectors/user";
+import { useSelector } from "metabase/redux";
+import { Route, redirect } from "metabase/router";
 import { getApplicationName } from "metabase/selectors/whitelabel";
+import { useSetting } from "metabase/settings";
 import { Box, Text } from "metabase/ui";
+import { useListTenantsQuery } from "metabase-enterprise/api";
 import { hasPremiumFeature } from "metabase-enterprise/settings";
-import type { CollectionId, CollectionNamespace } from "metabase-types/api";
 
 import { EditUserStrategyModal } from "./EditUserStrategyModal";
 import { EditUserStrategySettingsButton } from "./EditUserStrategySettingsButton";
-import { ExternalGroupDetailApp } from "./components/ExternalGroupDetailApp/ExternalGroupDetailApp";
-import { ExternalGroupsListingApp } from "./components/ExternalGroupsListingApp/ExternalGroupsListingApp";
-import { ExternalPeopleListingApp } from "./components/ExternalPeopleListingApp/ExternalPeopleListingApp";
+import { CreateTenantsOnboardingStep } from "./components/CreateTenantsOnboardingStep";
 import { MainNavSharedCollections } from "./components/MainNavSharedCollections";
 import { ReactivateExternalUserButton } from "./components/ReactivateExternalUserButton";
 import { TenantCollectionItemList } from "./components/TenantCollectionItemList";
-import { TenantCollectionList } from "./components/TenantCollectionList";
 import { TenantCollectionPermissionsPage } from "./components/TenantCollectionPermissionsPage";
 import { TenantDisplayName } from "./components/TenantDisplayName";
 import { FormTenantWidget } from "./components/TenantFormWidget";
 import { TenantGroupHintIcon } from "./components/TenantGroupHintIcon";
+import { TenantSpecificCollectionPermissionsPage } from "./components/TenantSpecificCollectionPermissionsPage";
 import { TenantSpecificCollectionsItemList } from "./components/TenantSpecificCollectionsItemList";
+import { TenantsSummaryOnboardingStep } from "./components/TenantsSummaryOnboardingStep";
 import { EditTenantModal } from "./containers/EditTenantModal";
 import { NewTenantModal } from "./containers/NewTenantModal";
 import { TenantActivationModal } from "./containers/TenantActivationModal";
 import { TenantsListingApp } from "./containers/TenantsListingApp";
 import {
+  SHARED_TENANT_NAMESPACE,
+  TENANT_SPECIFIC_NAMESPACE,
+} from "./utils/constants";
+import {
+  canPlaceEntityInCollection,
+  getNamespaceDisplayName,
+  getRootCollectionItem,
   isExternalUser,
   isExternalUsersGroup,
   isTenantCollection,
   isTenantGroup,
 } from "./utils/utils";
 
-const SHARED_TENANT_NAMESPACE: CollectionNamespace = "shared-tenant-collection";
+/**
+ * The tenant people and group pages wrap the admin pages of the same name, so
+ * importing them here would hold those admin pages in the initial bundle. They
+ * get a chunk of their own rather than the `admin` one: naming an `import()`
+ * into a chunk another site already names merges the two module sets, which
+ * copies whatever they shared into every other chunk that needs it.
+ */
+const externalPeopleListing = () =>
+  import(
+    /* webpackChunkName: "tenants" */ "./components/ExternalPeopleListingApp/ExternalPeopleListingApp"
+  ).then(({ ExternalPeopleListingApp }) => ({
+    Component: ExternalPeopleListingApp,
+  }));
 
-const isTenantNamespace = (namespace?: CollectionNamespace): boolean => {
-  return (
-    namespace === SHARED_TENANT_NAMESPACE || namespace === "tenant-specific"
-  );
-};
+const externalGroupsListing = () =>
+  import(
+    /* webpackChunkName: "tenants" */ "./components/ExternalGroupsListingApp/ExternalGroupsListingApp"
+  ).then(({ ExternalGroupsListingApp }) => ({
+    Component: ExternalGroupsListingApp,
+  }));
 
-const isTenantCollectionId = (id: CollectionId): boolean => {
-  return id === "tenant" || id === "tenant-specific";
-};
+const externalGroupDetail = () =>
+  import(
+    /* webpackChunkName: "tenants" */ "./components/ExternalGroupDetailApp/ExternalGroupDetailApp"
+  ).then(({ ExternalGroupDetailApp }) => ({
+    Component: ExternalGroupDetailApp,
+  }));
 
-const getNamespaceForTenantId = (id: CollectionId): CollectionNamespace => {
-  if (id === "tenant") {
-    return SHARED_TENANT_NAMESPACE;
-  }
-  return null;
-};
+/**
+ * The collection-facing tenant pages stay out of the `tenants` chunk above. That
+ * chunk holds the admin listings, and a tenant user has no reason to download
+ * them.
+ */
+const canAccessTenantSpecificRoute = () =>
+  import(
+    /* webpackChunkName: "tenant-collections" */ "./components/CanAccessTenantSpecificRoute"
+  ).then(({ CanAccessTenantSpecificRoute }) => ({
+    Component: CanAccessTenantSpecificRoute,
+  }));
 
-const getTenantCollectionPathPrefix = (
-  collection: TenantCollectionPathItem,
-): CollectionId[] | null => {
-  if (collection.id === "tenant") {
-    return ["tenant"];
-  }
-  if (collection.id === "tenant-specific") {
-    return ["tenant-specific"];
-  }
+const tenantCollectionList = () =>
+  import(
+    /* webpackChunkName: "tenant-collections" */ "./components/TenantCollectionList"
+  ).then(({ TenantCollectionList }) => ({ Component: TenantCollectionList }));
 
-  if (collection.type === "tenant-specific-root-collection") {
-    if (collection.collection_id === "tenant-specific") {
-      return ["tenant-specific", collection.id];
-    }
-    return [collection.id];
-  }
+const tenantUsersList = () =>
+  import(
+    /* webpackChunkName: "tenant-users" */ "./components/TenantUsersList"
+  ).then(({ TenantUsersList }) => ({
+    Component: TenantUsersList,
+  }));
 
-  if (collection.namespace === "tenant-specific") {
-    return ["tenant"];
-  }
-
-  const isTenant =
-    isTenantNamespace(collection.namespace) ||
-    isTenantNamespace(collection.collection_namespace) ||
-    collection.is_shared_tenant_collection ||
-    collection.is_tenant_dashboard;
-
-  if (isTenant) {
-    return ["tenant"];
-  }
-
-  return null;
-};
-
-const getNamespaceDisplayName = (
-  namespace?: CollectionNamespace,
-): string | null => {
-  if (namespace === SHARED_TENANT_NAMESPACE) {
-    return t`Shared collections`;
-  }
-  return null;
-};
+const tenantUsersPersonalCollectionList = () =>
+  import(
+    /* webpackChunkName: "tenant-user-collections" */ "./components/TenantUsersPersonalCollectionList"
+  ).then(({ TenantUsersPersonalCollectionList }) => ({
+    Component: TenantUsersPersonalCollectionList,
+  }));
 
 export function initializePlugin() {
   if (hasPremiumFeature("tenants")) {
     PLUGIN_TENANTS.isEnabled = true;
 
-    // Register tenant collection permissions tab and routes
+    PLUGIN_TENANTS.useListActiveTenants = ({ skip } = {}) => {
+      const { data, isLoading, error } = useListTenantsQuery(
+        { status: "active" },
+        { skip },
+      );
+
+      return { data: data?.data, isLoading, error };
+    };
+
+    // Register tenant collection permissions tabs and routes
     PLUGIN_ADMIN_PERMISSIONS_TABS.tabs.push({
       name: t`Shared collections`,
       value: "tenant-collections",
     });
 
+    PLUGIN_ADMIN_PERMISSIONS_TABS.tabs.push({
+      name: t`Tenant collections`,
+      value: "tenant-specific-collections",
+    });
+
     PLUGIN_ADMIN_PERMISSIONS_TABS.getRoutes = () => (
-      <Route
-        path="tenant-collections"
-        component={TenantCollectionPermissionsPage}
-      >
-        <Route path=":collectionId" />
-      </Route>
+      <>
+        <Route
+          path="tenant-collections"
+          element={<TenantCollectionPermissionsPage />}
+        >
+          <Route path=":collectionId" />
+        </Route>
+        <Route
+          path="tenant-specific-collections"
+          element={<TenantSpecificCollectionPermissionsPage />}
+        >
+          <Route path=":collectionId" />
+        </Route>
+      </>
     );
 
     PLUGIN_TENANTS.EditUserStrategyModal = EditUserStrategyModal;
+    PLUGIN_TENANTS.CreateTenantsOnboardingStep = CreateTenantsOnboardingStep;
+    PLUGIN_TENANTS.TenantsSummaryOnboardingStep = TenantsSummaryOnboardingStep;
 
-    PLUGIN_TENANTS.userStrategyRoute = (
-      <ModalRoute path="user-strategy" modal={EditUserStrategyModal} noWrap />
+    PLUGIN_TENANTS.userStrategyRoute = modalRoute(
+      "user-strategy",
+      EditUserStrategyModal,
+      { noWrap: true },
     );
 
     PLUGIN_TENANTS.tenantsRoutes = (
       <>
-        <Route component={AdminPeopleApp}>
-          <IndexRoute component={TenantsListingApp} />
-          <Route path="" component={TenantsListingApp}>
-            <ModalRoute path="new" modal={NewTenantModal} noWrap />
-            <ModalRoute
-              path="user-strategy"
-              modal={EditUserStrategyModal}
-              noWrap
-            />
+        <Route index element={<TenantsListingApp />} />
+        <Route path="" element={<TenantsListingApp />}>
+          {modalRoute("new", NewTenantModal, { noWrap: true })}
+          {modalRoute("user-strategy", EditUserStrategyModal, { noWrap: true })}
+        </Route>
+        <Route path="groups">
+          <Route index lazy={externalGroupsListing} />
+          <Route path=":groupId" lazy={externalGroupDetail} />
+        </Route>
+        <Route path="people" lazy={externalPeopleListing}>
+          {modalRoute(
+            "new",
+            (props) => (
+              <NewUserModal {...props} external />
+            ),
+            {
+              noWrap: true,
+            },
+          )}
+          <Route path=":userId">
+            <Route index element={redirect("/admin/people/tenants/people")} />
+            {modalRoute(
+              "edit",
+              (props) => (
+                <EditUserModal {...props} external />
+              ),
+              { noWrap: true },
+            )}
+            {modalRoute("deactivate", UserActivationModal, { noWrap: true })}
+            {modalRoute("reactivate", UserActivationModal, { noWrap: true })}
+            {modalRoute("success", UserSuccessModal, { noWrap: true })}
+            {modalRoute("reset", UserPasswordResetModal, { noWrap: true })}
+            {PLUGIN_ADMIN_USER_MENU_ROUTES.map((getRoutes, index) => (
+              <Fragment key={index}>{getRoutes()}</Fragment>
+            ))}
           </Route>
-          <Route path="groups">
-            <IndexRoute component={ExternalGroupsListingApp} />
-            <Route path=":groupId" component={ExternalGroupDetailApp} />
-          </Route>
-          <Route path="people" component={ExternalPeopleListingApp}>
-            <ModalRoute
-              path="new"
-              modal={(props) => <NewUserModal {...props} external />}
-              noWrap
-            />
-            <Route path=":userId">
-              <IndexRedirect to="/admin/tenants/people" />
-              <ModalRoute
-                path="edit"
-                // @ts-expect-error - params prop can't be infered
-                modal={(props) => <EditUserModal {...props} external />}
-                noWrap
-              />
-              <ModalRoute
-                path="deactivate"
-                // @ts-expect-error - params prop can't be infered
-                modal={UserActivationModal}
-                noWrap
-              />
-              <ModalRoute
-                path="reactivate"
-                // @ts-expect-error - params prop can't be infered
-                modal={UserActivationModal}
-                noWrap
-              />
-              {/* @ts-expect-error - params prop can't be infered */}
-              <ModalRoute path="success" modal={UserSuccessModal} noWrap />
-              {/* @ts-expect-error - params prop can't be infered */}
-              <ModalRoute path="reset" modal={UserPasswordResetModal} noWrap />
-              {PLUGIN_ADMIN_USER_MENU_ROUTES.map((getRoutes, index) => (
-                <Fragment key={index}>{getRoutes()}</Fragment>
-              ))}
-            </Route>
-          </Route>
-          <Route path=":tenantId" component={TenantsListingApp}>
-            <ModalRoute
-              path="edit"
-              // @ts-expect-error - params prop can't be infered
-              modal={EditTenantModal}
-              noWrap
-            />
-            <ModalRoute
-              path="deactivate"
-              // @ts-expect-error - params prop can't be infered
-              modal={TenantActivationModal}
-              noWrap
-            />
-            <ModalRoute
-              path="reactivate"
-              // @ts-expect-error - params prop can't be infered
-              modal={TenantActivationModal}
-              noWrap
-            />
-          </Route>
+        </Route>
+        <Route path=":tenantId" element={<TenantsListingApp />}>
+          {modalRoute("edit", EditTenantModal, { noWrap: true })}
+          {modalRoute(
+            "deactivate",
+            // @ts-expect-error - params prop can't be inferred
+            TenantActivationModal,
+            { noWrap: true },
+          )}
+          {modalRoute(
+            "reactivate",
+            // @ts-expect-error - params prop can't be inferred
+            TenantActivationModal,
+            { noWrap: true },
+          )}
         </Route>
       </>
     );
@@ -235,7 +244,12 @@ export function initializePlugin() {
     PLUGIN_TENANTS.TenantCollectionItemList = TenantCollectionItemList;
     PLUGIN_TENANTS.TenantSpecificCollectionsItemList =
       TenantSpecificCollectionsItemList;
-    PLUGIN_TENANTS.TenantCollectionList = TenantCollectionList;
+    PLUGIN_TENANTS.tenantCollectionList = tenantCollectionList;
+    PLUGIN_TENANTS.canAccessTenantSpecificRoute = canAccessTenantSpecificRoute;
+    PLUGIN_TENANTS.tenantUsersList = tenantUsersList;
+    PLUGIN_TENANTS.tenantUsersPersonalCollectionList =
+      tenantUsersPersonalCollectionList;
+    PLUGIN_TENANTS.canPlaceEntityInCollection = canPlaceEntityInCollection;
 
     // Category 1: UI Components
     PLUGIN_TENANTS.GroupDescription = function GroupDescription({ group }) {
@@ -264,24 +278,11 @@ export function initializePlugin() {
 
     // Category 2: Collection namespace utilities
     PLUGIN_TENANTS.SHARED_TENANT_NAMESPACE = SHARED_TENANT_NAMESPACE;
-    PLUGIN_TENANTS.isTenantNamespace = isTenantNamespace;
-    PLUGIN_TENANTS.isTenantCollectionId = isTenantCollectionId;
-    PLUGIN_TENANTS.getNamespaceForTenantId = getNamespaceForTenantId;
-    PLUGIN_TENANTS.getTenantCollectionPathPrefix =
-      getTenantCollectionPathPrefix;
+    PLUGIN_TENANTS.TENANT_SPECIFIC_NAMESPACE = TENANT_SPECIFIC_NAMESPACE;
     PLUGIN_TENANTS.getTenantRootDisabledReason = () =>
       t`Items cannot be saved directly to the tenant root collection. Please select a sub-collection.`;
     PLUGIN_TENANTS.getNamespaceDisplayName = getNamespaceDisplayName;
-    PLUGIN_TENANTS.TENANT_SPECIFIC_COLLECTIONS = {
-      id: "tenant-specific" as const,
-      get name() {
-        return t`Tenant collections`;
-      },
-      location: "/",
-      path: ["root"],
-      can_write: false,
-    };
-
+    PLUGIN_TENANTS.getRootCollectionItem = getRootCollectionItem;
     PLUGIN_TENANTS.getFlattenedCollectionsForNavbar = ({
       currentUser,
       sharedTenantCollections,
@@ -319,6 +320,7 @@ export function initializePlugin() {
     };
     PLUGIN_TENANTS.useTenantMainNavbarData = () => {
       const isTenantUser = useSelector(getIsTenantUser);
+      const isAdmin = useSelector(getUserIsAdmin);
       const useTenants = useSetting("use-tenants");
 
       const { data: sharedTenantCollections } = useListCollectionsTreeQuery(
@@ -332,6 +334,14 @@ export function initializePlugin() {
         { skip: !useTenants || isTenantUser },
       );
 
+      // Check if non-admin user has access to tenant-specific namespace
+      const { data: tenantSpecificRoot } = useGetCollectionQuery(
+        { id: "root", namespace: "tenant-specific" },
+        { skip: !useTenants || isTenantUser || isAdmin },
+      );
+      const canAccessTenantSpecificCollections =
+        isAdmin || !!tenantSpecificRoot;
+
       // Non-admins can create shared collections if they have curate permissions on the root shared collection
       const canCreateSharedCollection =
         sharedCollectionRoot?.can_write ?? false;
@@ -340,9 +350,12 @@ export function initializePlugin() {
       const showExternalCollectionsSection =
         useTenants &&
         !isTenantUser &&
-        (hasVisibleSharedCollections || canCreateSharedCollection);
+        (hasVisibleSharedCollections ||
+          canCreateSharedCollection ||
+          canAccessTenantSpecificCollections);
 
       return {
+        canAccessTenantSpecificCollections,
         canCreateSharedCollection,
         showExternalCollectionsSection,
         sharedTenantCollections,

@@ -1,6 +1,6 @@
 (ns metabase.query-processor.middleware.limit
   "Middleware that handles limiting the maximum number of rows returned by a query."
-  (:refer-clojure :exclude [empty? get-in])
+  (:refer-clojure :exclude [get-in])
   (:require
    [metabase.lib.core :as lib]
    [metabase.lib.schema :as lib.schema]
@@ -9,7 +9,7 @@
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.util :as u]
    [metabase.util.malli :as mu]
-   [metabase.util.performance :refer [empty? get-in]]
+   [metabase.util.performance :refer [get-in]]
    [potemkin :as p]))
 
 ;;; provided as a convenience since this var used to live here. Prefer using directly from `qp.settings` going forward.
@@ -35,7 +35,7 @@
       (and (not (lib/native-stage? query -1))
            (not original-limit)
            (not (lib/current-page query -1))
-           (empty? (lib/aggregations query -1)))
+           (not (lib/aggregated-output? query)))
       (lib/limit -1 max-rows))))
 
 (defn determine-query-max-rows
@@ -91,7 +91,7 @@
   ;; Background: SQL Server treats a limit of `0` as meaning "unbounded". SQL Server can override
   ;; [[qp.constraints/max-results-bare-rows]] with a Database-local Setting to fix #9940, where queries with aggregations
   ;; and expressions could return the wrong results because of limits being applied to subselects. Realistically the
-  ;; overriden limit of `0` should probably only apply to the MBQL query and not to the number of rows we take. But we'd
+  ;; overridden limit of `0` should probably only apply to the MBQL query and not to the number of rows we take. But we'd
   ;; have to break [[determine-query-max-rows]] into two separate things in order to do that. :shrug:
   ((take (if-not (pos? max-rows) 1 max-rows)) rf))
 
@@ -99,6 +99,7 @@
   "Post-processing middleware. Limit the maximum number of rows that are returned in post-processing."
   [query :- ::lib.schema/query
    rff   :- ::qp.schema/rff]
-  (let [max-rows (determine-query-max-rows query)]
+  (if-let [max-rows (determine-query-max-rows query)]
     (fn limit-result-rows-rff* [metadata]
-      (limit-xform max-rows (rff metadata)))))
+      (limit-xform max-rows (rff metadata)))
+    rff))

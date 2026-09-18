@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import AutocompleteInput from "metabase/common/components/AutocompleteInput";
+import { AutocompleteInput } from "metabase/common/components/AutocompleteInput";
 import type { VisualizationSettings } from "metabase-types/api";
 
 interface ChartSettingLinkUrlInputProps {
@@ -30,7 +30,8 @@ const ChartSettingLinkUrlInput = ({
   value,
   onChange,
   options,
-  ...props
+  id,
+  onChangeSettings,
 }: ChartSettingLinkUrlInputProps) => {
   const valueOrDefault = value ?? "";
   const [isFocused, setIsFocused] = useState(false);
@@ -61,8 +62,9 @@ const ChartSettingLinkUrlInput = ({
 
   return (
     <AutocompleteInput
-      {...props}
-      data-testid={props.id}
+      id={id}
+      data-testid={id}
+      onChangeSettings={onChangeSettings}
       options={options}
       onChange={setFocusedValue}
       value={isFocused ? focusedValue : valueOrDefault}

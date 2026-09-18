@@ -2,8 +2,8 @@ import React from "react";
 import { t } from "ttag";
 import type { EChartsOption } from "echarts";
 
-import { reactNodeToHtmlString } from "metabase/lib/react-to-html";
-import { formatValue } from "metabase/lib/formatting";
+import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
+import { formatValue } from "metabase/value-formatting";
 import { computeMaxDecimalsForValues } from "metabase/visualizations/lib/utils";
 import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
 import {
@@ -395,9 +395,9 @@ export function getDoughnutChartOption(
         center,
         avoidLabelOverlap: true,
         itemStyle: {
-          borderRadius: 10,
-          borderColor: "#fff",
           borderWidth: 2,
+          borderRadius: 10,
+          borderColor: "transparent",
         },
         label: {
           show: showLabels || showPercentOnChart,

@@ -1,7 +1,9 @@
-import type { PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren, useMemo } from "react";
 
+import { useTrackSdkComponentMount } from "embedding-sdk-bundle/analytics/component-events";
 import { FlexibleSizeComponent } from "embedding-sdk-bundle/components/private/FlexibleSizeComponent";
 import { withPublicComponentWrapper } from "embedding-sdk-bundle/components/private/PublicComponentWrapper";
+import { RenderIfHasContent } from "embedding-sdk-bundle/components/private/RenderIfHasContent/RenderIfHasContent";
 import {
   Breakout,
   BreakoutDropdown,
@@ -27,24 +29,25 @@ import {
   SdkQuestion,
   type SdkQuestionProps,
 } from "embedding-sdk-bundle/components/public/SdkQuestion/SdkQuestion";
+import { QuestionAlertsButton } from "embedding-sdk-bundle/components/public/notifications/QuestionAlertsButton";
+import { useMobileLayout } from "embedding-sdk-bundle/hooks/private/use-mobile-layout";
 import { useNormalizeGuestEmbedQuestionOrDashboardComponentProps } from "embedding-sdk-bundle/hooks/private/use-normalize-guest-embed-question-or-dashboard-component-props";
+import { EmbeddingSdkStaticMode } from "embedding-sdk-bundle/lib/modes/EmbeddingSdkStaticMode";
+import { resolveDeserializedCard } from "embedding-sdk-bundle/lib/sdk-question/resolve-deserialized-card";
 import { useSdkSelector } from "embedding-sdk-bundle/store";
 import { getIsGuestEmbed } from "embedding-sdk-bundle/store/selectors";
-import type { SdkQuestionEntityPublicProps } from "embedding-sdk-bundle/types/question";
-import { Box, Stack } from "metabase/ui";
+import type {
+  SdkQuestionEntityInternalProps,
+  SdkQuestionEntityPublicProps,
+} from "embedding-sdk-bundle/types/question";
+import { Box, Group, Stack } from "metabase/ui";
 import { getEmbeddingMode } from "metabase/visualizations/click-actions/lib/modes";
-import { EmbeddingSdkStaticMode } from "metabase/visualizations/click-actions/modes/EmbeddingSdkStaticMode";
 import type { ClickActionModeGetter } from "metabase/visualizations/types";
 import type Question from "metabase-lib/v1/Question";
 
 import { staticQuestionSchema } from "./StaticQuestion.schema";
 
-/**
- * @interface
- * @expand
- * @category StaticQuestion
- */
-export type StaticQuestionProps = PropsWithChildren<
+type StaticQuestionBaseProps = PropsWithChildren<
   Pick<
     SdkQuestionProps,
     | "withChartTypeSelector"
@@ -53,12 +56,29 @@ export type StaticQuestionProps = PropsWithChildren<
     | "className"
     | "style"
     | "initialSqlParameters"
+    | "sqlParameters"
+    | "onSqlParametersChange"
     | "hiddenParameters"
     | "withDownloads"
+    | "withAlerts"
     | "title"
   >
-> &
+>;
+
+/**
+ * @interface
+ * @expand
+ * @category StaticQuestion
+ */
+export type StaticQuestionProps = StaticQuestionBaseProps &
   SdkQuestionEntityPublicProps;
+
+/**
+ * Internal type that includes the `query` prop used by the `useMetabot` hook.
+ * Not re-exported from the public SDK package entry point.
+ */
+export type StaticQuestionInternalProps = StaticQuestionBaseProps &
+  SdkQuestionEntityInternalProps;
 
 /**
  * @interface
@@ -79,15 +99,22 @@ export type StaticQuestionComponents = {
   BreakoutDropdown: typeof BreakoutDropdown;
   DownloadWidget: typeof DownloadWidget;
   DownloadWidgetDropdown: typeof DownloadWidgetDropdown;
+  AlertsButton: typeof QuestionAlertsButton;
   SqlParametersList: typeof SqlParametersList;
 };
 
 const StaticQuestionInner = (
-  props: StaticQuestionProps,
+  props: StaticQuestionInternalProps,
 ): JSX.Element | null => {
+  const query = props.query;
+  const card = props.card;
+
   // Normalize props for Guest Embed usage (e.g. enforce withDownloads in OSS).
   const normalizedProps =
-    useNormalizeGuestEmbedQuestionOrDashboardComponentProps(props);
+    useNormalizeGuestEmbedQuestionOrDashboardComponentProps(
+      // Unjustified type cast. FIXME
+      props as StaticQuestionProps,
+    );
 
   const {
     questionId,
@@ -98,13 +125,44 @@ const StaticQuestionInner = (
     className,
     style,
     initialSqlParameters,
+    sqlParameters,
+    onSqlParametersChange,
     hiddenParameters,
     withDownloads,
+    withAlerts,
     title = false, // Hidden by default for backwards-compatibility.
     children,
   } = normalizedProps;
 
+  const isNewQuestion = questionId === "new" || questionId === "new-native";
+  const trackingEntityId = questionId != null ? questionId : null;
+
+  useTrackSdkComponentMount(
+    "StaticQuestion",
+    trackingEntityId,
+    isNewQuestion
+      ? {
+          id_new: questionId === "new",
+          id_new_native: questionId === "new-native",
+          with_title: title !== false,
+          with_downloads: withDownloads,
+          with_alerts: withAlerts,
+        }
+      : {
+          with_title: title !== false,
+          with_downloads: withDownloads,
+          with_alerts: withAlerts,
+        },
+  );
+
+  const deserializedCard = useMemo(
+    () => resolveDeserializedCard({ card, query }),
+    [card, query],
+  );
+
   const isGuestEmbed = useSdkSelector(getIsGuestEmbed);
+
+  const { ref: containerRef, isMobile } = useMobileLayout();
 
   const getClickActionMode: ClickActionModeGetter = ({
     question,
@@ -122,16 +180,21 @@ const StaticQuestionInner = (
 
   return (
     <SdkQuestion
-      questionId={questionId ?? null}
+      questionId={questionId}
       token={token}
+      deserializedCard={deserializedCard}
       getClickActionMode={getClickActionMode}
       navigateToNewCard={null}
       initialSqlParameters={initialSqlParameters}
+      sqlParameters={sqlParameters}
+      onSqlParametersChange={onSqlParametersChange}
       hiddenParameters={hiddenParameters}
       withDownloads={withDownloads}
+      withAlerts={withAlerts}
     >
       {children ?? (
         <FlexibleSizeComponent
+          ref={containerRef}
           className={className}
           width={width}
           height={height}
@@ -143,18 +206,30 @@ const StaticQuestionInner = (
             h="100%"
             gap="xs"
           >
-            <Stack className={InteractiveQuestionS.TopBar} gap="sm" p="md">
+            <RenderIfHasContent
+              component={Stack}
+              className={InteractiveQuestionS.TopBar}
+              gap="sm"
+              p="md"
+              data-testid="static-question-top-bar"
+            >
               {title && <DefaultViewTitle title={title} />}
 
-              {(withChartTypeSelector || withDownloads) && (
-                <ResultToolbar>
-                  {withChartTypeSelector && <SdkQuestion.ChartTypeDropdown />}
-                  {withDownloads && <SdkQuestion.DownloadWidgetDropdown />}
-                </ResultToolbar>
-              )}
+              <RenderIfHasContent
+                component={ResultToolbar}
+                data-testid="result-toolbar"
+              >
+                {withChartTypeSelector && <SdkQuestion.ChartTypeDropdown />}
+
+                <RenderIfHasContent component={Group} gap="sm" ml="auto">
+                  <SdkQuestion.DownloadWidgetDropdown />
+
+                  {!isMobile && <QuestionAlertsButton />}
+                </RenderIfHasContent>
+              </RenderIfHasContent>
 
               {isGuestEmbed && <SdkQuestion.SqlParametersList />}
-            </Stack>
+            </RenderIfHasContent>
 
             <Box className={InteractiveQuestionS.Main} w="100%" h="100%">
               <Box className={InteractiveQuestionS.Content}>
@@ -189,13 +264,28 @@ const subComponents: StaticQuestionComponents = {
   BreakoutDropdown: BreakoutDropdown,
   DownloadWidget: DownloadWidget,
   DownloadWidgetDropdown: DownloadWidgetDropdown,
+  AlertsButton: QuestionAlertsButton,
   SqlParametersList: SqlParametersList,
 };
 
+const _StaticQuestionWrapped = withPublicComponentWrapper(StaticQuestionInner, {
+  supportsGuestEmbed: true,
+});
+
 export const StaticQuestion = Object.assign(
-  withPublicComponentWrapper(StaticQuestionInner, {
-    supportsGuestEmbed: true,
-  }),
+  // Unjustified type cast. FIXME
+  _StaticQuestionWrapped as FC<StaticQuestionProps>,
+  subComponents,
+  { schema: staticQuestionSchema },
+);
+
+/**
+ * Same runtime component as {@link StaticQuestion}, typed to accept the
+ * internal `query` prop. This component is intended for internal use only.
+ */
+export const StaticQuestionInternal = Object.assign(
+  // Unjustified type cast. FIXME
+  _StaticQuestionWrapped as FC<StaticQuestionInternalProps>,
   subComponents,
   { schema: staticQuestionSchema },
 );

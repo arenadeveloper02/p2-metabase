@@ -10,8 +10,11 @@ export const BOOKMARK_TYPES = [
   "dashboard",
   "snippet",
   "indexed-entity",
+  "transform",
   "document",
   "table",
+  "measure",
+  "exploration",
 ] as const;
 export type BookmarkType = (typeof BOOKMARK_TYPES)[number];
 export type BookmarkId = string;
@@ -28,6 +31,10 @@ export interface Bookmark {
    * Defined only when bookmark.type is "card"
    */
   card_type?: CardType;
+  /**
+   * Defined only when bookmark.type is "collection"
+   */
+  is_remote_synced?: boolean;
 }
 
 export interface BookmarkOrdering {

@@ -2,10 +2,8 @@ import { applyThemePreset } from "./apply-theme-preset";
 
 const PRESET_COLOR_KEYS = [
   "background",
-  "background-hover",
   "background-disabled",
   "background-secondary",
-  "background-light",
   "text-primary",
   "text-secondary",
   "text-tertiary",
@@ -70,6 +68,7 @@ describe("applyThemePreset", () => {
   describe("invalid preset", () => {
     it("returns empty colors for unknown preset", () => {
       const theme = {
+        // Unjustified type cast. FIXME
         preset: "invalid-preset" as any,
         colors: { brand: "#custom" },
       };

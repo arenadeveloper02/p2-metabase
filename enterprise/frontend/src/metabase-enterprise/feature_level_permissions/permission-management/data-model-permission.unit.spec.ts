@@ -1,5 +1,9 @@
-import { DataPermissionValue } from "metabase/admin/permissions/types";
-import type { Group, GroupsPermissions } from "metabase-types/api";
+import {
+  DataPermissionValue,
+  type Group,
+  type GroupsPermissions,
+  type SpecialGroupType,
+} from "metabase-types/api";
 
 import {
   DATA_MODEL_PERMISSION_OPTIONS,
@@ -12,6 +16,7 @@ const groupId = 2;
 const databaseId = 1;
 
 const getPermissionGraph = (value = "all"): GroupsPermissions =>
+  // Unjustified type cast. FIXME
   ({
     [defaultGroupId]: {
       [databaseId]: {
@@ -29,10 +34,11 @@ const getPermissionGraph = (value = "all"): GroupsPermissions =>
     },
   }) as any;
 
-const isAdmin = true;
-const isNotAdmin = false;
-const isNotExternal = false;
+const adminGroupType: SpecialGroupType = "admin";
+const regularGroupType: SpecialGroupType = null;
+const analystGroupType: SpecialGroupType = "analyst";
 
+// Unjustified type cast. FIXME
 const defaultGroup: Group = {
   id: defaultGroupId,
   name: "All Users",
@@ -43,8 +49,7 @@ describe("buildDataModelPermission", () => {
     const permissionModel = buildDataModelPermission(
       { databaseId },
       groupId,
-      isNotAdmin,
-      isNotExternal,
+      regularGroupType,
       getPermissionGraph(),
       defaultGroup,
       "schemas",
@@ -59,8 +64,7 @@ describe("buildDataModelPermission", () => {
     const permissionModel = buildDataModelPermission(
       { databaseId },
       groupId,
-      isAdmin,
-      isNotExternal,
+      adminGroupType,
       getPermissionGraph(),
       defaultGroup,
       "schemas",
@@ -72,12 +76,27 @@ describe("buildDataModelPermission", () => {
     );
   });
 
-  it("does not disable permission editing for non-admins", () => {
+  it("disables permission editing for data analysts", () => {
     const permissionModel = buildDataModelPermission(
       { databaseId },
       groupId,
-      isNotAdmin,
-      isNotExternal,
+      analystGroupType,
+      getPermissionGraph(),
+      defaultGroup,
+      "schemas",
+    );
+
+    expect(permissionModel.isDisabled).toBe(true);
+    expect(permissionModel.disabledTooltip).toBe(
+      "Data Analysts always have full access to edit table metadata.",
+    );
+  });
+
+  it("does not disable permission editing for regular groups", () => {
+    const permissionModel = buildDataModelPermission(
+      { databaseId },
+      groupId,
+      regularGroupType,
       getPermissionGraph(),
       defaultGroup,
       "schemas",
@@ -92,8 +111,7 @@ describe("buildDataModelPermission", () => {
       const schemasPermissionModel = buildDataModelPermission(
         { databaseId },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph(),
         defaultGroup,
         "schemas",
@@ -102,8 +120,7 @@ describe("buildDataModelPermission", () => {
       const tablesPermissionModel = buildDataModelPermission(
         { databaseId, schemaName: "schema" },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph(),
         defaultGroup,
         "tables",
@@ -123,8 +140,7 @@ describe("buildDataModelPermission", () => {
       const permissionModel = buildDataModelPermission(
         { databaseId, schemaName: "schema", tableId: 1 },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph(),
         defaultGroup,
         "fields",
@@ -144,8 +160,7 @@ describe("buildDataModelPermission", () => {
       const permissionModel = buildDataModelPermission(
         { databaseId },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph(),
         defaultGroup,
         "schemas",
@@ -163,8 +178,7 @@ describe("buildDataModelPermission", () => {
       const permissionModel = buildDataModelPermission(
         { databaseId },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph("none"),
         defaultGroup,
         "schemas",
@@ -183,8 +197,7 @@ describe("buildDataModelPermission", () => {
       const permissionModel = buildDataModelPermission(
         { databaseId },
         groupId,
-        isNotAdmin,
-        isNotExternal,
+        regularGroupType,
         getPermissionGraph("block"),
         defaultGroup,
         "schemas",

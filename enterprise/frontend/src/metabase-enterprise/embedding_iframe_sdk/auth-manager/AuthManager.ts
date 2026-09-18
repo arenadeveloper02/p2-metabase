@@ -7,7 +7,7 @@ import {
 import {
   INVALID_AUTH_METHOD,
   MetabaseError,
-} from "embedding-sdk-bundle/errors";
+} from "embedding-sdk-shared/errors";
 import type { EmbedAuthManagerContext } from "metabase/embedding/embedding-iframe-sdk/types/auth-manager";
 import type { MetabaseEmbeddingSessionToken } from "metabase/embedding-sdk/types/refresh-token";
 
@@ -52,26 +52,43 @@ export class EmbedAuthManager {
     method: "saml" | "jwt";
     sessionToken: MetabaseEmbeddingSessionToken;
   }> {
-    const { instanceUrl, preferredAuthMethod, fetchRequestToken } =
-      this.context.properties;
-
-    const urlResponseJson = await connectToInstanceAuthSso(instanceUrl, {
-      headers: this.getAuthRequestHeader(),
+    const {
+      instanceUrl: metabaseInstanceUrl,
       preferredAuthMethod,
-    });
+      fetchRequestToken,
+      jwtProviderUri,
+    } = this.context.properties;
 
-    const { method, url: responseUrl, hash } = urlResponseJson || {};
+    const shouldSkipSsoDiscovery = jwtProviderUri !== undefined;
+
+    const urlResponseJson = shouldSkipSsoDiscovery
+      ? { method: "jwt", url: jwtProviderUri }
+      : await connectToInstanceAuthSso(metabaseInstanceUrl, {
+          headers: this.getAuthRequestHeader(),
+          preferredAuthMethod,
+        });
+
+    const {
+      method,
+      url: responseUrl,
+      hash,
+      "saml-popup-url": samlPopupUrl,
+    } = urlResponseJson || {};
 
     if (method === "saml") {
-      const sessionToken = await openSamlLoginPopup(responseUrl);
+      const sessionToken = await openSamlLoginPopup(
+        responseUrl,
+        metabaseInstanceUrl,
+        samlPopupUrl,
+      );
 
       return { method, sessionToken };
     }
 
-    if (method === "jwt") {
+    if (method === "jwt" && responseUrl) {
       const sessionToken = await jwtDefaultRefreshTokenFunction(
         responseUrl,
-        instanceUrl,
+        metabaseInstanceUrl,
         this.getAuthRequestHeader(hash),
         fetchRequestToken,
       );
@@ -84,10 +101,10 @@ export class EmbedAuthManager {
 
   private getAuthRequestHeader(hash?: string) {
     return {
-      // eslint-disable-next-line no-literal-metabase-strings -- header name
+      // eslint-disable-next-line metabase/no-literal-metabase-strings -- header name
       "X-Metabase-Client": "embedding-simple",
 
-      // eslint-disable-next-line no-literal-metabase-strings -- header name
+      // eslint-disable-next-line metabase/no-literal-metabase-strings -- header name
       ...(hash && { "X-Metabase-SDK-JWT-Hash": hash }),
     };
   }

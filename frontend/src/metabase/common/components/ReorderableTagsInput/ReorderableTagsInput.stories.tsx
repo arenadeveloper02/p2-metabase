@@ -65,7 +65,9 @@ export default {
 };
 
 export const Default = {
-  render: (storyArgs: ComponentProps<typeof ReorderableTagsInput>) => {
+  render: function Render(
+    storyArgs: ComponentProps<typeof ReorderableTagsInput>,
+  ) {
     const [value, setValue] = useState<string[]>(
       [storyArgs.data[0]?.value, storyArgs.data[1]?.value].filter(Boolean),
     );
@@ -78,7 +80,7 @@ export const Default = {
 
 export const DragBetweenTwoInputs = {
   name: "Drag between two inputs",
-  render: () => {
+  render: function Render() {
     const allOptions = useMemo(() => makeOptions(), []);
 
     // Two controlled lists
@@ -112,11 +114,13 @@ export const DragBetweenTwoInputs = {
     );
 
     const handleDragStart = (event: DragStartEvent) => {
+      // Unjustified type cast. FIXME
       setActiveId(event.active.id as string);
     };
 
     const handleDragOver = (event: DragOverEvent) => {
       const { over } = event;
+      // Unjustified type cast. FIXME
       const containerId = over?.data?.current?.containerId as
         | "left"
         | "right"
@@ -136,6 +140,7 @@ export const DragBetweenTwoInputs = {
       }
 
       const activeId = String(active.id);
+      // Unjustified type cast. FIXME
       const from = active.data?.current?.containerId as
         | "left"
         | "right"
@@ -148,11 +153,12 @@ export const DragBetweenTwoInputs = {
       let overIndexInTo = -1;
 
       if (over.data?.current?.containerId) {
+        // Unjustified type cast. FIXME
         to = over.data.current.containerId as "left" | "right";
         const toList = to === "left" ? leftValues : rightValues;
         overIndexInTo = toList.indexOf(String(over.id));
       } else if (over.id === "left" || over.id === "right") {
-        to = over.id as "left" | "right";
+        to = over.id;
         overIndexInTo = -1;
       }
 
@@ -250,7 +256,7 @@ export const DragBetweenTwoInputs = {
             />
           </Box>
           <Divider />
-          <Text size="sm" c="text-medium">
+          <Text size="sm" c="text-secondary">
             Tip: start dragging a tag to reorder within an input or move it
             between inputs.
           </Text>

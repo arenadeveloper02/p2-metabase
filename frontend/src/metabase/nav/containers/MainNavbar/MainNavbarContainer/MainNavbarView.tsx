@@ -5,36 +5,36 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
+import type { CollectionTreeItem } from "metabase/common/collections/utils";
 import {
   isExamplesCollection,
   isLibraryCollection,
   isRootTrashCollection,
-} from "metabase/collections/utils";
-import CollapseSection from "metabase/common/components/CollapseSection";
+} from "metabase/common/collections/utils";
+import { CollapseSection } from "metabase/common/components/CollapseSection";
 import { Tree } from "metabase/common/components/tree";
-import { useSetting, useUserSetting } from "metabase/common/hooks";
 import { useIsAtHomepageDashboard } from "metabase/common/hooks/use-is-at-homepage-dashboard";
 import { useShowOtherUsersCollections } from "metabase/common/hooks/use-show-other-users-collections";
-import type { CollectionTreeItem } from "metabase/entities/collections";
-import {
-  getCanAccessOnboardingPage,
-  getIsNewInstance,
-} from "metabase/home/selectors";
-import { isSmallScreen } from "metabase/lib/dom";
-import { useSelector } from "metabase/lib/redux";
-import * as Urls from "metabase/lib/urls";
-import { WhatsNewNotification } from "metabase/nav/components/WhatsNewNotification";
-import {
-  PLUGIN_DATA_STUDIO,
-  PLUGIN_REMOTE_SYNC,
-  PLUGIN_TENANTS,
-} from "metabase/plugins";
 import {
   getIsTenantUser,
   getUser,
   getUserCanWriteToCollections,
-} from "metabase/selectors/user";
+} from "metabase/current-user";
+import { NavbarLibrarySection } from "metabase/nav/containers/MainNavbar/NavbarLibrarySection";
+import {
+  PLUGIN_DATA_APPS,
+  PLUGIN_REMOTE_SYNC,
+  PLUGIN_TENANTS,
+} from "metabase/plugins";
+import { useSelector } from "metabase/redux";
+import {
+  getCanAccessOnboardingPage,
+  getIsNewInstance,
+} from "metabase/selectors/onboarding";
+import { useSetting, useUserSetting } from "metabase/settings";
 import { ActionIcon, Icon, Tooltip } from "metabase/ui";
+import * as Urls from "metabase/urls";
+import { isSmallScreen } from "metabase/utils/dom";
 import type { Bookmark, Collection } from "metabase-types/api";
 
 import {
@@ -63,6 +63,7 @@ type Props = {
   collections: CollectionTreeItem[];
   selectedItems: SelectedItem[];
   sharedTenantCollections?: Collection[];
+  canAccessTenantSpecificCollections: boolean;
   canCreateSharedCollection: boolean;
   showExternalCollectionsSection: boolean;
   handleCloseNavbar: () => void;
@@ -87,6 +88,7 @@ export function MainNavbarView({
   handleCreateNewCollection,
   handleCloseNavbar,
   sharedTenantCollections,
+  canAccessTenantSpecificCollections,
   canCreateSharedCollection,
   showExternalCollectionsSection,
 }: Props) {
@@ -236,18 +238,19 @@ export function MainNavbarView({
           {/* Tenant users don't see the section about "External collections" */}
           {showExternalCollectionsSection && (
             <PLUGIN_TENANTS.MainNavSharedCollections
+              canAccessTenantSpecificCollections={
+                canAccessTenantSpecificCollections
+              }
               canCreateSharedCollection={canCreateSharedCollection}
               sharedTenantCollections={sharedTenantCollections}
             />
           )}
 
-          {PLUGIN_DATA_STUDIO.isEnabled && (
-            <PLUGIN_DATA_STUDIO.NavbarLibrarySection
-              collections={collections}
-              selectedId={collectionItem?.id}
-              onItemSelect={onItemSelect}
-            />
-          )}
+          <NavbarLibrarySection
+            collections={collections}
+            selectedId={collectionItem?.id}
+            onItemSelect={onItemSelect}
+          />
 
           <SidebarSection>
             <ErrorBoundary>
@@ -262,7 +265,7 @@ export function MainNavbarView({
                     <Tooltip label={t`Create a new collection`}>
                       <ActionIcon
                         aria-label={t`Create a new collection`}
-                        color="var(--mb-color-text-medium)"
+                        color="text-secondary"
                         onClick={() => {
                           trackNewCollectionFromNavInitiated();
                           handleCreateNewCollection();
@@ -304,6 +307,10 @@ export function MainNavbarView({
             </ErrorBoundary>
           </SidebarSection>
 
+          {PLUGIN_DATA_APPS.isEnabled && (
+            <PLUGIN_DATA_APPS.MainNavbarSection onItemSelect={onItemSelect} />
+          )}
+
           <SidebarSection>
             <ErrorBoundary>
               <BrowseNavSection
@@ -328,9 +335,6 @@ export function MainNavbarView({
               </ErrorBoundary>
             </TrashSidebarSection>
           )}
-          <div>
-            <WhatsNewNotification />
-          </div>
         </div>
       </SidebarContentRoot>
 

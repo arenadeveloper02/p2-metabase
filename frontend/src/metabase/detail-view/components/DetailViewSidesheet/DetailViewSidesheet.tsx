@@ -1,19 +1,21 @@
-import { useWindowEvent } from "@mantine/hooks";
+import { useDisclosure, useHotkeys } from "@mantine/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import { t } from "ttag";
 
+import { DeleteObjectModal } from "metabase/actions/components/DeleteObjectModal";
 import { ActionExecuteModal } from "metabase/actions/containers/ActionExecuteModal";
+import { getActionItems } from "metabase/actions/utils";
 import {
+  actionApi,
   skipToken,
   useGetAdhocQueryQuery,
   useListActionsQuery,
   useListDatabasesQuery,
 } from "metabase/api";
-import EntityMenu from "metabase/common/components/EntityMenu";
+import { runRtkEndpoint } from "metabase/api/utils/run-rtk-endpoint";
 import { NotFound } from "metabase/common/components/ErrorPages";
+import { Link } from "metabase/common/components/Link";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import Modal from "metabase/common/components/Modal";
 import {
   DetailsGroup,
   Header,
@@ -24,24 +26,23 @@ import {
   getHeaderColumns,
   getRowName,
 } from "metabase/detail-view/utils";
-import type { OptionsType } from "metabase/lib/formatting/types";
-import { useDispatch } from "metabase/lib/redux";
-import { runQuestionQuery } from "metabase/query_builder/actions";
-import { ActionsApi } from "metabase/services";
+import { useDispatch } from "metabase/redux";
 import {
   Box,
   Button,
   Divider,
   Group,
   Icon,
+  Menu,
+  Modal,
   Stack,
   Tooltip,
   rem,
 } from "metabase/ui";
-import { DeleteObjectModal } from "metabase/visualizations/components/ObjectDetail/DeleteObjectModal";
 import * as Lib from "metabase-lib";
 import { isPK } from "metabase-lib/v1/types/utils/isa";
 import type {
+  ColumnSettings,
   DatasetColumn,
   ForeignKey,
   RowValues,
@@ -51,12 +52,12 @@ import type {
 } from "metabase-types/api";
 
 import { Sidesheet } from "./Sidesheet";
-import { extractData, getActionItems, getModelId } from "./utils";
+import { extractData, getModelId } from "./utils";
 
 interface Props {
   columnSettings: TableColumnOrderSetting[] | undefined;
   columns: DatasetColumn[];
-  columnsSettings: (OptionsType | undefined)[];
+  columnsSettings: (ColumnSettings | undefined)[];
   query: Lib.Query | undefined;
   row: RowValues | undefined;
   rowId: string | number;
@@ -65,6 +66,7 @@ interface Props {
   table: Table | undefined;
   tableForeignKeys?: ForeignKey[];
   url: string | undefined;
+  onActionSuccess?: () => void;
   onClose: () => void;
   onNextClick: (() => void) | undefined;
   onPreviousClick: (() => void) | undefined;
@@ -82,10 +84,12 @@ export function DetailViewSidesheet({
   table,
   tableForeignKeys,
   url,
+  onActionSuccess,
   onClose,
   onNextClick,
   onPreviousClick,
 }: Props) {
+  const dispatch = useDispatch();
   const {
     data: dataset,
     error,
@@ -98,7 +102,6 @@ export function DetailViewSidesheet({
     [dataset, columnsFromProp, columnSettings, rowFromProps],
   );
 
-  const dispatch = useDispatch();
   const [linkCopied, setLinkCopied] = useState(false);
   const headerColumns = useMemo(() => getHeaderColumns(columns), [columns]);
   const rowName = useMemo(() => {
@@ -133,6 +136,8 @@ export function DetailViewSidesheet({
     onUpdate: (action) => setActionId(action.id),
   });
 
+  const [actionsMenuOpened, actionsMenu] = useDisclosure(false);
+
   const handleClose = () => {
     // prevent Esc key from closing both modal and the sidesheet
     if (!isModalOpen) {
@@ -153,15 +158,19 @@ export function DetailViewSidesheet({
       return {};
     }
 
-    return ActionsApi.prefetchValues({
-      id: actionId,
-      parameters: JSON.stringify({ id: String(rowId) }),
-    });
-  }, [actionId, rowId]);
+    return runRtkEndpoint(
+      {
+        id: actionId,
+        parameters: { id: String(rowId) },
+      },
+      dispatch,
+      actionApi.endpoints.prefetchActionValues,
+    );
+  }, [actionId, rowId, dispatch]);
 
   const handleActionSuccess = useCallback(() => {
-    dispatch(runQuestionQuery());
-  }, [dispatch]);
+    onActionSuccess?.();
+  }, [onActionSuccess]);
 
   const handleDeleteSuccess = useCallback(() => {
     handleActionSuccess();
@@ -184,32 +193,29 @@ export function DetailViewSidesheet({
     }
   }, [linkCopied]);
 
-  useWindowEvent(
-    "keydown",
-    (event) => {
-      const activeElement = document.activeElement;
-      const isInputFocused =
-        activeElement instanceof HTMLElement &&
-        (["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName) ||
-          activeElement.isContentEditable);
+  const isKeyboardNavigationEnabled =
+    isNavEnabled && !isModalOpen && !actionsMenuOpened;
 
-      if (isNavEnabled && !isInputFocused && !isModalOpen) {
-        if (event.key === "ArrowUp" && onPreviousClick) {
-          event.stopPropagation();
-          onPreviousClick();
+  useHotkeys([
+    [
+      "ArrowUp",
+      () => {
+        if (isKeyboardNavigationEnabled) {
+          onPreviousClick?.();
         }
-
-        if (event.key === "ArrowDown" && onNextClick) {
-          event.stopPropagation();
-          onNextClick();
+      },
+      { preventDefault: false },
+    ],
+    [
+      "ArrowDown",
+      () => {
+        if (isKeyboardNavigationEnabled) {
+          onNextClick?.();
         }
-      }
-    },
-    {
-      // otherwise modals get closed ealier and isModalOpen evaluates to false in the handler
-      capture: true,
-    },
-  );
+      },
+      { preventDefault: false },
+    ],
+  ]);
 
   if (error || isLoading) {
     return (
@@ -239,7 +245,7 @@ export function DetailViewSidesheet({
                 <Tooltip disabled={!onPreviousClick} label={t`Previous row`}>
                   <Button
                     aria-label={t`Previous row`}
-                    c="text-dark"
+                    c="text-primary"
                     disabled={!onPreviousClick}
                     h={20}
                     leftSection={<Icon name="chevronup" />}
@@ -256,7 +262,7 @@ export function DetailViewSidesheet({
                 <Tooltip disabled={!onNextClick} label={t`Next row`}>
                   <Button
                     aria-label={t`Next row`}
-                    c="text-dark"
+                    c="text-primary"
                     disabled={!onNextClick}
                     h={20}
                     leftSection={<Icon name="chevrondown" />}
@@ -275,24 +281,37 @@ export function DetailViewSidesheet({
             )}
 
             {actionItems.length > 0 && (
-              <EntityMenu
-                items={actionItems}
-                renderTrigger={({ onClick }: { onClick: () => void }) => (
+              <Menu
+                position="bottom-end"
+                onOpen={actionsMenu.open}
+                onClose={actionsMenu.close}
+              >
+                <Menu.Target>
                   <Tooltip label={t`Actions`}>
                     <Button
                       aria-label={t`Actions`}
-                      c="text-dark"
+                      c="text-primary"
                       data-testid="actions-menu"
                       h={20}
                       leftSection={<Icon name="ellipsis" />}
                       p={0}
                       variant="subtle"
                       w={20}
-                      onClick={onClick}
                     />
                   </Tooltip>
-                )}
-              />
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {actionItems.map((item) => (
+                    <Menu.Item
+                      key={item.title}
+                      leftSection={<Icon name={item.icon} aria-hidden />}
+                      onClick={item.action}
+                    >
+                      {item.title}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
             )}
 
             {url && (
@@ -304,7 +323,7 @@ export function DetailViewSidesheet({
                     aria-label={
                       linkCopied ? t`Copied!` : t`Copy link to this record`
                     }
-                    c="text-dark"
+                    c="text-primary"
                     h={20}
                     leftSection={<Icon name="link" />}
                     p={0}
@@ -318,7 +337,7 @@ export function DetailViewSidesheet({
                   <Box>
                     <Button
                       aria-label={t`Open in full page`}
-                      c="text-dark"
+                      c="text-primary"
                       component={Link}
                       h={20}
                       leftSection={<Icon name="expand" />}
@@ -367,7 +386,7 @@ export function DetailViewSidesheet({
             tableForeignKeys.length > 0 && (
               <Box
                 flex="1"
-                bg="var(--mb-color-background-light)"
+                bg="background_page-secondary"
                 px={rem(56)}
                 py={rem(48)}
               >
@@ -392,7 +411,13 @@ export function DetailViewSidesheet({
         onSuccess={handleActionSuccess}
       />
 
-      <Modal isOpen={isDeleteModalOpen} onClose={handleDeleteModalClose}>
+      <Modal
+        opened={isDeleteModalOpen}
+        onClose={handleDeleteModalClose}
+        size="lg"
+        withCloseButton={false}
+        padding={0}
+      >
         <DeleteObjectModal
           actionId={deleteActionId}
           objectId={rowId}

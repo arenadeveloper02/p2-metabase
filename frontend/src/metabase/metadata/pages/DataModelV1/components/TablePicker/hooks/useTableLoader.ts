@@ -7,10 +7,10 @@ import {
   useLazyListDatabaseSchemasQuery,
   useLazyListDatabasesQuery,
 } from "metabase/api";
-import { isSyncCompleted } from "metabase/lib/syncing";
+import { isSyncCompleted } from "metabase/utils/syncing";
+import { UNNAMED_SCHEMA_NAME } from "metabase-lib/v1/metadata/utils/schema";
 import type { DatabaseId, SchemaName } from "metabase-types/api";
 
-import { UNNAMED_SCHEMA_NAME } from "../constants";
 import type {
   DatabaseNode,
   SchemaNode,
@@ -42,10 +42,7 @@ export function useTableLoader(path: TreePath) {
   const [tree, setTree] = useState<TreeNode>(rootNode());
 
   const getDatabases = useCallback(async () => {
-    const response = await fetchDatabases(
-      { include_editable_data_model: true },
-      true,
-    );
+    const response = await fetchDatabases({ "can-write-metadata": true }, true);
 
     if (databasesRef.current.isError) {
       // Do not refetch when this call failed previously.
@@ -77,7 +74,7 @@ export function useTableLoader(path: TreePath) {
         id: databaseId,
         schema: schemaName,
         include_hidden: true,
-        include_editable_data_model: true,
+        "can-write-metadata": true,
       };
 
       if (
@@ -115,7 +112,7 @@ export function useTableLoader(path: TreePath) {
       const newArgs = {
         id: databaseId,
         include_hidden: true,
-        include_editable_data_model: true,
+        "can-write-metadata": true,
       };
 
       if (
@@ -140,6 +137,7 @@ export function useTableLoader(path: TreePath) {
           // fetch the tables immediately so we can render a flattened tree.
           if (schemaName === UNNAMED_SCHEMA_NAME || schemas.length === 1) {
             schema.children = await getTables(databaseId, schemaName);
+            schema.loaded = true;
           }
           return schema;
         }) ?? [],
@@ -158,19 +156,24 @@ export function useTableLoader(path: TreePath) {
       ]);
 
       const newTree: TreeNode = rootNode(
-        databases.map((database) => ({
-          ...database,
-          children:
-            database.value.databaseId !== databaseId
-              ? database.children
-              : schemas.map((schema) => ({
-                  ...schema,
-                  children:
-                    schema.value.schemaName !== schemaName
-                      ? schema.children
-                      : tables,
-                })),
-        })),
+        databases.map((database) => {
+          if (database.value.databaseId !== databaseId) {
+            return database;
+          }
+          // We just fetched this database's schemas, so its children are
+          // complete even when the result is empty.
+          return {
+            ...database,
+            loaded: true,
+            children: schemas.map((schema) => {
+              if (schema.value.schemaName !== schemaName) {
+                return schema;
+              }
+              // We just fetched this schema's tables, so mark it loaded too.
+              return { ...schema, loaded: true, children: tables };
+            }),
+          };
+        }),
       );
       setTree((current) => {
         const merged = merge(current, newTree);

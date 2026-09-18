@@ -7,6 +7,7 @@
    [compojure.core :refer [GET]]
    [metabase.api.open-api :as open-api]
    [metabase.api.util.handlers :as handlers]
+   [metabase.config.core :as config]
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [ring.middleware.content-type :as content-type]
@@ -45,7 +46,7 @@
       (json/encode-to (sort-keys spec) (io/writer file) {:pretty true})
       (log/info "OpenAPI specification written to" openapi-file-path))
     (catch Throwable e
-      (log/error e "Failed to write OpenAPI specification to file"))))
+      (log/errorf "Failed to write OpenAPI specification to file: %s" (ex-message e)))))
 
 (defonce ^:private openapi-regen-state
   (atom {:executing? false
@@ -76,7 +77,7 @@
             ;; Check if more requests came in while we were working
             (recur)))
         (catch Throwable e
-          (log/error e "Error regenerating OpenAPI specification"))
+          (log/errorf "Error regenerating OpenAPI specification: %s" (ex-message e)))
         (finally
           (swap! openapi-regen-state assoc :executing? false))))))
 
@@ -90,7 +91,7 @@
         (with-open [f (io/reader file)]
           (json/decode+kw f))))
     (catch Throwable e
-      (log/error e "Failed to read OpenAPI specification from file")
+      (log/errorf "Failed to read OpenAPI specification from file: %s" (ex-message e))
       nil)))
 
 (defn- index-handler
@@ -119,7 +120,8 @@
   [root-handler]
   (fn handler*
     ([_request]
-     (let [spec (or (read-openapi-spec-from-file)
+     (let [spec (or (when (config/config-bool :mb-enable-openapi-auto-regen)
+                      (read-openapi-spec-from-file))
                     (do
                       (log/warn "OpenAPI spec file not found, generating on-the-fly")
                       (merge

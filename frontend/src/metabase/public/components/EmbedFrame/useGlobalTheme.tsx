@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
+import type { DisplayTheme } from "metabase/embedding/types";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import type { DisplayTheme } from "metabase/public/lib/types";
 
 export function useGlobalTheme(theme: DisplayTheme | undefined) {
   useEffect(() => {
@@ -12,15 +12,20 @@ export function useGlobalTheme(theme: DisplayTheme | undefined) {
 
     const element = document.documentElement;
 
-    const originalTheme = element?.getAttribute("data-metabase-theme");
-    element?.setAttribute("data-metabase-theme", theme);
+    const originalTheme = element.getAttribute("data-metabase-theme");
+    const hadDarkClass = element.classList.contains("dark");
+
+    element.setAttribute("data-metabase-theme", theme);
+    element.classList.toggle("dark", theme === "night");
 
     return () => {
       if (originalTheme == null) {
-        element?.removeAttribute("data-metabase-theme");
+        element.removeAttribute("data-metabase-theme");
       } else {
-        element?.setAttribute("data-metabase-theme", originalTheme);
+        element.setAttribute("data-metabase-theme", originalTheme);
       }
+
+      element.classList.toggle("dark", hadDarkClass);
     };
   }, [theme]);
 }

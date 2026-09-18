@@ -1,5 +1,3 @@
-import { Route } from "react-router";
-
 import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import {
   setupCardEndpoints,
@@ -10,10 +8,13 @@ import { setupModelPersistenceEndpoints } from "__support__/server-mocks/persist
 import { mockSettings } from "__support__/settings";
 import { createMockEntitiesState } from "__support__/store";
 import { renderWithProviders, waitForLoaderToBeRemoved } from "__support__/ui";
-import { checkNotNull } from "metabase/lib/types";
+import { createMockState } from "metabase/redux/store/mocks";
+import { Route } from "metabase/router";
 import { getMetadata } from "metabase/selectors/metadata";
+import { checkNotNull } from "metabase/utils/types";
 import type { Card, Settings } from "metabase-types/api";
 import {
+  COMMON_DATABASE_FEATURES,
   createMockCard,
   createMockSettings,
   createMockTokenFeatures,
@@ -21,7 +22,6 @@ import {
   getMockModelCacheInfo,
 } from "metabase-types/api/mocks";
 import { createSampleDatabase } from "metabase-types/api/mocks/presets";
-import { createMockState } from "metabase-types/store/mocks";
 
 import { QuestionSettingsSidebar } from "../QuestionSettingsSidebar";
 
@@ -30,6 +30,7 @@ export interface SetupOpts {
   settings?: Settings;
   enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][];
   dbHasModelPersistence?: boolean;
+  dbSupportsModelPersistence?: boolean;
 }
 
 export const setup = async ({
@@ -37,22 +38,26 @@ export const setup = async ({
   settings = createMockSettings(),
   enterprisePlugins,
   dbHasModelPersistence = true,
+  dbSupportsModelPersistence = true,
 }: SetupOpts) => {
   const currentUser = createMockUser();
   setupCardEndpoints(card);
   setupPerformanceEndpoints([]);
   setupModelPersistenceEndpoints([
     getMockModelCacheInfo({
-      card_id: card.id as number,
+      card_id: card.id,
       state: "persisted",
     }),
   ]);
 
   setupDatabaseEndpoints(
     createSampleDatabase({
-      settings: {
-        "persist-models-enabled": dbHasModelPersistence,
-      },
+      settings: { "persist-models-enabled": dbHasModelPersistence },
+      features: dbSupportsModelPersistence
+        ? COMMON_DATABASE_FEATURES
+        : COMMON_DATABASE_FEATURES.filter(
+            (feature) => feature !== "persist-models",
+          ),
     }),
   );
 
@@ -81,7 +86,7 @@ export const setup = async ({
   );
 
   renderWithProviders(
-    <Route path="*" component={TestQuestionSettingsSidebar} />,
+    <Route path="*" element={<TestQuestionSettingsSidebar />} />,
     {
       withRouter: true,
       storeInitialState: state,

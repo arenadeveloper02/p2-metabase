@@ -1,26 +1,28 @@
-import { type ComponentType, useEffect, useMemo, useState } from "react";
+import { type ComponentType, useEffect } from "react";
+import { t } from "ttag";
 
+import { useTrackSdkComponentMount } from "embedding-sdk-bundle/analytics/component-events";
 import {
   CollectionNotFoundError,
   SdkLoader,
   withPublicComponentWrapper,
 } from "embedding-sdk-bundle/components/private/PublicComponentWrapper";
+import { useCollectionData } from "embedding-sdk-bundle/hooks/private/use-collection-data";
 import { useSdkBreadcrumbs } from "embedding-sdk-bundle/hooks/private/use-sdk-breadcrumb";
-import { useSdkSelector } from "embedding-sdk-bundle/store";
-import { getCollectionIdSlugFromReference } from "embedding-sdk-bundle/store/collections";
 import type {
   MetabaseCollectionItem,
   SdkCollectionId,
 } from "embedding-sdk-bundle/types/collection";
 import type { CommonStylingProps } from "embedding-sdk-bundle/types/props";
-import { useGetCollectionQuery } from "metabase/api";
 import { COLLECTION_PAGE_SIZE } from "metabase/collections/components/CollectionContent";
 import { CollectionItemsTable } from "metabase/collections/components/CollectionContent/CollectionItemsTable";
+import { EmptyState } from "metabase/common/components/EmptyState";
 import { useLocale } from "metabase/common/hooks/use-locale";
-import { isNotNull } from "metabase/lib/types";
-import CollectionBreadcrumbs from "metabase/nav/containers/CollectionBreadcrumbs";
-import { Stack } from "metabase/ui";
-import type { CollectionId, CollectionItemModel } from "metabase-types/api";
+import { CollectionBreadcrumbs } from "metabase/nav/containers/CollectionBreadcrumbs";
+import { Icon, Stack } from "metabase/ui";
+import { isNotNull } from "metabase/utils/types";
+import type { CollectionItemModel } from "metabase-types/api";
+import { isObject } from "metabase-types/guards";
 
 import { collectionBrowserPropsSchema } from "./CollectionBrowser.schema";
 
@@ -80,6 +82,11 @@ export type CollectionBrowserProps = {
   visibleEntityTypes?: UserFacingEntityName[];
 
   /**
+   * Whether to show questions that belong to a dashboard alongside collection saved questions. Set to true to show them. Defaults to false, keeping the list focused on collection content.
+   */
+  showDashboardQuestions?: boolean;
+
+  /**
    * The columns to display in the collection items table. If not provided, all columns will be shown.
    */
   visibleColumns?: CollectionBrowserListColumns[];
@@ -96,43 +103,34 @@ export type CollectionBrowserProps = {
 } & CommonStylingProps;
 
 export const CollectionBrowserInner = ({
-  collectionId = "personal",
+  collectionId,
   onClick,
   pageSize = COLLECTION_PAGE_SIZE,
   visibleEntityTypes = [...USER_FACING_ENTITY_NAMES],
+  showDashboardQuestions = false,
   EmptyContentComponent = null,
   visibleColumns = COLLECTION_BROWSER_LIST_COLUMNS,
   className,
   style,
 }: CollectionBrowserProps) => {
-  const baseCollectionId = useSdkSelector((state) =>
-    getCollectionIdSlugFromReference(state, collectionId),
-  );
-
-  // Internal collection state.
-  const [internalCollectionId, setInternalCollectionId] =
-    useState<CollectionId>(baseCollectionId);
+  useTrackSdkComponentMount("CollectionBrowser", null, {});
 
   const {
-    isBreadcrumbEnabled: isGlobalBreadcrumbEnabled,
-    currentLocation,
-    reportLocation,
-  } = useSdkBreadcrumbs();
+    baseCollectionId,
+    internalCollectionId,
+    effectiveCollectionId,
+    collection,
+    isFetchingCollection,
+    collectionLoadingError,
+    setInternalCollectionId,
+  } = useCollectionData(collectionId);
 
-  const effectiveCollectionId = useMemo(() => {
-    if (isGlobalBreadcrumbEnabled && currentLocation?.type === "collection") {
-      return currentLocation.id as CollectionId;
-    }
-
-    return internalCollectionId;
-  }, [isGlobalBreadcrumbEnabled, currentLocation, internalCollectionId]);
-
-  const { data: collection, isFetching: isFetchingCollection } =
-    useGetCollectionQuery({ id: effectiveCollectionId });
+  const { isBreadcrumbEnabled: isGlobalBreadcrumbEnabled, reportLocation } =
+    useSdkBreadcrumbs();
 
   useEffect(() => {
     setInternalCollectionId(baseCollectionId);
-  }, [baseCollectionId]);
+  }, [baseCollectionId, setInternalCollectionId]);
 
   useEffect(() => {
     if (isGlobalBreadcrumbEnabled && !isFetchingCollection && collection) {
@@ -149,16 +147,32 @@ export const CollectionBrowserInner = ({
     reportLocation,
   ]);
 
+  if (
+    isObject(collectionLoadingError) &&
+    collectionLoadingError.status === 403
+  ) {
+    return (
+      <EmptyState
+        title={t`You don't have access to this collection`}
+        illustrationElement={<Icon name="key" size={100} />}
+      />
+    );
+  }
+
   const onClickItem = (item: MetabaseCollectionItem) => {
     onClick?.(item);
 
     if (item.model === "collection") {
       if (isGlobalBreadcrumbEnabled) {
-        reportLocation({ type: "collection", id: item.id, name: item.name });
+        reportLocation({
+          type: "collection",
+          id: item.id,
+          name: item.name,
+        });
         return;
       }
 
-      setInternalCollectionId(item.id as CollectionId);
+      setInternalCollectionId(item.id);
     }
   };
 
@@ -170,17 +184,18 @@ export const CollectionBrowserInner = ({
     <Stack w="100%" h="100%" gap="sm" className={className} style={style}>
       {!isGlobalBreadcrumbEnabled && (
         <CollectionBreadcrumbs
-          collectionId={internalCollectionId}
+          collectionId={internalCollectionId ?? undefined}
           onClick={(item) => setInternalCollectionId(item.id)}
           baseCollectionId={baseCollectionId}
         />
       )}
 
       <CollectionItemsTable
-        collectionId={effectiveCollectionId}
+        collectionId={effectiveCollectionId ?? undefined}
         onClick={onClickItem}
         pageSize={pageSize}
         models={collectionTypes}
+        showDashboardQuestions={showDashboardQuestions}
         visibleColumns={visibleColumns}
         EmptyContentComponent={EmptyContentComponent ?? undefined}
       />

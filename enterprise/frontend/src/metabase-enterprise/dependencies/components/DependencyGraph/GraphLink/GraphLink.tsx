@@ -1,6 +1,9 @@
-import { Link } from "react-router";
+import cx from "classnames";
 
-import { Box, FixedSizeIcon, Flex, type IconName } from "metabase/ui";
+import { Link } from "metabase/common/components/Link";
+import CS from "metabase/css/core/index.css";
+import { Box, FixedSizeIcon, Group } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import S from "./GraphLink.module.css";
 
@@ -12,11 +15,11 @@ type GraphLinkProps = {
 
 export function GraphLink({ label, icon, url }: GraphLinkProps) {
   return (
-    <Box className={S.link} component={Link} to={url}>
-      <Flex gap="sm" align="center">
-        <FixedSizeIcon name={icon} c="brand" />
+    <Box className={cx(S.link, CS.textWrap)} component={Link} to={url}>
+      <Group gap="sm" align="center" wrap="nowrap">
+        <FixedSizeIcon name={icon} c="core-brand" />
         <Box lh="h4">{label}</Box>
-      </Flex>
+      </Group>
     </Box>
   );
 }

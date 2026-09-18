@@ -1,7 +1,7 @@
 .root {
-  overflow: visible;
+  overflow: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   min-height: 100%;
   height: auto;
   width: 100%;
@@ -12,15 +12,15 @@
 }
 
 .content {
-  overflow: visible;
-  outline: none;
-  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  outline: none;
 }
 
 .outline .content {
   background-color: transparent;
-  border: 1px solid var(--mb-color-border);
+  border: 1px solid var(--mb-color-border-neutral);
 }
 
 .outline .content:hover {

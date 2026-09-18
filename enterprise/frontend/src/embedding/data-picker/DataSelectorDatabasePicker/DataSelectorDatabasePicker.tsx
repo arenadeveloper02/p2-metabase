@@ -5,12 +5,13 @@ import {
   AccordionList,
   type Section,
 } from "metabase/common/components/AccordionList";
+import { useTranslateContent } from "metabase/content-translation/hooks";
 import CS from "metabase/css/core/index.css";
 import { Icon } from "metabase/ui";
 import type Database from "metabase-lib/v1/metadata/Database";
 import type Schema from "metabase-lib/v1/metadata/Schema";
 
-import DataSelectorLoading from "../DataSelectorLoading";
+import { DataSelectorLoading } from "../DataSelectorLoading";
 import { RawDataBackButton } from "../RawDataBackButton";
 
 type DataSelectorDatabasePickerProps = {
@@ -20,9 +21,9 @@ type DataSelectorDatabasePickerProps = {
   hasInitialFocus?: boolean;
   hasNextStep?: boolean;
   isLoading?: boolean;
-  selectedDatabase?: Database;
-  selectedSchema?: Schema;
-  onBack?: () => void;
+  selectedDatabase?: Database | null;
+  selectedSchema?: Schema | null;
+  onBack?: (() => void) | null;
   onChangeDatabase: (database: Database) => void;
 };
 
@@ -32,7 +33,7 @@ type Item = {
   database: Database;
 };
 
-const DataSelectorDatabasePicker = ({
+export const DataSelectorDatabasePicker = ({
   databases,
   selectedDatabase,
   onChangeDatabase,
@@ -40,6 +41,7 @@ const DataSelectorDatabasePicker = ({
   onBack,
   hasInitialFocus,
 }: DataSelectorDatabasePickerProps) => {
+  const tc = useTranslateContent();
   const sections = useMemo(() => {
     const sections: Section<Item>[] = [];
 
@@ -52,14 +54,14 @@ const DataSelectorDatabasePicker = ({
 
     sections.push({
       items: databases.map((database, index) => ({
-        name: database.name,
+        name: tc(database.name),
         index,
         database,
       })),
     });
 
     return sections;
-  }, [databases, onBack]);
+  }, [databases, onBack, tc]);
 
   const handleChangeSection = useCallback(
     (_section: Section<Item>, sectionIndex: number) => {
@@ -86,7 +88,7 @@ const DataSelectorDatabasePicker = ({
       onChange={(item) => onChangeDatabase(item.database)}
       onChangeSection={handleChangeSection}
       itemIsSelected={(item) =>
-        selectedDatabase && item.database.id === selectedDatabase.id
+        selectedDatabase != null && item.database.id === selectedDatabase.id
       }
       renderItemIcon={() => (
         <Icon
@@ -100,6 +102,3 @@ const DataSelectorDatabasePicker = ({
     />
   );
 };
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default DataSelectorDatabasePicker;

@@ -2,29 +2,38 @@
 # STAGE 1: builder
 ###################
 
-FROM node:22-bullseye AS builder
+FROM node:22-bookworm AS builder
 
 ARG MB_EDITION=oss
 ARG VERSION
 
 WORKDIR /home/node
 
-RUN apt-get update && apt-get upgrade -y && apt-get install wget apt-transport-https gpg curl git -y \
+# Bookworm (Debian 12): Bullseye's debian-security pool 404s when installing
+# Temurin (libasound2). Refresh apt lists after adding Adoptium so indexes match.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y wget apt-transport-https gpg curl git \
     && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null \
     && echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list \
+    && rm -rf /var/lib/apt/lists/* \
     && apt-get update \
-    && apt install temurin-21-jdk -y \
+    && apt-get install -y temurin-25-jdk \
     && curl -O https://download.clojure.org/install/linux-install-1.12.0.1488.sh \
     && chmod +x linux-install-1.12.0.1488.sh \
-    && ./linux-install-1.12.0.1488.sh
+    && ./linux-install-1.12.0.1488.sh \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
+
+ENV PATH="/root/.local/bin:$PATH"
 
 COPY . .
 
 # version is pulled from git, but git doesn't trust the directory due to different owners
 RUN git config --global --add safe.directory /home/node
 
+# install bun for frontend dependencies
+RUN npm install -g bun
+
 # install frontend dependencies
-RUN yarn --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
 
@@ -35,9 +44,12 @@ RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VER
 ## Remember that this runner image needs to be the same as bin/docker/Dockerfile with the exception that this one grabs the
 ## jar from the previous stage rather than the local build
 
-FROM eclipse-temurin:21-jre-alpine AS runner
+FROM eclipse-temurin:25-jre-alpine AS runner
 
 ENV FC_LANG=en-US LC_CTYPE=en_US.UTF-8
+
+# copy certs before the RUN so keytool can import them
+COPY bin/docker/DigiCertGlobalRootG2.crt.pem /app/certs/DigiCertGlobalRootG2.crt.pem
 
 # dependencies
 # Explicitly upgrade sqlite-libs and libexpat to fix CVEs
@@ -48,7 +60,6 @@ RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew 
     mkdir -p /app/certs && \
     curl https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /app/certs/rds-combined-ca-bundle.pem  && \
     /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias aws-rds -file /app/certs/rds-combined-ca-bundle.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
-    curl https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem -o /app/certs/DigiCertGlobalRootG2.crt.pem  && \
     /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias azure-cert -file /app/certs/DigiCertGlobalRootG2.crt.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
     mkdir -p /plugins && chmod a+rwx /plugins
 

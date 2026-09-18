@@ -1,21 +1,19 @@
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import { Nav as DetailViewNav } from "metabase/detail-view/components";
+import { MetabotAppBarButton } from "metabase/metabot/components/MetabotAppBarButton";
 import { SearchBar } from "metabase/nav/components/search/SearchBar";
-import { PLUGIN_METABOT } from "metabase/plugins";
+import type { DetailViewState } from "metabase/redux/store";
 import { Box, Flex } from "metabase/ui";
-import type { DetailViewState } from "metabase-types/store";
+import type { SearchResult } from "metabase-types/api";
 
-import CollectionBreadcrumbs from "../../containers/CollectionBreadcrumbs";
-import QuestionLineage from "../../containers/QuestionLineage";
-import { ProfileLink } from "../ProfileLink";
+import { AppSwitcher } from "../AppSwitcher";
 import { SearchButton } from "../search/SearchButton/SearchButton";
 
 import { AppBarLogo } from "./AppBarLogo";
 import {
   AppBarHeader,
   AppBarLogoContainer,
-  AppBarProfileLinkContainer,
   AppBarSearchContainer,
   AppBarSubheader,
   AppBarToggleContainer,
@@ -29,23 +27,29 @@ export interface AppBarSmallProps {
   isLogoVisible?: boolean;
   isSearchVisible?: boolean;
   isEmbeddingIframe?: boolean;
-  isProfileLinkVisible?: boolean;
+  isAppSwitcherVisible?: boolean;
   isCollectionPathVisible?: boolean;
   isQuestionLineageVisible?: boolean;
+  collectionBreadcrumbs?: ReactNode;
+  questionLineage?: ReactNode;
+  onSearchItemSelect?: (result: SearchResult) => void;
   onToggleNavbar: () => void;
   onCloseNavbar: () => void;
 }
 
-const AppBarSmall = ({
+export const AppBarSmall = ({
   detailView,
   isNavBarOpen,
   isNavBarEnabled,
   isLogoVisible,
   isSearchVisible,
   isEmbeddingIframe,
-  isProfileLinkVisible,
+  isAppSwitcherVisible,
   isCollectionPathVisible,
   isQuestionLineageVisible,
+  collectionBreadcrumbs,
+  questionLineage,
+  onSearchItemSelect,
   onToggleNavbar,
   onCloseNavbar,
 }: AppBarSmallProps): JSX.Element => {
@@ -54,7 +58,7 @@ const AppBarSmall = ({
   const [isSearchActive, setSearchActive] = useState(false);
   const isInfoVisible = isQuestionLineageVisible || isCollectionPathVisible;
   const isHeaderVisible =
-    isLogoVisible || isNavBarEnabled || isSearchVisible || isProfileLinkVisible;
+    isLogoVisible || isNavBarEnabled || isSearchVisible || isAppSwitcherVisible;
   const isSubheaderVisible = !isNavBarVisible && isInfoVisible;
 
   const handleSearchActive = useCallback(() => {
@@ -67,7 +71,7 @@ const AppBarSmall = ({
   }, []);
 
   return (
-    <Box bg="var(--mb-color-bg-white)">
+    <Box bg="background_page-primary">
       {isHeaderVisible && (
         <AppBarHeader isSubheaderVisible={isSubheaderVisible}>
           <Flex justify="space-between" align="center" gap="sm" h="100%">
@@ -85,6 +89,7 @@ const AppBarSmall = ({
                   <SearchBar
                     onSearchActive={handleSearchActive}
                     onSearchInactive={handleSearchInactive}
+                    onSearchItemSelect={onSearchItemSelect}
                   />
                 ) : (
                   <Flex justify="end">
@@ -92,12 +97,8 @@ const AppBarSmall = ({
                   </Flex>
                 ))}
             </AppBarSearchContainer>
-            {!isEmbeddingIframe && <PLUGIN_METABOT.MetabotAppBarButton />}
-            {isProfileLinkVisible && (
-              <AppBarProfileLinkContainer>
-                <ProfileLink />
-              </AppBarProfileLinkContainer>
-            )}
+            {!isEmbeddingIframe && <MetabotAppBarButton />}
+            {isAppSwitcherVisible && <AppSwitcher />}
           </Flex>
           <AppBarLogoContainer isVisible={isLogoVisible && !isSearchActive}>
             <AppBarLogo
@@ -117,15 +118,12 @@ const AppBarSmall = ({
               table={detailView.table}
             />
           ) : isQuestionLineageVisible ? (
-            <QuestionLineage />
+            questionLineage
           ) : isCollectionPathVisible ? (
-            <CollectionBreadcrumbs />
+            collectionBreadcrumbs
           ) : null}
         </AppBarSubheader>
       )}
     </Box>
   );
 };
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default AppBarSmall;

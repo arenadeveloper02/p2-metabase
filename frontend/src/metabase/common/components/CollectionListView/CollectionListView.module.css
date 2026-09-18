@@ -3,9 +3,10 @@
 }
 
 .card {
-  color: var(--mb-color-text-medium);
+  color: var(--mb-color-text-secondary);
+  cursor: pointer;
 }
 
 .card:hover {
-  color: var(--mb-color-brand);
+  color: var(--mb-color-core-brand);
 }

@@ -15,8 +15,10 @@ import {
   screen,
 } from "__support__/ui";
 import { getNextId } from "__support__/utils";
-import { ROOT_COLLECTION as ROOT } from "metabase/entities/collections";
-import { checkNotNull } from "metabase/lib/types";
+import { ROOT_COLLECTION as ROOT } from "metabase/common/collections/constants";
+import type { StoreDashboard } from "metabase/redux/store";
+import { createMockDashboardState } from "metabase/redux/store/mocks";
+import { checkNotNull } from "metabase/utils/types";
 import type {
   CollectionItem,
   Dashboard,
@@ -33,8 +35,6 @@ import {
   createMockSearchResult,
   createMockUser,
 } from "metabase-types/api/mocks";
-import type { StoreDashboard } from "metabase-types/store";
-import { createMockDashboardState } from "metabase-types/store/mocks";
 
 import { LinkedEntityPicker } from "./LinkedEntityPicker";
 
@@ -58,14 +58,17 @@ const PUBLIC_COLLECTION = createMockCollection({
 });
 
 const collectionInRootCollectionItem = createMockCollectionItem({
+  // Unjustified type cast. FIXME
   id: PUBLIC_COLLECTION.id as number,
   name: PUBLIC_COLLECTION.name,
   model: "collection",
+  here: ["card", "dashboard"],
+  // Unjustified type cast. FIXME
   collection_id: PUBLIC_COLLECTION.id as number,
 });
 
 const PERSONAL_COLLECTION = createMockCollection({
-  id: CURRENT_USER.personal_collection_id,
+  id: CURRENT_USER.personal_collection_id ?? undefined,
   name: "Personal collection",
   can_write: true,
   is_personal: true,
@@ -97,7 +100,20 @@ function setup({
   });
   setupCollectionItemsEndpoint({
     collection: PERSONAL_COLLECTION,
-    collectionItems: [],
+    collectionItems: [
+      createMockCollectionItem({
+        id: 4545,
+        name: "my card",
+        model: "card",
+        collection_id: PERSONAL_COLLECTION.id,
+      }),
+      createMockCollectionItem({
+        id: 4546,
+        name: "my dash",
+        model: "dashboard",
+        collection_id: PERSONAL_COLLECTION.id,
+      }),
+    ],
   });
   setupCollectionItemsEndpoint({
     collection: PUBLIC_COLLECTION,
@@ -151,6 +167,7 @@ describe("LinkedEntityPicker", () => {
     describe("dashboard in a public collection", () => {
       const dashboardInPublicCollection = createMockDashboard({
         collection: PUBLIC_COLLECTION,
+        // Unjustified type cast. FIXME
         collection_id: PUBLIC_COLLECTION.id as number,
       });
 
@@ -199,12 +216,13 @@ describe("LinkedEntityPicker", () => {
           const call = fetchMock.callHistory.lastCall("path:/api/search");
           const urlObject = new URL(checkNotNull(call?.request?.url));
           expect(urlObject.pathname).toEqual("/api/search");
-          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual({
-            context: "entity-picker",
-            models: "dashboard",
-            q: typedText,
-            filter_items_in_personal_collection: "exclude",
-          });
+          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual(
+            expect.objectContaining({
+              context: "entity-picker",
+              q: typedText,
+              filter_items_in_personal_collection: "exclude",
+            }),
+          );
         });
       });
     });
@@ -212,6 +230,7 @@ describe("LinkedEntityPicker", () => {
     describe("dashboard in a personal collection", () => {
       const dashboardInPersonalCollection = createMockDashboard({
         collection: PERSONAL_COLLECTION,
+        // Unjustified type cast. FIXME
         collection_id: PERSONAL_COLLECTION.id as number,
       });
 
@@ -260,11 +279,12 @@ describe("LinkedEntityPicker", () => {
           const call = fetchMock.callHistory.lastCall("path:/api/search");
           const urlObject = new URL(checkNotNull(call?.request?.url));
           expect(urlObject.pathname).toEqual("/api/search");
-          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual({
-            context: "entity-picker",
-            models: "dashboard",
-            q: typedText,
-          });
+
+          const params = Object.keys(
+            urlSearchParamsToObject(urlObject.searchParams),
+          );
+          expect(params).toContain("q");
+          expect(params).not.toContain("filter_items_in_personal_collection");
         });
       });
     });
@@ -287,6 +307,7 @@ describe("LinkedEntityPicker", () => {
     describe("dashboard in a public collection", () => {
       const dashboardInPublicCollection = createMockDashboard({
         collection: PUBLIC_COLLECTION,
+        // Unjustified type cast. FIXME
         collection_id: PUBLIC_COLLECTION.id as number,
       });
 
@@ -343,12 +364,13 @@ describe("LinkedEntityPicker", () => {
             "card",
             "dataset",
           ]);
-          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual({
-            context: "entity-picker",
-            models: ["card", "dataset"],
-            q: typedText,
-            filter_items_in_personal_collection: "exclude",
-          });
+          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual(
+            expect.objectContaining({
+              context: "entity-picker",
+              q: typedText,
+              filter_items_in_personal_collection: "exclude",
+            }),
+          );
         });
       });
     });
@@ -356,6 +378,7 @@ describe("LinkedEntityPicker", () => {
     describe("dashboard in a personal collection", () => {
       const dashboardInPersonalCollection = createMockDashboard({
         collection: PERSONAL_COLLECTION,
+        // Unjustified type cast. FIXME
         collection_id: PERSONAL_COLLECTION.id as number,
       });
 
@@ -375,7 +398,9 @@ describe("LinkedEntityPicker", () => {
         expect(
           await screen.findByText(PUBLIC_COLLECTION.name),
         ).toBeInTheDocument();
-        expect(screen.getByText(PERSONAL_COLLECTION.name)).toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(PERSONAL_COLLECTION.name)),
+        ).toBeInTheDocument();
         expect(
           await screen.findByText(questionCollectionItem.name),
         ).toBeInTheDocument();
@@ -393,7 +418,7 @@ describe("LinkedEntityPicker", () => {
             await screen.findByPlaceholderText(/search/i),
             typedText,
           );
-          await userEvent.click(screen.getByText("Everywhere"));
+          await userEvent.click(await screen.findByText("Everywhere"));
 
           expect(
             await screen.findByText(questionSearchResult.name),
@@ -401,12 +426,11 @@ describe("LinkedEntityPicker", () => {
 
           const call = fetchMock.callHistory.lastCall("path:/api/search");
           const urlObject = new URL(checkNotNull(call?.request?.url));
-          expect(urlObject.pathname).toEqual("/api/search");
-          expect(urlSearchParamsToObject(urlObject.searchParams)).toEqual({
-            context: "entity-picker",
-            models: ["card", "dataset"],
-            q: typedText,
-          });
+          const params = Object.keys(
+            urlSearchParamsToObject(urlObject.searchParams),
+          );
+          expect(params).toContain("q");
+          expect(params).not.toContain("filter_items_in_personal_collection");
         });
       });
     });

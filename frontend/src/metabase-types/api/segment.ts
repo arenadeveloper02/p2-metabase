@@ -11,6 +11,8 @@ export interface Segment {
   table_id: TableId;
   table?: Table;
   archived: boolean;
+  caveats?: string;
+  points_of_interest?: string;
   // Backend always returns MBQL5 format
   definition: DatasetQuery;
   definition_description: string;
@@ -18,11 +20,11 @@ export interface Segment {
   created_at: string;
   creator_id: number;
   creator?: UserInfo;
+  updated_at: string;
 }
 
 export interface CreateSegmentRequest {
   name: string;
-  table_id: TableId;
   definition: DatasetQuery;
   description?: string;
 }
@@ -37,9 +39,4 @@ export interface UpdateSegmentRequest {
   description?: string;
   points_of_interest?: string;
   show_in_getting_started?: boolean;
-}
-
-export interface DeleteSegmentRequest {
-  id: SegmentId;
-  revision_message: string;
 }

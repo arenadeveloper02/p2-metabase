@@ -7,11 +7,11 @@ import CS from "metabase/css/core/index.css";
 import { ErrorBox } from "./ErrorBox";
 import type { ErrorDetailsProps } from "./types";
 
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default function ErrorDetails({
+export function ErrorDetails({
   details,
   centered,
   className,
+  errorBoxClassName,
 }: ErrorDetailsProps) {
   const [showError, setShowError] = useState(false);
 
@@ -35,7 +35,7 @@ export default function ErrorDetails({
         className={cx(CS.pt3, centered ? CS.textCentered : CS.textLeft)}
       >
         <h2>{t`Here's the full error message`}</h2>
-        <ErrorBox>{details}</ErrorBox>
+        <ErrorBox className={errorBoxClassName}>{details}</ErrorBox>
       </div>
     </div>
   );

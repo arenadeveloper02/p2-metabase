@@ -10,7 +10,14 @@
 (def ^:private test-long-model-name "some-really-really-really-really-really-long-model-name-that-will-exceed-the-limit")
 (def ^:private test-vector-dimensions 1024)
 
-;; Postgres truncates indentifier names to 63 bytes (+ 1 byte for a terminating NULL). Ensure that names do not exceed the limit
+(deftest ^:parallel hash-identifier-uses-postgres-byte-limit-test
+  (let [identifier (str "index_" (apply str (repeat 30 "é")))]
+    (is (<= (count identifier) 63) "the identifier fits when incorrectly counted as characters")
+    (is (re-matches #"index_[0-9a-f]{40}"
+                    (semantic.index/hash-identifier-if-exceeds-pg-limit identifier))
+        "UTF-8 identifiers over PostgreSQL's 63-byte limit are hashed")))
+
+;; Postgres truncates identifier names to 63 bytes (+ 1 byte for a terminating NULL). Ensure that names do not exceed the limit
 (deftest ^:parallel index-embedding-name-length-test
   (mt/with-premium-features #{:semantic-search}
     (testing "Truncates if name would be longer than the 63 byte Postgres limit"

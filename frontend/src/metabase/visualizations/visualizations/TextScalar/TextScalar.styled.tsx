@@ -3,7 +3,7 @@ import { css } from "@emotion/react";
 // eslint-disable-next-line no-restricted-imports
 import styled from "@emotion/styled";
 
-import { Ellipsified } from "metabase/common/components/Ellipsified";
+import { Ellipsified } from "metabase/ui";
 
 export const TextScalarRoot = styled.div`
   position: relative;

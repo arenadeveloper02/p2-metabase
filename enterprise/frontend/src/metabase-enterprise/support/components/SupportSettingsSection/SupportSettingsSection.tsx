@@ -1,19 +1,18 @@
-import { push } from "react-router-redux";
 import { t } from "ttag";
 
 import { SettingsSection } from "metabase/admin/components/SettingsSection";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PaginationControls } from "metabase/common/components/PaginationControls";
-import { useDispatch } from "metabase/lib/redux";
-import { adminToolsGrantAccess } from "metabase/lib/urls";
+import { useNavigate } from "metabase/router";
 import { Box, Button, Flex, LoadingOverlay, Text, Title } from "metabase/ui";
+import { adminHelpGrantAccess } from "metabase/urls";
 
 import { useAccessGrantsQuery } from "../../hooks/useAccessGrantsQuery";
 
 import { AccessGrantList } from "./AccessGrantList";
 
 export function SupportSettingsSection() {
-  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const {
     accessGrants,
     accessGrantsError,
@@ -32,11 +31,11 @@ export function SupportSettingsSection() {
       title={t`Helping hand`}
       description={
         <>
-          <Text c="text-medium" mt="sm">
-            {/* eslint-disable-next-line no-literal-metabase-strings -- This string only shows for admins. */}
+          <Text c="text-secondary" mt="sm">
+            {/* eslint-disable-next-line metabase/no-literal-metabase-strings -- This string only shows for admins. */}
             {t`Let a Metabase Success Engineer log in to your instance with a troubleshooting account to help resolve problems for you.`}
           </Text>
-          <Text c="text-medium">
+          <Text c="text-secondary">
             {t`Access always auto expires after the period you select.`}
           </Text>
         </>
@@ -50,7 +49,7 @@ export function SupportSettingsSection() {
         <Box pb="lg">
           <Button
             disabled={!!currentAccessGrant}
-            onClick={() => dispatch(push(adminToolsGrantAccess()))}
+            onClick={() => navigate(adminHelpGrantAccess())}
             variant="filled"
             title={
               currentAccessGrant

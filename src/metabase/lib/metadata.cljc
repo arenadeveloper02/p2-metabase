@@ -1,9 +1,10 @@
 (ns metabase.lib.metadata
-  (:refer-clojure :exclude [every? empty? #?(:clj doseq) get-in #?(:clj for)])
+  (:refer-clojure :exclude [every? empty? not-empty #?(:clj doseq) get-in #?(:clj for)])
   (:require
    [medley.core :as m]
    [metabase.lib.metadata.cache :as lib.metadata.cache]
    [metabase.lib.metadata.protocols :as lib.metadata.protocols]
+   [metabase.lib.metadata.transforming-provider :as lib.metadata.transforming-provider]
    [metabase.lib.metadata.util :as lib.metadata.util]
    [metabase.lib.schema :as lib.schema]
    [metabase.lib.schema.id :as lib.schema.id]
@@ -14,7 +15,7 @@
    [metabase.util.i18n :as i18n]
    [metabase.util.malli :as mu]
    [metabase.util.namespaces :as shared.ns]
-   [metabase.util.performance :refer [every? empty? #?(:clj doseq) get-in #?(:clj for)]]))
+   [metabase.util.performance :refer [every? empty? not-empty #?(:clj doseq) get-in #?(:clj for)]]))
 
 ;;; TODO -- deprecate all the schemas below, and just use the versions in [[lib.schema.metadata]] instead.
 
@@ -28,7 +29,9 @@
 
 (shared.ns/import-fns
  [lib.metadata.util
-  ->metadata-provider])
+  ->metadata-provider]
+ [lib.metadata.transforming-provider
+  transforming-metadata-provider])
 
 (mu/defn database :- ::lib.schema.metadata/database
   "Get metadata about the Database we're querying."
@@ -46,38 +49,55 @@
    table-id              :- ::lib.schema.id/table]
   (lib.metadata.protocols/table (->metadata-provider metadata-providerable) table-id))
 
-(defn- fields* [metadata-providerable table-id {:keys [only-active?]}]
-  (-> (lib.metadata.protocols/fields (->metadata-provider metadata-providerable) table-id)
-      (cond->> only-active?
-        (remove (fn [col]
-                  (or (false? (:active col))
-                      (#{:sensitive :retired} (:visibility-type col))))))
-      (->> (sort-by (juxt #(:position % 0) #(u/lower-case-en (:name % "")))))))
+(defn- fields* [metadata-providerable table-id {:keys [include-sensitive?]}]
+  (->> (lib.metadata.protocols/fields (->metadata-provider metadata-providerable)
+                                      table-id
+                                      {:include-sensitive? (boolean include-sensitive?)})
+       (sort-by (juxt #(:position % 0) #(u/lower-case-en (:name % ""))))))
 
 (mu/defn fields :- [:sequential ::lib.schema.metadata/column]
   "Get metadata about all the Fields belonging to a specific Table."
   [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
    table-id              :- ::lib.schema.id/table]
-  (fields* metadata-providerable table-id {:only-active? false}))
+  (fields* metadata-providerable table-id nil))
+
+(defn active-column-filter-xform
+  "A `filter` transducer that removes columns that should not be visible based on `:active` status and
+  `:visibility-type` (e.g., `:sensitive`, `:retired`). Reuses [[metabase.lib.metadata.protocols/active-column-pred]]
+  to keep the filtering logic in one place.
+
+  Options:
+    - `:include-sensitive?` - if true, does not filter out `:sensitive` columns (default false)"
+  ([]
+   (active-column-filter-xform nil))
+  ([opts]
+   (filter (lib.metadata.protocols/active-column-pred opts))))
 
 (mu/defn active-fields :- [:sequential ::lib.schema.metadata/column]
   "Like [[fields]], but filters out any Fields that are not `:active` or with `:visibility-type`s that mean they
   should not be included in queries.
 
   These fields are the ones we use for default `:fields`, which becomes the default `SELECT ...` (or equivalent) when
-  building a query."
-  [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
-   table-id              :- ::lib.schema.id/table]
-  (fields* metadata-providerable table-id {:only-active? true}))
+  building a query.
+
+  Options:
+    - `:include-sensitive?` - if true, includes fields with visibility_type :sensitive (default false)"
+  ([metadata-providerable table-id]
+   (active-fields metadata-providerable table-id nil))
+  ([metadata-providerable :- ::lib.schema.metadata/metadata-providerable
+    table-id              :- ::lib.schema.id/table
+    opts]
+   (fields* metadata-providerable table-id opts)))
 
 (mu/defn metadatas-for-table :- [:maybe [:sequential [:or
                                                       ::lib.schema.metadata/column
+                                                      ::lib.schema.metadata/measure
                                                       ::lib.schema.metadata/metric
                                                       ::lib.schema.metadata/segment]]]
-  "Return active (non-archived) metadatas associated with a particular Table, either Fields, Metrics, or
-  Segments -- `metadata-type` must be one of either `:metadata/column`, `:metadata/metric`, `:metadata/segment`."
+  "Return active (non-archived) metadatas associated with a particular Table, either Fields, Metrics, Measures, or
+  Segments -- `metadata-type` must be one of `:metadata/column`, `:metadata/measure`, `:metadata/metric`, `:metadata/segment`."
   [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
-   metadata-type         :- [:enum :metadata/column :metadata/metric :metadata/segment]
+   metadata-type         :- [:enum :metadata/column :metadata/measure :metadata/metric :metadata/segment]
    table-id              :- ::lib.schema.id/table]
   (case metadata-type
     :metadata/column (fields metadata-providerable table-id)
@@ -124,7 +144,9 @@
 (mu/defn transforms :- [:maybe [:sequential ::lib.schema.metadata/transform]]
   "Gets all Transforms"
   [metadata-providerable :- ::lib.schema.metadata/metadata-providerable]
-  (lib.metadata.protocols/transforms (->metadata-provider metadata-providerable)))
+  (->> (lib.metadata.protocols/transforms (->metadata-provider metadata-providerable))
+       (map #(m/update-existing-in % [:source :query] normalize-query metadata-providerable))
+       not-empty))
 
 (mu/defn setting :- any?
   "Get the value of a Metabase setting for the instance we're querying."
@@ -157,6 +179,12 @@
   [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
    segment-id            :- ::lib.schema.id/segment]
   (lib.metadata.protocols/segment (->metadata-provider metadata-providerable) segment-id))
+
+(mu/defn measure :- [:maybe ::lib.schema.metadata/measure]
+  "Get metadata for the Measure with `measure-id`, if it can be found."
+  [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
+   measure-id            :- ::lib.schema.id/measure]
+  (lib.metadata.protocols/measure (->metadata-provider metadata-providerable) measure-id))
 
 (mu/defn metric :- [:maybe ::lib.schema.metadata/metric]
   "Get metadata for the Metric with `card-id`, if it can be found."
@@ -247,6 +275,17 @@
       (into []
             (keep id->result)
             ids))))
+
+(mu/defn metadatas :- [:maybe [:sequential :metabase.lib.metadata.protocols/metadata]]
+  "Return a sequence of metadata objects matching `metadata-spec` (see
+  `:metabase.lib.metadata.protocols/metadata-spec`). A thin wrapper over [[lib.metadata.protocols/metadatas]] that
+  resolves the MetadataProvider from `metadata-providerable` for you, so callers don't need to reach for
+  [[->metadata-provider]] or the protocol namespace directly.
+
+  Like the underlying method, can be called for side-effects to warm the cache."
+  [metadata-providerable :- ::lib.schema.metadata/metadata-providerable
+   metadata-spec         :- :metabase.lib.metadata.protocols/metadata-spec]
+  (lib.metadata.protocols/metadatas (->metadata-provider metadata-providerable) metadata-spec))
 
 (defn- missing-bulk-metadata-error [metadata-type id]
   (ex-info (i18n/tru "Failed to fetch {0} {1}: either it does not exist, or it belongs to a different Database"

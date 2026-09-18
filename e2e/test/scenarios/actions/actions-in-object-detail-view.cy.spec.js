@@ -1,6 +1,5 @@
-import dayjs from "dayjs";
-
 import { USER_GROUPS, WRITABLE_DB_ID } from "e2e/support/cypress_data";
+import { dayjs } from "metabase/dayjs";
 
 const { H } = cy;
 
@@ -24,9 +23,7 @@ describe(
     beforeEach(() => {
       cy.intercept("GET", "/api/action?model-id=*").as("getModelActions");
       cy.intercept("POST", "/api/action/*/execute").as("executeAction");
-      cy.intercept("GET", "/api/action/*/execute?parameters=*").as(
-        "prefetchValues",
-      );
+      cy.intercept("POST", "/api/action/*/execute/values").as("prefetchValues");
 
       H.restore("postgres-writable");
       H.resetTestTable({ type: "postgres", table: WRITABLE_TEST_TABLE });
@@ -217,10 +214,8 @@ describe(
 
         cy.wait("@executeAction");
 
-        cy.findByLabelText("Team Name").should("not.exist");
-        cy.findByLabelText(
-          "Team Name: This Team_name value already exists.",
-        ).should("exist");
+        cy.findByLabelText("Team Name").should("exist");
+        cy.findByText("This Team_name value already exists.").should("exist");
 
         cy.findByText("Team_name already exists.").should("exist");
       });
@@ -307,21 +302,21 @@ function assertUpdatedScoreNotInTable() {
 
 function assertSuccessfullUpdateToast() {
   cy.log("it shows a toast informing the update was successful");
-  // eslint-disable-next-line no-unsafe-element-filtering
+  // eslint-disable-next-line metabase/no-unsafe-element-filtering
   H.undoToastList()
     .last()
     .should("be.visible")
-    .should("have.attr", "color", "success")
+    .should("have.attr", "color", "feedback-positive")
     .should("contain.text", "Successfully updated");
 }
 
 function assertSuccessfullDeleteToast() {
   cy.log("it shows a toast informing the delete was successful");
-  // eslint-disable-next-line no-unsafe-element-filtering
+  // eslint-disable-next-line metabase/no-unsafe-element-filtering
   H.undoToastList()
     .last()
     .should("be.visible")
-    .should("have.attr", "color", "success")
+    .should("have.attr", "color", "feedback-positive")
     .should("contain.text", "Successfully deleted");
 }
 

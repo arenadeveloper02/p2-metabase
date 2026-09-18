@@ -210,9 +210,7 @@ describe("Issue 32974", { tags: ["@external", "@actions"] }, () => {
   beforeEach(() => {
     cy.intercept("GET", "/api/action?model-id=*").as("getModelActions");
     cy.intercept("POST", "/api/action/*/execute").as("executeAction");
-    cy.intercept("GET", "/api/action/*/execute?parameters=*").as(
-      "prefetchValues",
-    );
+    cy.intercept("POST", "/api/action/*/execute/values").as("prefetchValues");
 
     H.restore("postgres-writable");
     H.resetTestTable({ type: "postgres", table: TEST_TABLE });
@@ -258,7 +256,7 @@ describe("issue 51020", () => {
       cy.findByText("Update a dashboard filter").click();
       cy.findByTestId("click-target-column").click();
     });
-    H.popover().findByText(columnName).click();
+    H.selectDropdown().findByText(columnName).click();
     cy.button("Done").click();
 
     cy.findByLabelText("Add action").click();
@@ -266,9 +264,9 @@ describe("issue 51020", () => {
     H.modal().within(() => {
       cy.findByText(modelName).click();
       cy.findByText("Update").click();
-      cy.findAllByText("Ask the user").eq(0).click();
+      cy.findAllByDisplayValue("Ask the user").eq(0).click();
     });
-    H.popover().findByText("ID").click();
+    H.selectDropdown().findByText("ID").click();
     cy.button("Done").click();
 
     H.saveDashboard();
@@ -402,10 +400,9 @@ describe("issue 51020", () => {
 
       H.newButton("Question").click();
       H.miniPickerBrowseAll().click();
-      H.entityPickerModalTab("Data").click();
+      H.entityPickerModalItem(0, "Our analytics").click();
       H.entityPickerModalItem(1, "Model 51020").click();
       H.saveQuestion("Question 51020", undefined, {
-        tab: "Browse",
         path: ["Our analytics"],
       });
 
@@ -483,7 +480,7 @@ describe("issue 32840", () => {
   it("uses correct timestamp when executing implicit update action (metabase#32840)", () => {
     cy.findAllByTestId("cell-data").eq(8).click();
     H.modal().within(() => {
-      cy.findByText("July 19, 2023, 7:44 PM").should("be.visible");
+      cy.findByText("July 19, 2026, 7:44 PM").should("be.visible");
       cy.findByTestId("actions-menu").click();
     });
     H.popover().findByText("Update").should("be.visible").click();
@@ -492,12 +489,12 @@ describe("issue 32840", () => {
       .within(() => {
         cy.findByPlaceholderText("Created At").should(
           "have.value",
-          "2023-07-19T19:44:56",
+          "2026-07-19T19:44:56",
         );
         cy.button("Update").scrollIntoView().click();
       });
     cy.wait("@executeAction");
-    H.modal().findByText("July 19, 2023, 7:44 PM").should("be.visible");
+    H.modal().findByText("July 19, 2026, 7:44 PM").should("be.visible");
   });
 });
 
@@ -528,7 +525,7 @@ const actionButtonContainer = () =>
   cy.findByTestId("action-button-full-container");
 
 const dashCard = () =>
-  // eslint-disable-next-line no-unsafe-element-filtering
+  // eslint-disable-next-line metabase/no-unsafe-element-filtering
   cy
     .findAllByTestId("dashcard-container")
     .last()

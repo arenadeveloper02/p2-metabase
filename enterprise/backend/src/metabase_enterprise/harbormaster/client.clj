@@ -7,6 +7,7 @@
    [martian.clj-http :as martian-http]
    [martian.core :as martian]
    [medley.core :as m]
+   [metabase.api.common :as api]
    [metabase.api.settings :as api.auth]
    [metabase.store-api.core :as store-api]
    [metabase.util :as m.util]
@@ -68,15 +69,14 @@
                     (str store-api-url (+slash-prefix url))
                     request)
                    (catch Exception e
-                     (log/errorf e "Error making request to %s" url)
+                     (log/errorf "Error making request to %s: %s" url (ex-message e))
                      {:ex-data (ex-data e)
                       :request request
                       :url     url}))]
     (log/info "Harbormaster API call:"
               {:method   (m.util/upper-case-en (last (str/split (-> request-method-fn class .getSimpleName) #"\$")))
                :url      url
-               :request-body  (:body request)
-               :response (select-keys response [:status :body])})
+               :status   (:status response)})
     response))
 
 (defn- decode-response [unparsed-response url request]
@@ -85,7 +85,7 @@
     (try
       (m/update-existing unparsed-response :body json/decode+kw)
       (catch Exception e
-        (log/errorf e "Error decoding response from %s, is it json?" url)
+        (log/errorf "Error decoding response from %s, is it json? %s" url (ex-message e))
         {:ex-data           (ex-data e)
          :unparsed-response unparsed-response
          :request           request
@@ -95,7 +95,7 @@
   (try
     (get-safe-status response)
     (catch Exception e
-      (log/errorf e "Error decoding response from %s, is it json?" url)
+      (log/errorf "Error decoding response from %s, is it json? %s" url (ex-message e))
       {:response response
        :request  request
        :url      url
@@ -128,13 +128,18 @@
   {:name ::add-bearer-token
    :enter (fn [ctx] (assoc-in ctx [:request :headers "Authorization"] (str "Bearer " secret)))})
 
+(defn- user-email-header []
+  {:name ::add-user-email
+   :enter (fn [ctx] (assoc-in ctx [:request :headers "X-Metabase-User-Email"] (:email @api/*current-user*)))})
+
 (defn- create-client
   [store-api-url api-key]
   (martian-http/bootstrap-openapi
    (str store-api-url "/openapi.json")
    ;; martian options for calling operations
    (merge {:server-url store-api-url}
-          (when api-key {:interceptors (into [(bearer-auth api-key)] martian-http/default-interceptors)}))
+          (when api-key {:interceptors (into [(bearer-auth api-key) (user-email-header)]
+                                             martian-http/default-interceptors)}))
    ;; clj-http options for loading the openapi.json itself
    {:headers (merge {} (when api-key {"Authorization" (str "Bearer " api-key)}))}))
 
@@ -165,7 +170,8 @@
       x)))
 
 (defn call
-  "Call the API, using Martian. Will throw on non 2xx, and you can get the failure body (if any) using ex-data.
+  "Call the API, using Martian. Will throw on non 2xx, and you can get the failure body (if any) using ex-data,
+  along with the HTTP `:status` the Store responded with (when there was a response at all).
   The Harbormaster API uses snake_keys, and this fn automatically converts kebab-keys to snake_keys on request,
   and back to kebab-keys on response.
   e.g.
@@ -176,10 +182,12 @@
   (try
     (m.util/deep-kebab-keys (:body (martian/response-for (client) operation-id (m.util/deep-snake-keys args))))
     (catch Exception e
-      (let [resp-body (some-> e ex-data :body maybe-decode m.util/deep-kebab-keys)
+      (let [{:keys [status body]} (ex-data e)
+            resp-body (some-> body maybe-decode m.util/deep-kebab-keys)
             msg (format "Error on Harbormaster operation call %s" operation-id)]
-        (log/error msg (or resp-body e))
-        (throw (ex-info msg (if (map? resp-body) resp-body {})))))))
+        (log/error msg (ex-message e))
+        (throw (ex-info msg (cond-> (if (map? resp-body) resp-body {})
+                              status (assoc :status status))))))))
 
 (defn request
   "Same as call, but return the request that will be performed.
@@ -226,4 +234,4 @@
 
   ;; Call the :list-connections operation.
   (call :list-connections))
-  ;; => ()
+;; => ()

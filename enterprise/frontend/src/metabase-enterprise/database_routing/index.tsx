@@ -1,7 +1,7 @@
-import { IndexRoute, Route } from "react-router";
 import { t } from "ttag";
 
 import { PLUGIN_DB_ROUTING } from "metabase/plugins";
+import { Route } from "metabase/router";
 import { hasPremiumFeature } from "metabase-enterprise/settings";
 
 import { DatabaseRoutingSection } from "./DatabaseRoutingSection";
@@ -24,7 +24,7 @@ export function initializePlugin() {
 
       return {
         label: t`Slug`,
-        // eslint-disable-next-line no-literal-metabase-strings -- Admin settings
+        // eslint-disable-next-line metabase/no-literal-metabase-strings -- Admin settings
         description: t`Metabase will route queries to this database when the user attribute value matches this slug.`, // Metabase will use this value to map to the user attribute you specify to swap queries at run time`,
         placeholder: t`For example, pro-users`,
       };
@@ -38,14 +38,17 @@ export function initializePlugin() {
 
     PLUGIN_DB_ROUTING.getDestinationDatabaseRoutes = (IsAdmin: any) => (
       <Route path="destination-databases">
-        <IndexRoute component={DestinationDatabasesModal} />
-        <Route component={IsAdmin}>
-          <Route path="create" component={DestinationDatabaseConnectionModal} />
+        <Route index element={<DestinationDatabasesModal />} />
+        <Route element={<IsAdmin />}>
+          <Route
+            path="create"
+            element={<DestinationDatabaseConnectionModal />}
+          />
         </Route>
         <Route path=":destinationDatabaseId">
-          <IndexRoute component={DestinationDatabaseConnectionModal} />
-          <Route component={IsAdmin}>
-            <Route path="remove" component={RemoveDestinationDatabaseModal} />
+          <Route index element={<DestinationDatabaseConnectionModal />} />
+          <Route element={<IsAdmin />}>
+            <Route path="remove" element={<RemoveDestinationDatabaseModal />} />
           </Route>
         </Route>
       </Route>

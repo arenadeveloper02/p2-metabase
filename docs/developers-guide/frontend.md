@@ -6,7 +6,7 @@ title: Frontend
 
 ## Typescript
 
-We are aggressively pressing toward having our entire frontend codebase in typescript. If you find yourself working on a javascript file, consider making a small initial PR to convert it to typescript before making further changes (and making it a functional component if you've happened upon a class component 😱).
+The app codebase is fully TypeScript. New files must be `.ts` or `.tsx`. Prefer functional components over class components.
 
 Avoid typecasts, and avoid use of `any` at all costs.
 
@@ -20,18 +20,15 @@ In cases where types are only used by some local components, they should be defi
 ## Redux
 
 We use Redux for global state. You will find domain-specific actions, reducers, and selectors generally grouped with the components that use them. e.g:
-  - [query_builder](https://github.com/metabase/metabase/tree/master/frontend/src/metabase/query_builder)
-  - [dashboard](https://github.com/metabase/metabase/tree/master/frontend/src/metabase/dashboard)
+
+- [query_builder](https://github.com/metabase/metabase/tree/master/frontend/src/metabase/query_builder)
+- [dashboard](https://github.com/metabase/metabase/tree/master/frontend/src/metabase/dashboard)
 
 Use Redux global state as little as possible, and wherever possible, prefer local component state, or narrowly-defined context.
 
 ## Data Fetching
 
 We use [RTK Query](https://redux-toolkit.js.org/rtk-query/overview) for data fetching and caching. All API endpoints are defined in `metabase/api`. These should be properly typed, and should not depend on any other application code or contain business logic outside of invalidating tags within the API.
-
-### Entity Loaders
-
-Legacy code uses `metabase/entities` to load data. These entity loaders are deprecated, and wherever possible, use of RTK query apis should be preferred.
 
 ## UI Library
 
@@ -40,6 +37,7 @@ Our UI library in `metabase/ui` is built on top of [`Mantine`](https://mantine.d
 ## Styling
 
 You'll note several styling patterns in the codebase. Currently you should prefer
+
 1. [Mantine Style Props](https://mantine.dev/styles/style-props/) for most simple styling
 2. [CSS Modules](https://github.com/css-modules/css-modules) for more complex styling
 
@@ -49,7 +47,7 @@ Familiarize yourself with Mantine's Layout components. You can often save a lot 
 
 ## Colors
 
-You may not define new bespoke colors or use any color literals like `black` or `white`. Colors can be referenced directly in components using mantine color props like `c="text-primary"` or in css modules using variables `color: var(--mb-color-text-primary);` Using these colors ensures consistent visual design and user experience across both dark and light modes. The full palette is defined in `metabase/lib/colors.ts`.
+Colors should only be used in the form of mantine color props (primarily `c` and `bg`), or in css modules using variables eg: `color: var(--mb-color-text-primary);`. Using these colors ensures consistent visual design and user experience across both dark and light modes. Literal color values such as `black` or `#FFF` are not allowed, as well as using `color-mix` in your CSS modules to adjust the color or transparency of a variable. The full list of keys can be found in `frontend/src/metabase/utils/colors/types/color-keys.ts`, with their light and dark values found in `frontend/src/metabase/utils/colors/constants/themes`. If you find yourself requiring a color that does not already exist but is present in designs, reach out to the design team for guidance.
 
 ## Unit testing
 
@@ -170,52 +168,48 @@ const output = t`${name} is going to the ${place} with ${anotherName}`;
 // 😍
 const output = c("{0} and {2} are people's names, and {1} is a place")
   .t`${name} is going to the ${place} with ${anotherName}`;
-
 ```
 
 ## Style Guide
 
 The first rule of frontend style, is we want to avoid talking about frontend style. Wherever possible, style-level considerations should be encapsulated in lint rules.
 
-### Prettier + Eslint
+### oxfmt + ESlint
 
-We use [Prettier](https://prettier.io/) to format our JavaScript code, and it is enforced by CI. We recommend setting your editor to "format on save". You can also format code using `yarn prettier`, and verify it has been formatted correctly using `yarn lint-prettier`.
+We use [oxfmt](https://oxc.rs/) to format our JavaScript and TypeScript code, and it is enforced by CI. We recommend setting your editor to "format on save". You can also format code using `bun run format`, and verify it has been formatted correctly using `bun run lint-format-pure`.
 
-We use ESLint to enforce additional rules. It is integrated into the Webpack build, or you can manually run `yarn lint-eslint` to check. Nitpicky things like import order, spacing, etc. are all enforced by eslint.
+We use ESLint to enforce additional rules. It is integrated into the Webpack build, or you can manually run `bun run lint-eslint` to check. Nitpicky things like import order, spacing, etc. are all enforced by eslint.
 
 ### Miscellaneous notes on coding style
 
 - Avoid creating separate `Container` and `Components` directories. In some cases it makes sense to separate components for data loading and viewing, but this is easy to do in a single file.
 - Avoid nested ternaries as they often result in code that is difficult to read. If you have logical branches in your code that are dependent on the value of a string, prefer using an object as a map to multiple values (when evaluation is trivial) or a `switch` statement. Where logic is complex, we often use [ts-pattern](https://github.com/gvergnaud/ts-pattern) over a set of if/else statement.
 - Be conservative with what comments you add to the codebase. Ideally, code should be written in such a way that it explains itself clearly. When it does not, you should first try rewriting the code. If for whatever reason you are unable to write something clearly, add a comment to explain the "why".
-- Avoid breaking JSX up into separate method calls within a single component. Prefer inlining JSX so that you can better see what the relation is of the JSX a `render` method returns to what is in the `state` or `props` of a component. By inlining JSX you'll also get a better sense of what parts should and should not be separate components.
+- Avoid using `renderThing()` functions within a component. These are sometimes (but rarely!) useful for performance reasons, but in nearly all cases, simple subcomponents are more readable, testable, and maintainable.
 
-```ts
+```tsx
 // don't do this
-render () {
-  return (
-    <div>
-      {this.renderThing1()}
-      {this.renderThing2()}
-      {this.state.thing3Needed && this.renderThing3()}
-    </div>
-  );
-}
+return (
+  <div>
+    {renderThing1()}
+    {renderThing2()}
+    {thing3Needed && renderThing3()}
+  </div>
+);
 
 // do this
-render () {
-  return (
-    <div>
-      <button onClick={this.toggleThing3Needed}>toggle</button>
-      <Thing2 randomProp={this.props.foo} />
-      {this.state.thing3Needed && <Thing3 randomProp2={this.state.bar} />}
-    </div>
-  );
-}
+return (
+  <div>
+    <button onClick={toggleThing3Needed}>toggle</button>
+    <Thing2 randomProp={foo} />
+    {thing3Needed && <Thing3 randomProp2={bar} />}
+  </div>
+);
 ```
+
 - Avoid complex logical expressions inside of if statements. Often extracting logic to a well-named boolean variable can make code much easier to read.
 
-```javascript
+```ts
 // don't do this
 if (typeof children === "string" && children.split(/\n/g).length > 1) {
   // ...
@@ -228,6 +222,7 @@ if (isMultilineText) {
   // ...
 }
 ```
+
 - Use ALL_CAPS for constants
 
 ```javascript
@@ -240,6 +235,7 @@ const OBJECT_CONFIG_CONSTANT = {
   abc: 123,
 };
 ```
+
 - Avoid magic strings and numbers
 
 ```javascript
@@ -250,7 +246,9 @@ const options = _.times(10, () => ...);
 export const MAX_NUM_OPTIONS = 10;
 const options = _.times(MAX_NUM_OPTIONS,  () => ...);
 ```
+
 - prefer declarative over imperative patterns where possible. You should write code with other engineers in mind as other engineers will spend more time reading than you spend writing (and re-writing). Code is more readable when it tells the computer "what to do" versus "how to do." Avoid imperative patterns like for loops:
+
 ```javascript
 // don't do this
 let foo = [];

@@ -1,9 +1,10 @@
 .card {
   min-width: 15rem;
+  max-width: 30rem;
 
   &:hover,
   &.selected {
-    border-color: var(--mb-color-brand);
+    border-color: var(--mb-color-core-brand);
   }
 }
 
@@ -17,12 +18,9 @@
 }
 
 .pill {
-  color: var(--mb-color-text-primary);
-  background-color: var(--mb-color-bg-medium);
-
   &:hover,
   &.selected {
-    color: var(--mb-color-white);
-    background-color: var(--mb-color-brand);
+    color: var(--mb-color-core-white);
+    background-color: var(--mb-color-core-brand);
   }
 }

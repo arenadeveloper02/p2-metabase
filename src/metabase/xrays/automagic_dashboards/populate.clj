@@ -1,16 +1,15 @@
 (ns metabase.xrays.automagic-dashboards.populate
   "Create and save models that make up automagic dashboards."
   (:require
-   [clojure.set :as set]
    [clojure.string :as str]
    [medley.core :as m]
    [metabase.api.common :as api]
    [metabase.appearance.core :as appearance]
+   [metabase.dashboards.models.dashboard-card :as dashboard-card]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.schema :as lib.schema]
    [metabase.queries.core :as queries]
    [metabase.query-processor.util :as qp.util]
-   [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.registry :as mr]
@@ -79,7 +78,7 @@
        ensure-distinct-colors))
 
 (defn- colorize
-  "Pick the chart colors acording to the following rules:
+  "Pick the chart colors according to the following rules:
   * If there is more than one breakout dimension let the frontend do it as presumably
     the second dimension will be used as color key and we can't know the values it
     will take at this stage.
@@ -87,7 +86,7 @@
     (ie. a frequency chart), use field IDs referenced in `:breakout` as color key.
   * Else use `:aggregation` as color key.
 
-  Colors are then determined by using the hashs of color keys to index into the vector
+  Colors are then determined by using the hashes of color keys to index into the vector
   of available colors."
   [{:keys [visualization dataset_query], :as _dashcard}]
   (let [display     (first visualization)
@@ -176,11 +175,7 @@
           (merge (dashcard-defaults)
                  {:creator_id             api/*current-user-id*
                   :visualization_settings (merge
-                                           {:text         text
-                                            :virtual_card {:name                   nil
-                                                           :display                :text
-                                                           :dataset_query          {}
-                                                           :visualization_settings {}}}
+                                           (dashboard-card/virtual-card-settings "text" text)
                                            visualization-settings)
                   :col                    y
                   :row                    x
@@ -210,9 +205,9 @@
                 y (range y (+ y width))]
             [x y])))
 
-(mu/defn- accomodates?
+(mu/defn- accommodates?
   "Can we place card on grid starting at [x y] (top left corner)?
-   Since we are filling the grid top to bottom and the cards are rectangulard,
+   Since we are filling the grid top to bottom and the cards are rectangular,
    it suffices to check just the first (top) row."
   [grid                   :- ::grid
    [x y]                  :- [:tuple nat-int? nat-int?]
@@ -226,14 +221,14 @@
 (mu/defn- dashcard-position
   "Find position on the grid where to put the card.
    We use the dumbest possible algorithm (the grid size is relatively small, so
-   we should be fine): startting at top left move along the grid from left to
+   we should be fine): starting at top left move along the grid from left to
    right, row by row and try to place the card at each position until we find an
    unoccupied area. Mark the area as occupied."
   [grid :- ::grid
    start-row
    dashcard]
   (reduce (fn [grid xy]
-            (if (accomodates? grid xy dashcard)
+            (if (accommodates? grid xy dashcard)
               (reduced xy)
               grid))
           grid
@@ -288,7 +283,7 @@
   "Pick up to `max-cards` with the highest `:card-score`.
    Keep groups together if possible by pulling all the cards within together and
    using the same (highest) card-score for all.
-   Among cards with the same card-score those beloning to the largest group are
+   Among cards with the same card-score those belonging to the largest group are
    favourized, but it is still possible that not all cards in a group make it
    (consider a group of 4 cards which starts as 7/9; in that case only 2 cards
    from the group will be picked)."
@@ -322,28 +317,6 @@
     (let [g (group-by f coll)]
       (access key-order g))))
 
-(mu/defn- create-dashboard-populate-dashcards :- [:sequential ::ads/dashcard]
-  [dashcards :- [:maybe [:sequential ::ads/card-template]]]
-  ;; disable ref validation because X-Rays does stuff in a wacko manner, it adds a bunch of filters and whatever that
-  ;; use columns from joins before adding the joins themselves (same with expressions), which is technically invalid
-  ;; at the time it happens but ends up resulting in a valid query at the end of the day. Maybe one day we can rework
-  ;; this code to be saner
-  (let [card-id->can-run-adhoc-query (binding [lib.schema/*HACK-disable-ref-validation* true]
-                                       (into {}
-                                             (map (juxt ::id :can_run_adhoc_query))
-                                             (queries/with-can-run-adhoc-query
-                                               (for [{:keys [card]} dashcards
-                                                     :when          (and (:id card)
-                                                                         (:dataset_query card))]
-                                                 (-> card
-                                                     (update :dataset_query lib-be/normalize-query)
-                                                     (set/rename-keys {:id ::id}))))))]
-    (for [dashcard dashcards
-          :let     [card (:card dashcard)
-                    card (when (seq card)
-                           (assoc card :can_run_adhoc_query (get card-id->can-run-adhoc-query (:id card))))]]
-      (u/assoc-dissoc dashcard :card card))))
-
 (mu/defn create-dashboard :- ::ads/dashboard
   "Create dashboard and populate it with cards."
   ([dashboard] (create-dashboard dashboard :all))
@@ -370,12 +343,8 @@
                                     [dashboard
                                      ;; Height doesn't need to be precise, just some
                                      ;; safe upper bound.
-                                     (make-grid grid-width (* n grid-width))]))
-         dashboard     (update dashboard :dashcards create-dashboard-populate-dashcards)]
-     (log/debugf "Adding %s cards to dashboard %s:\n%s"
-                 (count cards)
-                 title
-                 (str/join "; " (map :title cards)))
+                                     (make-grid grid-width (* n grid-width))]))]
+     (log/debugf "Adding %s cards to dashboard" (count cards))
      (cond-> (update dashboard :dashcards (partial sort-by (juxt :row :col)))
        (not-empty filters) (filters/add-filters filters max-filters)))))
 

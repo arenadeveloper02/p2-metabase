@@ -1,6 +1,6 @@
 (ns metabase.driver.util
   "Utility functions for common operations on drivers."
-  (:refer-clojure :exclude [mapv empty?])
+  (:refer-clojure :exclude [mapv empty? some])
   (:require
    [clojure.core.memoize :as memoize]
    [clojure.set :as set]
@@ -13,17 +13,17 @@
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.metadata.protocols :as lib.metadata.protocols]
-   [metabase.lib.schema.common :as lib.schema.common]
    [metabase.lib.schema.id :as lib.schema.id]
    [metabase.premium-features.core :as premium-features]
    [metabase.query-processor.error-type :as qp.error-type]
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.util :as u]
+   [metabase.util.http :as u.http]
    [metabase.util.i18n :refer [deferred-tru trs]]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    ^{:clj-kondo/ignore [:discouraged-namespace]} [metabase.util.malli.schema :as ms]
-   [metabase.util.performance :as perf :refer [mapv empty?]])
+   [metabase.util.performance :refer [mapv empty? some]])
   (:import
    (java.io ByteArrayInputStream)
    (java.security KeyFactory KeyStore PrivateKey)
@@ -121,6 +121,117 @@
        (or (instance? java.net.ConnectException throwable)
            (recur (.getCause throwable)))))
 
+(def ^:private auth-provider-url-detail-keys
+  "Detail keys holding a URL that Metabase fetches over plain HTTP -- not through the warehouse connection and not
+  through the SSH tunnel -- while resolving an auth provider (see [[fetch-and-incorporate-auth-provider-details]])."
+  [:http-auth-url :oauth-token-url])
+
+(defn- hosts-metabase-will-connect-to
+  "The hosts Metabase itself resolves and connects to for `details`. With an SSH tunnel enabled Metabase connects to
+  the tunnel server and the tunnel server resolves the warehouse host on the far side, so `:host` is (legitimately)
+  often `localhost` there and only `:tunnel-host` is ours to check. That only holds for a driver that actually routes
+  its connection through the tunnel -- details are an open map, and for a driver that ignores the `:tunnel-*` keys
+  (BigQuery) believing them would leave the host it really connects to unchecked.
+
+  Eager on purpose: [[validate-connection-hosts!]] turns a failure to extract the hosts into a refusal, which it can
+  only do if the failure happens at the call and not later, when a lazy sequence is walked."
+  [driver details]
+  (into []
+        cat
+        [(if (and (:tunnel-enabled details)
+                  (driver/routes-connection-through-ssh-tunnel? driver))
+           (driver/hosts-from-details details [:tunnel-host])
+           ;; Fail closed if loading the driver or extracting its hosts fails. Falling back to generic keys here could
+           ;; turn a bug in a driver's implementation into an unchecked connection.
+           (vec (driver/connection-hosts driver details)))
+         ;; deliberately outside the tunnel branch: a tunnel rewrites the host detail, but the client still honors a
+         ;; host named in its connection parameters, so those are checked either way
+         (driver/connection-parameter-hosts driver details)
+         (when (:use-auth-provider details)
+           (driver/hosts-from-details details auth-provider-url-detail-keys))]))
+
+(defn- blocked-network-address-exception []
+  (let [message (str (deferred-tru "Cannot connect to a private or internal network address."))]
+    (ex-info message
+             {:status-code 400
+              :message     message
+              :errors      {:host (str (deferred-tru "check your host settings"))}})))
+
+(defn- unknown-connection-hosts-exception [cause]
+  (let [message (str (deferred-tru "Error resolving hosts: could not apply security policy."))]
+    (ex-info message
+             {:status-code 400
+              :message     message
+              :errors      {:host (str (deferred-tru "check your host settings"))}}
+             cause)))
+
+(def ^:private ^:dynamic *allow-private-connection-hosts*
+  "When true, an `:external-only` [[driver.settings/warehouse-allowed-networks]] policy is enforced as
+  `:allow-private`. Bound only by [[do-with-database-network-policy]]."
+  false)
+
+(defn- effective-warehouse-allowed-networks
+  "[[driver.settings/warehouse-allowed-networks]] as it applies to the connection being validated right now:
+  [[*allow-private-connection-hosts*]] relaxes `:external-only` to `:allow-private`."
+  []
+  (let [policy (driver.settings/warehouse-allowed-networks)]
+    (if (and *allow-private-connection-hosts* (= policy :external-only))
+      :allow-private
+      policy)))
+
+(defn network-exempt-warehouse?
+  "Whether `database` may sit on a private network under an `:external-only`
+  [[driver.settings/warehouse-allowed-networks]] policy: today only the attached DWH, and only when the token also
+  carries the `:attached-dwh` feature. The flag alone is not enough -- serialization import can set it -- so the
+  exemption is confined to instances whose token vouches that a DWH really was attached.
+
+  `database` may be a Toucan row or a config-file entry (`:is_attached_dwh`) or a Lib metadata
+  database (`:is-attached-dwh` -- and a map that throws on `:snake_case` lookups outside prod, which is why the two
+  shapes are told apart rather than the keys tried in turn)."
+  [database]
+  (boolean (and (if (= (:lib/type database) :metadata/database)
+                  (:is-attached-dwh database)
+                  (:is_attached_dwh database))
+                (premium-features/has-attached-dwh?))))
+
+(defn do-with-database-network-policy
+  "Impl for [[with-database-network-policy]]."
+  [database thunk]
+  (binding [*allow-private-connection-hosts* (network-exempt-warehouse? database)]
+    (thunk)))
+
+(defmacro with-database-network-policy
+  "Run `body` with [[driver.settings/warehouse-allowed-networks]] enforced the way it applies to `database`: a
+  network-exempt warehouse (see [[network-exempt-warehouse?]]) gets `:external-only` relaxed to `:allow-private`,
+  any other database the policy as configured. Wrap this around anything that validates connection hosts on
+  `database`'s behalf."
+  {:style/indent 1}
+  [database & body]
+  `(do-with-database-network-policy ~database (^:once fn* [] ~@body)))
+
+(defn validate-resolved-addresses!
+  "Throw when any of the already-resolved `addresses` is disallowed by [[driver.settings/warehouse-allowed-networks]].
+  Used by connection transports, such as Mongo's `InetAddressResolver`, that can enforce the policy on the exact
+  addresses used to open a socket."
+  [addresses]
+  (let [policy (effective-warehouse-allowed-networks)]
+    (when (some #(not (u.http/address-allowed-for-network-policy? policy %)) addresses)
+      (throw (blocked-network-address-exception)))))
+
+(defn validate-connection-hosts!
+  "Throw a 400 if `details` would have Metabase open a connection to an address disallowed by
+  [[driver.settings/warehouse-allowed-networks]]. Returns nil when the details are acceptable."
+  [driver details]
+  (let [policy (effective-warehouse-allowed-networks)]
+    (when (not= policy :allow-all)
+      (let [hosts (try
+                    (hosts-metabase-will-connect-to driver details)
+                    (catch Throwable e
+                      (log/error e "Could not determine the hosts a connection to this database would open")
+                      (throw (unknown-connection-hosts-exception e))))]
+        (when (some #(not (u.http/host-allowed-for-network-policy? policy %)) hosts)
+          (throw (blocked-network-address-exception)))))))
+
 (defn can-connect-with-details?
   "Check whether we can connect to a database with `driver` and `details-map` and perform a basic query such as `SELECT
   1`. Specify optional param `throw-exceptions` if you want to handle any exceptions thrown yourself (e.g., so you
@@ -131,31 +242,36 @@
   ^Boolean [driver details-map & [throw-exceptions]]
   {:pre [(keyword? driver) (map? details-map)]}
   (if throw-exceptions
-    (try
-      (u/with-timeout (driver.settings/db-connection-timeout-ms)
-        (or (driver/can-connect? driver details-map)
-            (throw (Exception. "Failed to connect to Database"))))
-      ;; actually if we are going to `throw-exceptions` we'll rethrow the original but attempt to humanize the message
-      ;; first
-      (catch Throwable e
-        (log/error e "Failed to connect to Database")
-        (throw (if-let [humanized-message (some->> (u/all-ex-messages e)
-                                                   (driver/humanize-connection-error-message driver))]
-                 (let [error-data (cond
-                                    (keyword? humanized-message)
-                                    (tr-connection-error-messages humanized-message)
+    (do
+      ;; deliberately outside the `try` below: this error is already the message we want the caller to see, and
+      ;; running it through `humanize-connection-error-message` would let a driver turn it into something more
+      ;; revealing. The boolean arity reaches it through its own `try`, so that one still answers `false`.
+      (validate-connection-hosts! driver details-map)
+      (try
+        (u/with-timeout (driver.settings/db-connection-timeout-ms)
+          (or (driver/can-connect? driver details-map)
+              (throw (Exception. "Failed to connect to Database"))))
+        ;; actually if we are going to `throw-exceptions` we'll rethrow the original but attempt to humanize the
+        ;; message first
+        (catch Throwable e
+          (log/errorf "Failed to connect to Database: %s" (ex-message e))
+          (throw (if-let [humanized-message (some->> (u/all-ex-messages e)
+                                                     (driver/humanize-connection-error-message driver))]
+                   (let [error-data (cond
+                                      (keyword? humanized-message)
+                                      (tr-connection-error-messages humanized-message)
 
-                                    (connection-error? e)
-                                    (tr-connection-error-messages :cannot-connect-check-host-and-port)
+                                      (connection-error? e)
+                                      (tr-connection-error-messages :cannot-connect-check-host-and-port)
 
-                                    :else
-                                    {:message humanized-message})]
-                   (ex-info (str (:message error-data)) error-data e))
-                 e))))
+                                      :else
+                                      {:message humanized-message})]
+                     (ex-info (str (:message error-data)) error-data e))
+                   e)))))
     (try
       (can-connect-with-details? driver details-map :throw-exceptions)
       (catch Throwable e
-        (log/error e "Failed to connect to database")
+        (log/errorf "Failed to connect to database: %s" (ex-message e))
         false))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -211,7 +327,7 @@
     (u/with-timeout supports?-timeout-ms
       (driver/database-supports? driver feature database))
     (catch Throwable e
-      (log/error e (u/format-color 'red "Failed to check feature '%s' for database '%s'" (u/qualified-name feature) (:name database)))
+      (log/error (u/format-color 'red "Failed to check feature '%s' for database %s: %s" (u/qualified-name feature) (:id database) (ex-message e)))
       false)))
 
 (def ^:private memoized-supports?*
@@ -222,8 +338,10 @@
                     [driver feature (mdb/unique-identifier) (:id database) (:updated-at database)])))))
 
 ;;; this can get called in post-select which doesn't always have ID
-(mu/defn- ensure-lib-database :- [:map
-                                  [:lib/type [:= :metadata/database]]]
+(mu/defn ensure-lib-database :- [:map
+                                 [:lib/type [:= :metadata/database]]]
+  "Ensures the database is in Lib metadata format (SnakeHatingMap with kebab-case keys).
+   If passed a Toucan2 instance, converts it. If already Lib metadata, returns as-is."
   [database :- [:or
                 [:map
                  [:lib/type [:= :metadata/database]]]
@@ -281,17 +399,11 @@
         f (if *memoize-supports?* memoized-features* features*)]
     (f driver database)))
 
-(mu/defn- supported-in-environment?
-  "Returns true if a driver is supported in the the current metabase environment. As implemented this just disallows the
-  sqlite driver on hosted metabase because hosted metabase does not support uploading a SQLite file for use."
-  [driver :- :keyword]
-  (or (not (premium-features/is-hosted?))
-      (not= :sqlite (keyword driver))))
-
 (defn available-drivers
   "Return a set of all currently available drivers."
   []
-  (into #{} (filter #(and (driver/available? %) (supported-in-environment? %)))
+  (into #{}
+        (filter driver/available?)
         (descendants driver/hierarchy :metabase.driver/driver)))
 
 (mu/defn semantic-version-gte :- :boolean
@@ -303,8 +415,8 @@
    (semantic-version-gte [4 0 1] [4 1]) => false
    (semantic-version-gte [4 1] [4]) => true
    (semantic-version-gte [3 1] [4]) => false"
-  [xv :- [:maybe [:sequential ::lib.schema.common/int-greater-than-or-equal-to-zero]]
-   yv :- [:maybe [:sequential ::lib.schema.common/int-greater-than-or-equal-to-zero]]]
+  [xv :- [:maybe [:sequential nat-int?]]
+   yv :- [:maybe [:sequential nat-int?]]]
   (loop [xv (seq xv), yv (seq yv)]
     (or (nil? yv)
         (let [[x & xs] xv
@@ -372,7 +484,7 @@
   (let [content (or placeholder
                     (try (getter)
                          (catch Throwable e
-                           (log/errorf e "Error invoking getter for connection property %s" (:name conn-prop)))))]
+                           (log/errorf "Error invoking getter for connection property %s: %s" (:name conn-prop) (ex-message e)))))]
     (when (string? content)
       (-> conn-prop
           (assoc :placeholder content)
@@ -383,7 +495,7 @@
   [{:keys [check] :as conn-prop}]
   (if (try (check)
            (catch Throwable e
-             (log/errorf e "Error invoking getter for connection property %s" (:name conn-prop))))
+             (log/errorf "Error invoking getter for connection property %s: %s" (:name conn-prop) (ex-message e))))
     [(-> conn-prop
          (assoc :type "section")
          (dissoc :check))]
@@ -429,6 +541,124 @@
                    (= :schema-filters (keyword (:type conn-prop))))
                  (driver/connection-properties driver))))
 
+(defn collect-all-props-by-name
+  "Recursively collect all properties into a flat map by name, including nested group fields.
+  This creates a complete lookup map keyed by property name.
+
+  Groups have :type :group and contain a :fields array with nested properties. This function
+  flattens the structure to make all properties available for lookups and filtering.
+
+  Properties without a :name are skipped."
+  [props]
+  (reduce (fn [acc prop]
+            (cond
+              ;; Group with nested fields - recursively collect from nested fields
+              (= :group (:type prop))
+              (merge acc (collect-all-props-by-name (:fields prop)))
+
+              ;; Regular fields
+              (:name prop)
+              (assoc acc (:name prop) prop)
+
+              ;; This should not happen but let's leave it as a fallback
+              :else
+              acc))
+          {}
+          props))
+
+(defn- resolve-transitive-visible-if
+  "Resolves transitive visible-if dependencies for a property.
+
+  If property x depends on y having a value, but y itself depends on z having a value,
+  then x should be hidden if y is. This function computes the full transitive closure
+  of visible-if dependencies.
+
+  Throws an exception if a cycle is detected in the dependency graph."
+  [prop props-by-name driver]
+  (let [v-ifs*
+        (loop [props* [prop]
+               acc    {}]
+          (if (seq props*)
+            (let [all-visible-ifs  (reduce
+                                    #(reduce-kv (fn [acc prop-name v]
+                                                  (if (or (contains? props-by-name (->str prop-name))
+                                                          ;; If v is false then this depended on a removed :checked-section
+                                                          ;; and the dependency should be dropped.
+                                                          (not (false? v)))
+                                                    (assoc acc prop-name v)
+                                                    acc))
+                                                %1 (:visible-if %2))
+                                    {} props*)
+                  visible-keys     (keys all-visible-ifs)
+                  transitive-props (mapv (comp (partial get props-by-name) ->str) visible-keys)
+                  next-acc         (into acc all-visible-ifs)]
+              (if-not (some #(contains? acc %) visible-keys)
+                (recur transitive-props next-acc)
+                (let [cyclic-props (set/intersection (set visible-keys)
+                                                     (set (keys acc)))]
+                  (-> (trs "Cycle detected resolving dependent visible-if properties for driver {0}: {1}"
+                           driver cyclic-props)
+                      (ex-info {:type               qp.error-type/driver
+                                :driver             driver
+                                :cyclic-visible-ifs cyclic-props})
+                      throw))))
+            acc))]
+    (cond-> prop
+      (seq v-ifs*) (assoc :visible-if v-ifs*)
+      (empty? v-ifs*) (dissoc :visible-if))))
+
+(defn- resolve-transitive-visible-if-recursive
+  "Recursively resolve transitive visible-if for properties, including nested groups.
+
+  Groups are processed recursively to maintain their structure while resolving dependencies
+  for all nested fields. This allows dependencies to cross group boundaries - top-level fields
+  can depend on nested fields and vice versa."
+  [prop props-by-name driver]
+  (cond
+    ;; If it's a group, recursively process its nested fields while preserving group structure
+    (= :group (:type prop))
+    (update prop :fields
+            (fn [fields]
+              (mapv #(resolve-transitive-visible-if-recursive % props-by-name driver)
+                    fields)))
+
+    ;; Regular property - resolve its transitive visible-if dependencies
+    :else
+    (resolve-transitive-visible-if prop props-by-name driver)))
+
+(defn- process-connection-prop
+  "Recursively processes a single connection property, handling special types like :secret, :info, :group, etc.
+
+  For :group types, this function:
+  - Flattens any vectors in the :fields array (e.g., ssh-tunnel-preferences)
+  - Recursively processes each nested field
+
+  Returns a vector of processed properties (most types return a single property, some like :secret may expand to multiple)."
+  [conn-prop]
+  (case (keyword (:type conn-prop))
+    :secret
+    (expand-secret-conn-prop conn-prop)
+
+    :info
+    (if-let [conn-prop' (resolve-info-conn-prop conn-prop)]
+      [conn-prop']
+      [])
+
+    :checked-section
+    (resolve-checked-section-conn-prop conn-prop)
+
+    :schema-filters
+    (expand-schema-filters-prop conn-prop)
+
+    :group
+    (let [processed-fields (into []
+                                 (comp (mapcat u/one-or-many)
+                                       (mapcat process-connection-prop))
+                                 (:fields conn-prop))]
+      [(assoc conn-prop :fields processed-fields)])
+
+    [conn-prop]))
+
 (defn connection-props-server->client
   "Transforms `conn-props` for the given `driver` from their server side definition into a client side definition.
 
@@ -440,66 +670,13 @@
    if one was provided."
   {:added "0.42.0"}
   [driver conn-props]
-  (let [final-props
-        (persistent!
-         (reduce (fn [acc conn-prop]
-                   ;; TODO: change this to expanded- and use that as the basis for all calcs below (not conn-prop)
-                   (let [expanded-props (case (keyword (:type conn-prop))
-                                          :secret
-                                          (expand-secret-conn-prop conn-prop)
-
-                                          :info
-                                          (if-let [conn-prop' (resolve-info-conn-prop conn-prop)]
-                                            [conn-prop']
-                                            [])
-
-                                          :checked-section
-                                          (resolve-checked-section-conn-prop conn-prop)
-
-                                          :schema-filters
-                                          (expand-schema-filters-prop conn-prop)
-
-                                          [conn-prop])]
-                     (reduce conj! acc expanded-props)))
-                 (transient [])
-                 conn-props))
-        props-by-name (reduce #(assoc %1 (:name %2) %2) {} final-props)]
+  (let [final-props (into [] (mapcat process-connection-prop) conn-props)
+        ;; Build complete props-by-name map including nested fields from groups
+        props-by-name (collect-all-props-by-name final-props)]
     ;; now, traverse the visible-if-edges and update all visible-if entries with their full set of "transitive"
     ;; dependencies (if property x depends on y having a value, but y itself depends on z having a value, then x
-    ;; should be hidden if y is)
-    (mapv (fn [prop]
-            (let [v-ifs*
-                  (loop [props* [prop]
-                         acc    {}]
-                    (if (seq props*)
-                      (let [all-visible-ifs  (reduce
-                                              #(reduce-kv (fn [acc prop-name v]
-                                                            (if (or (contains? props-by-name (->str prop-name))
-                                                                    ;; If v is false then this depended on a removed :checked-section
-                                                                    ;; and the dependency should be dropped.
-                                                                    (not (false? v)))
-                                                              (assoc acc prop-name v)
-                                                              acc))
-                                                          %1 (:visible-if %2))
-                                              {} props*)
-                            visible-keys     (keys all-visible-ifs)
-                            transitive-props (perf/mapv (comp (partial get props-by-name) ->str) visible-keys)
-                            next-acc         (into acc all-visible-ifs)]
-                        (if-not (perf/some #(contains? acc %) visible-keys)
-                          (recur transitive-props next-acc)
-                          (let [cyclic-props (set/intersection (set visible-keys)
-                                                               (set (keys acc)))]
-                            (-> (trs "Cycle detected resolving dependent visible-if properties for driver {0}: {1}"
-                                     driver cyclic-props)
-                                (ex-info {:type               qp.error-type/driver
-                                          :driver             driver
-                                          :cyclic-visible-ifs cyclic-props})
-                                throw))))
-                      acc))]
-              (cond-> prop
-                (seq v-ifs*) (assoc :visible-if v-ifs*)
-                (empty? v-ifs*) (dissoc :visible-if))))
-          final-props)))
+    ;; should be hidden if y is). This works recursively to handle nested groups.
+    (mapv #(resolve-transitive-visible-if-recursive % props-by-name driver) final-props)))
 
 (def data-url-pattern
   "A regex to match data-URL-encoded files uploaded via the frontend"
@@ -534,27 +711,41 @@
     "official"
     "community"))
 
+(defn- creatable?
+  "Whether users may select this driver to create a new data warehouse connection, given `context` -- a map describing
+  the environment, currently `{:hosted? <boolean>}`. Defaults to true. A driver registered only to power an
+  internal/bundled database -- e.g. SQLite, which backs the bundled Sample Database but is not offered to Cloud users
+  as a warehouse -- returns false in the contexts where it is not user-creatable, so it is omitted from the
+  add-database engine list there. Affects only the engine list shown to users; the driver stays registered and
+  `available?` for internal use."
+  [driver {:keys [hosted?]}]
+  (not (and
+        (= driver :sqlite)
+        hosted?)))
+
 (defn available-drivers-info
   "Return info about all currently available drivers, including their connection properties fields and supported
   features. The output of `driver/connection-properties` is passed through `connection-props-server->client` before
   being returned, to handle any transformation between the server side and client side representation."
   []
-  (persistent!
-   (reduce (fn [acc driver]
-             (if-some [props (try
-                               (->> (driver/connection-properties driver)
-                                    (connection-props-server->client driver))
-                               (catch Throwable e
-                                 (log/errorf e "Unable to determine connection properties for driver %s" driver)))]
-               ;; TODO - maybe we should rename `details-fields` -> `connection-properties` on the FE as well?
-               (assoc! acc driver {:source {:type (driver-source (name driver))
-                                            :contact (driver/contact-info driver)}
-                                   :details-fields props
-                                   :driver-name    (driver/display-name driver)
-                                   :superseded-by  (driver/superseded-by driver)
-                                   :extra-info     (driver/extra-info driver)})
-               acc))
-           (transient {}) (available-drivers))))
+  (let [context {:hosted? (premium-features/is-hosted?)}]
+    (persistent!
+     (reduce (fn [acc driver]
+               (if-some [props (try
+                                 (->> (driver/connection-properties driver)
+                                      (connection-props-server->client driver))
+                                 (catch Throwable e
+                                   (log/errorf "Unable to determine connection properties for driver %s: %s" driver (ex-message e))))]
+                 ;; TODO - maybe we should rename `details-fields` -> `connection-properties` on the FE as well?
+                 (assoc! acc driver {:source         {:type    (driver-source (name driver))
+                                                      :contact (driver/contact-info driver)}
+                                     :details-fields props
+                                     :driver-name    (driver/display-name driver)
+                                     :superseded-by  (driver/superseded-by driver)
+                                     :creatable?     (creatable? driver context)
+                                     :extra-info     (driver/extra-info driver)})
+                 acc))
+             (transient {}) (available-drivers)))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             TLS Helpers                                                        |
@@ -612,12 +803,10 @@
                                      (.init ^KeyStore (cast KeyStore nil)))]
     (doseq [cert certs]
       (.setCertificateEntry keystore (dn-for-cert cert) cert))
-
     (doseq [^X509TrustManager trust-mgr (.getTrustManagers base-trust-manager-factory)]
       (when (instance? X509TrustManager trust-mgr)
         (doseq [issuer (.getAcceptedIssuers trust-mgr)]
           (.setCertificateEntry keystore (dn-for-cert issuer) issuer))))
-
     keystore))
 
 (defn- key-managers [private-key password own-cert]
@@ -663,6 +852,34 @@
       (into default-sensitive-fields (map (comp keyword :name) password-fields)))
     default-sensitive-fields))
 
+(defn- fields-hidden-by-form-marker
+  "Returns the set of field names (strings) whose resolved `visible-if` includes `marker false`,
+   meaning they are hidden when the named form marker is set on the connection-edit form."
+  [driver marker]
+  (when-some [conn-prop-fn (get-method driver/connection-properties driver)]
+    (let [all-props     (conn-prop-fn driver)
+          resolved      (connection-props-server->client driver all-props)
+          props-by-name (collect-all-props-by-name resolved)]
+      (into #{}
+            (keep (fn [[field-name {:keys [visible-if]}]]
+                    (when (false? (get visible-if marker))
+                      field-name)))
+            props-by-name))))
+
+(defn fields-hidden-for-write-data-connection
+  "Returns the set of field names (strings) that should NOT appear in `write_data_details` for the given `driver`.
+   These are fields whose resolved `visible-if` includes `\"write-data-connection\" false`, meaning they are hidden
+   when the write-data-connection form marker is true."
+  [driver]
+  (fields-hidden-by-form-marker driver "write-data-connection"))
+
+(defn fields-hidden-for-admin-connection
+  "Returns the set of field names (strings) that should NOT appear in `admin_details` for the given `driver`.
+   These are fields whose resolved `visible-if` includes `\"admin-connection\" false`, meaning they are hidden
+   when the admin-connection form marker is true."
+  [driver]
+  (fields-hidden-by-form-marker driver "admin-connection"))
+
 (defn fetch-and-incorporate-auth-provider-details
   "Incorporates auth-provider responses with db-details.
 
@@ -678,3 +895,27 @@
         (auth-provider/fetch-auth auth-provider database-id db-details)
         db-details))
      db-details)))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                           Macaw parsing helpers                                                |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+;; At some point, we may want a way for 3rd party drivers to opt in, but a public API deserves some hammock time.
+(def trusted-for-table-permissions?
+  "Do we trust that Macaw will not give us false negatives for tables referenced by a given query?"
+  #{:h2 :mysql :postgres})
+
+(def ^:const transform-temp-table-prefix
+  "Prefix used for temporary tables created during transform execution."
+  "mb_transform_temp_table")
+
+(defn temp-table-name
+  "Generate a temporary table name with a random suffix for uniqueness.
+
+   Takes a `table` keyword like `:schema/table_name` where the namespace is the schema.
+
+   Format: <prefix>_<random_suffix>"
+  [_driver table]
+  (let [schema (some-> table namespace)
+        rand   (subs (str (random-uuid)) 0 8)]
+    (keyword schema (str transform-temp-table-prefix "_" rand))))

@@ -1,17 +1,20 @@
 import { useMemo } from "react";
 
 import { useSdkQuestionContext } from "embedding-sdk-bundle/components/private/SdkQuestion/context";
-import { useDatabaseListQuery } from "metabase/common/hooks";
-import { useSelector } from "metabase/lib/redux";
+import { useListDatabasesQuery } from "metabase/api";
 import {
   isQuestionDirty,
   isQuestionRunnable,
-} from "metabase/query_builder/utils/question";
+} from "metabase/querying/common/utils/question";
 import { Notebook as QBNotebook } from "metabase/querying/notebook/components/Notebook";
+import { useSelector } from "metabase/redux";
 import { getMetadata } from "metabase/selectors/metadata";
-import { getSetting } from "metabase/selectors/settings";
+import { getSetting } from "metabase/settings";
 import { ScrollArea } from "metabase/ui";
+import * as Lib from "metabase-lib";
 import Question from "metabase-lib/v1/Question";
+
+import { QueryEditorAndResults } from "./QueryEditorAndResults";
 
 /**
  * @interface
@@ -39,7 +42,7 @@ export const Editor = ({
   hasVisualizeButton = true,
 }: EditorProps) => {
   // Loads databases and metadata so we can show notebook steps for the selected data source
-  useDatabaseListQuery();
+  useListDatabasesQuery();
 
   const {
     question: rawQuestion,
@@ -70,28 +73,43 @@ export const Editor = ({
     getSetting(state, "report-timezone-long"),
   );
 
-  return (
-    question && (
-      <ScrollArea w="100%" h="100%">
-        <QBNotebook
-          question={question}
-          isDirty={isDirty}
-          isRunnable={isRunnable}
-          // the visualization button relies on this boolean
-          isResultDirty={true}
-          reportTimezone={reportTimezone}
-          readOnly={false}
-          updateQuestion={async (nextQuestion: Question) =>
-            await updateQuestion(nextQuestion, { run: false })
-          }
-          runQuestionQuery={async () => {
-            onApply();
-            await queryQuestion();
-          }}
-          setQueryBuilderMode={() => {}}
-          hasVisualizeButton={hasVisualizeButton}
-        />
-      </ScrollArea>
-    )
+  if (!question) {
+    return null;
+  }
+
+  return Lib.queryDisplayInfo(question.query()).isNative ? (
+    <QueryEditorAndResults
+      question={question}
+      hasVisualizeButton={hasVisualizeButton}
+      isDirty={isDirty}
+      updateQuestion={async (nextQuestion: Question) =>
+        await updateQuestion(nextQuestion, { run: false })
+      }
+      runQuestionQuery={async () => {
+        onApply();
+        await queryQuestion();
+      }}
+    />
+  ) : (
+    <ScrollArea w="100%" h="100%">
+      <QBNotebook
+        question={question}
+        isDirty={isDirty}
+        isRunnable={isRunnable}
+        // the visualization button relies on this boolean
+        isResultDirty={true}
+        reportTimezone={reportTimezone}
+        readOnly={false}
+        updateQuestion={async (nextQuestion: Question) =>
+          await updateQuestion(nextQuestion, { run: false })
+        }
+        runQuestionQuery={async () => {
+          onApply();
+          await queryQuestion();
+        }}
+        setQueryBuilderMode={() => {}}
+        hasVisualizeButton={hasVisualizeButton}
+      />
+    </ScrollArea>
   );
 };

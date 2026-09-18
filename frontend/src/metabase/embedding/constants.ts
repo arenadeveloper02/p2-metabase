@@ -1,8 +1,11 @@
+import type { EmbeddingType } from "metabase-types/api";
+
+export const STATIC_LEGACY_EMBEDDING_TYPE: EmbeddingType = "static-legacy";
+export const GUEST_EMBED_EMBEDDING_TYPE: EmbeddingType = "guest-embed";
+
 /**
- * Query parameter passed on embedded dashboard URLs so Metabase can persist the
- * selected tab for an external application user.
- *
- * Example iframe src:
- * /embed/dashboard/{jwt}?mb_external_user_id=user-123#bordered=false&titled=false
+ * URL query param used to signal that a sub-flow (dashboard editing,
+ * database connection, xray picker) was entered from the embedding setup
+ * guide and should offer a "return to setup guide" affordance on completion.
  */
-export const EMBED_EXTERNAL_USER_ID_QUERY_PARAM = "mb_external_user_id";
+export const RETURN_TO_SETUP_GUIDE_PARAM = "returnToEmbeddingSetupGuide";

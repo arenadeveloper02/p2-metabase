@@ -1,19 +1,31 @@
 (ns ^:mb/driver-tests metabase.driver.clickhouse-test
   "Tests for specific behavior of the ClickHouse driver."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.driver.clickhouse-test]}}}}}}
   (:require
+   [clojure.java.jdbc :as jdbc]
    [clojure.test :refer :all]
    [metabase.driver :as driver]
+   [metabase.driver.clickhouse :as clickhouse]
    [metabase.driver.clickhouse-qp :as clickhouse-qp]
+   [metabase.driver.clickhouse-version :as clickhouse-version]
    [metabase.driver.sql-jdbc :as sql-jdbc]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
+   [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
+   [metabase.lib-be.core :as lib-be]
+   [metabase.lib.card :as lib.card]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
-   [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
+   [metabase.query-processor.test :as qp]
+   [metabase.sync.sync :as sync]
    [metabase.test :as mt]
    [metabase.test.data.clickhouse :as ctd]
+   [metabase.upload.impl-test :as upload-test]
    [taoensso.nippy :as nippy]
-   [toucan2.tools.with-temp :as t2.with-temp]))
+   [toucan2.tools.with-temp :as t2.with-temp])
+  (:import
+   (com.clickhouse.jdbc ConnectionImpl)
+   (java.sql Connection)))
 
 (set! *warn-on-reflection* true)
 
@@ -23,6 +35,23 @@
   (if (resolve `mt/with-dynamic-redefs)
     `(mt/with-dynamic-redefs ~bindings ~@body)
     `(mt/with-dynamic-fn-redefs ~bindings ~@body)))
+
+(deftest ^:parallel expr->columns-test
+  (testing "splits a ClickHouse key expression into its top-level columns/expressions (no live DB needed)"
+    ;; the catalog strings here are the real stored forms: `system.tables.sorting_key` is unwrapped, a single-expression
+    ;; `system.data_skipping_indices.expr` is paren-wrapped, and a function key carries its own inner comma.
+    (are [expr expected] (= expected (#'clickhouse/expr->columns expr))
+      "a, b"                ["a" "b"]                  ; sorting key, no wrapper
+      "(a, b)"              ["a" "b"]                  ; skip-index, wrapped
+      "a"                   ["a"]
+      "(lower(s))"          ["lower(s)"]               ; wrapped single expression, not truncated
+      "a, cityHash64(s, b)" ["a" "cityHash64(s, b)"]   ; function key's inner comma is not a split point
+      ;; a backtick-quoted name can hold a comma or paren; it must stay one column and come out bare
+      "`weird,name`, b"     ["weird,name" "b"]
+      "`paren(col`, b"      ["paren(col" "b"]
+      "`back``tick`"        ["back`tick"]              ; doubled backtick is an escaped backtick
+      ""                    []                         ; blank -> [], so :key-columns stays schema-valid
+      nil                   [])))
 
 (deftest ^:parallel clickhouse-version
   (mt/test-driver :clickhouse
@@ -42,6 +71,40 @@
                  spec    (sql-jdbc.conn/connection-details->spec :clickhouse details)]
              (driver/db-default-timezone :clickhouse spec))))))
 
+(deftest clickhouse-report-timezone-reaches-server-test
+  ;; Regression for #79671.
+  (mt/test-driver :clickhouse
+    (mt/with-report-timezone-id! "America/Santiago"
+      (is (= [["America/Santiago" "America/Santiago"]]
+             (->> "SELECT timezone() AS tz, getSetting('session_timezone') AS s"
+                  (lib/native-query (mt/metadata-provider))
+                  qp/process-query
+                  mt/rows))))))
+
+(deftest ^:synchronized clickhouse-session-timezone-does-not-leak-across-borrows-test
+  (mt/test-driver :clickhouse
+    (sql-jdbc.conn/invalidate-pool-for-db! (mt/db))
+    (let [underlying-conn-ids (atom [])
+          observe (fn [opts]
+                    (sql-jdbc.execute/do-with-connection-with-options
+                     :clickhouse (mt/id) opts
+                     (fn [^Connection conn]
+                       (swap! underlying-conn-ids conj
+                              (System/identityHashCode (.unwrap conn ConnectionImpl)))
+                       (with-open [stmt (.createStatement conn)
+                                   rs   (.executeQuery stmt "SELECT getSetting('session_timezone')")]
+                         (.next rs)
+                         (.getString rs 1)))))]
+      (is (= "America/Santiago" (observe {:session-timezone "America/Santiago"})))
+      (let [result (observe nil)]
+        ;; Guard: the leak is only observable when the pool hands us the same underlying
+        ;; ConnectionImpl. With a freshly invalidated pool and back-to-back borrows this holds;
+        ;; if it stops holding, the test has to be fixed.
+        (is (apply = @underlying-conn-ids)
+            (str "expected both borrows to reuse the same underlying connection: " @underlying-conn-ids))
+        (is (= "" result)
+            "a borrow without :session-timezone must not inherit the previous borrow's timezone")))))
+
 (deftest ^:parallel clickhouse-connection-string
   (testing "connection with no additional options"
     (is (= ctd/default-connection-params
@@ -55,7 +118,7 @@
              :user "bob"
              :password "qaz"
              :ssl true
-             :custom_http_params "max_threads=42,allow_experimental_analyzer=0"})
+             :custom_http_params "select_sequential_consistency=1,max_threads=42,allow_experimental_analyzer=0"})
            (sql-jdbc.conn/connection-details->spec
             :clickhouse
             {:host "myclickhouse"
@@ -94,7 +157,7 @@
 
 (deftest ^:parallel clickhouse-connection-string-select-sequential-consistency
   (testing "connection with no additional options"
-    (is (= (assoc ctd/default-connection-params :select_sequential_consistency true)
+    (is (= ctd/default-connection-params
            (sql-jdbc.conn/connection-details->spec
             :clickhouse
             {})))))
@@ -163,6 +226,29 @@
                               (mt/dbdef->connection-details :clickhouse :db {:database-name database}))]
            (is (true? (driver/can-connect? :clickhouse details)))))))))
 
+(deftest ^:parallel clickhouse-additional-options-test
+  (testing "additional options not prefixed with `clickhouse_setting_` are moved to custom_http_params (#70777)"
+    (mt/test-driver :clickhouse
+      (let [details (assoc (:details (mt/db))
+                           :additional-options "clickhouse_setting_max_threads=5&max_block_size=50"
+                           :clickhouse-settings "max_result_rows=10,max_columns_to_read=20")
+            spec   (sql-jdbc.conn/connection-details->spec :clickhouse details)]
+        (is (true? (driver/can-connect? :clickhouse details)))
+        (is (= "//localhost:8123/default?clickhouse_setting_max_threads=5&max_block_size=50"
+               (:subname spec)))
+        (is (= "select_sequential_consistency=1,max_result_rows=10,max_columns_to_read=20"
+               (:custom_http_params spec)))
+        (is (= {:max_threads 5
+                :max_block_size 65409 ;; unknown key is ignored
+                :max_results_rows 10
+                :max_columns_to_read 20}
+               (->> ["SELECT getSetting('max_threads') as max_threads,
+                             getSetting('max_block_size') as max_block_size,
+                             getSetting('max_result_rows') as max_results_rows,
+                             getSetting('max_columns_to_read') as max_columns_to_read;"]
+                    (jdbc/query spec)
+                    first)))))))
+
 (deftest clickhouse-qp-extract-datetime-timezone
   (mt/test-driver :clickhouse
     (is (= "utc" (#'clickhouse-qp/extract-datetime-timezone "datetime('utc')")))
@@ -208,7 +294,7 @@
 
 (deftest ^:parallel comment-question-mark-test
   (mt/test-driver :clickhouse
-    (testing "a query with a question mark in the comment and has a variable should work correctly"
+    (testing "a query with a question mark in the comment and has a variable should work correctly (#56690)"
       (let [query "SELECT *
                    -- ?
                    FROM test_data.categories
@@ -228,7 +314,7 @@
 
 (deftest ^:parallel select-question-mark-test
   (mt/test-driver :clickhouse
-    (testing "a query that selects a question mark and has a variable should work correctly"
+    (testing "a query that selects a question mark and has a variable should work correctly (#56690)"
       (let [query "SELECT *, '?'
                    FROM test_data.categories
                    WHERE {{category_name}};"]
@@ -249,36 +335,34 @@
                                 :target [:dimension [:template-tag "category_name"]]
                                 :value  ["African"]}]}))))))))
 
-;; TODO(rileythomp, 2025-09-23): Enable when ClickHouse JDBC driver has been fixed
-#_(deftest ^:parallel ternary-with-variable-test
-    (mt/test-driver :clickhouse
-      (testing "a query with a ternary and a variable should work correctly"
-        (is (= [[1 "African" 1]]
-               (mt/rows
-                (qp/process-query
-                 {:database (mt/id)
-                  :type :native
-                  :native {:query "SELECT *, true ? 1 : 0 AS foo
-                                   FROM test_data.categories
-                                   WHERE name = {{category_name}};"
-                           :template-tags {"category_name" {:type         :text
-                                                            :name         "category_name"
-                                                            :display-name "Category Name"}}}
-                  :parameters [{:type   :category
-                                :target [:variable [:template-tag "category_name"]]
-                                :value  "African"}]})))))))
+(deftest ^:parallel ternary-with-variable-test
+  (mt/test-driver :clickhouse
+    (testing "a query with a ternary and a variable should work correctly (#56690)"
+      (is (= [[1 "African" 1]]
+             (mt/rows
+              (qp/process-query
+               {:database (mt/id)
+                :type :native
+                :native {:query "SELECT *, true ? 1 : 0 AS foo
+                                 FROM test_data.categories
+                                 WHERE name = {{category_name}};"
+                         :template-tags {"category_name" {:type         :text
+                                                          :name         "category_name"
+                                                          :display-name "Category Name"}}}
+                :parameters [{:type   :category
+                              :target [:variable [:template-tag "category_name"]]
+                              :value  "African"}]})))))))
 
-;; TODO(rileythomp, 2025-09-23): Enable when ClickHouse JDBC driver has been fixed
-#_(deftest ^:parallel line-comment-block-comment-test
-    (mt/test-driver :clickhouse
-      (testing "a query with a line comment followed by a block comment should work correctly"
-        (is (= [[1]]
-               (mt/rows
-                (qp/process-query
-                 (mt/native-query
-                  {:query "-- foo
-                            /* comment */
-                            select 1;"}))))))))
+(deftest ^:parallel line-comment-block-comment-test
+  (mt/test-driver :clickhouse
+    (testing "a query with a line comment followed by a block comment should work correctly (#57149, #62741)"
+      (is (= [[1]]
+             (mt/rows
+              (qp/process-query
+               (mt/native-query
+                {:query "-- foo
+                         /* comment */
+                         select 1;"}))))))))
 
 (deftest ^:parallel subquery-with-cte-test
   (mt/test-driver :clickhouse
@@ -326,11 +410,12 @@
                                                  :output-table "PRODUCTS_COPY"}))))))
 
 (deftest ^:parallel clickhouse-db-supports-schemas-test
-  (doseq [[schemas-supported? details] [[false? {}]
-                                        [false? {:enable-multiple-db nil}]
-                                        [false? {:enable-multiple-db false}]
-                                        [true? {:enable-multiple-db true}]]]
-    (is (schemas-supported? (driver/database-supports? :clickhouse :schemas {:details details})))))
+  (doseq [details [{}
+                   {:enable-multiple-db nil}
+                   {:enable-multiple-db false}
+                   {:enable-multiple-db true}]]
+    ;; clickhouse will always use schemas after reversions in 65984 and 68517
+    (is (true? (driver/database-supports? :clickhouse :schemas {:details details})))))
 
 (deftest ^:parallel humanize-connection-error-message-test
   (is (= "random message" (driver/humanize-connection-error-message :clickhouse ["random message"])))
@@ -338,11 +423,80 @@
                                                                                                 "Failed to get server info"
                                                                                                 "Code: 516. DB::Exception: asdf: Authentication failed: password is incorrect, or there is no user with such name. (AUTHENTICATION_FAILED) (version 25.7.4.11 (official build))"]))))
 
+;; Dataset for testing reserved SQL keyword as table name (#68423)
+;; The table name "transaction" is a SQL keyword that causes parsing issues with JDBC driver 0.9.5
+(mt/defdataset reserved-keyword-table-name
+  [["transaction"
+    [{:field-name "event_id", :base-type :type/Integer}
+     {:field-name "event_name", :base-type :type/Text}
+     {:field-name "amount", :base-type :type/Float}]
+    [[1 "purchase" 99.99]
+     [2 "refund" -25.00]
+     [3 "purchase" 149.50]]]])
+
+(deftest ^:parallel reserved-keyword-table-name-native-query-test
+  (mt/test-driver :clickhouse
+    (testing "native query against a table named 'transaction' (SQL keyword) should work (#68423)"
+      (mt/dataset reserved-keyword-table-name
+        (let [db-name (-> (mt/db) :details :db)
+              results (qp/process-query
+                       (mt/native-query
+                        {:query (format "SELECT * FROM %s.transaction" db-name)}))]
+          (is (= [[1 1 "purchase" 99.99]
+                  [2 2 "refund" -25.0]
+                  [3 3 "purchase" 149.5]]
+                 (mt/rows results))))))))
+
 (deftest ^:parallel uploads-supported-test
   (mt/test-driver :clickhouse
     (is (false? (driver/database-supports? driver/*driver* :uploads (mt/db))))
     (is (true? (driver/database-supports? driver/*driver* :uploads (assoc-in (mt/db) [:dbms-version :cloud] true))))
     (is (true? (driver/database-supports? driver/*driver* :uploads (assoc-in (mt/db) [:dbms_version :cloud] true))))))
+
+(deftest ^:synchronized csv-upload-and-sync-test
+  (testing "ClickHouse CSV uploads work correctly when cloud mode is enabled"
+    (mt/test-driver :clickhouse
+      (mt/with-dynamic-fn-redefs [clickhouse-version/dbms-version (constantly {:cloud true
+                                                                               :version "24.8.1"
+                                                                               :semantic-version {:major 24 :minor 8}})]
+        (let [details   (-> (mt/dbdef->connection-details :clickhouse :db {:database-name "uploads_schema"})
+                            (assoc :enable-multiple-db false))
+              conn-spec (sql-jdbc.conn/connection-details->spec :clickhouse details)]
+          (driver/create-schema-if-needed! :clickhouse conn-spec "uploads_schema")
+          (try
+            (mt/with-temp [:model/Database db {:engine  :clickhouse
+                                               :details details}]
+              (is (true? (driver/database-supports? :clickhouse :uploads db)))
+              (testing "an upload schema is required"
+                (is (thrown-with-msg?
+                     clojure.lang.ExceptionInfo
+                     #"A schema has not been set."
+                     (upload-test/do-with-uploaded-example-csv!
+                      {:db-id (:id db)
+                       :auxiliary-sync-steps :synchronous
+                       :schema-name ""}
+                      identity))))
+              (testing "upload models work after sync"
+                (upload-test/do-with-uploaded-example-csv!
+                 {:db-id (:id db)
+                  :auxiliary-sync-steps :synchronous
+                  :schema-name "uploads_schema"}
+                 (fn [model]
+                   (let [query-model (fn []
+                                       (let [mp   (lib-be/application-database-metadata-provider (:id db))
+                                             card (lib.metadata/card mp (:id model))]
+                                         (->> (lib/query mp card)
+                                              (qp/process-query)
+                                              (mt/formatted-rows [int str]))))]
+                     (is (= [[1 " Luke Skywalker"]
+                             [2 " Darth Vader"]]
+                            (query-model)))
+                     (sync/sync-database! db {:scan :schema})
+                     (is (= [[1 " Luke Skywalker"]
+                             [2 " Darth Vader"]]
+                            (query-model))))))))
+            (finally
+              (jdbc/execute! conn-spec ["DROP DATABASE IF EXISTS `uploads_schema`"]))))))))
 
 (deftest ^:parallel type->database-type-test
   (testing "type->database-type multimethod returns correct ClickHouse types"
@@ -372,3 +526,100 @@
                 :parameters [{:type "string/="
                               :target [:variable [:template-tag "val"]]
                               :value ["abc"]}]})))))))
+
+(deftest ^:parallel native-query-cte-filtering-test
+  (mt/test-driver :clickhouse
+    (testing "can filter on a saved native query with a CTE (#63635)"
+      (let [native-query (mt/native-query
+                          {:query "with base as (select 1 id, 'abc' val) select * from base"})
+            card-data    (mt/card-with-source-metadata-for-query native-query)]
+        (mt/with-temp [:model/Card {card-id :id} card-data]
+          (let [mp       (mt/metadata-provider)
+                card-mp  (lib.metadata/card mp card-id)
+                val-col  (some #(when (= "val" (:name %)) %)
+                               (lib.card/card-returned-columns mp card-mp))]
+            (is (= [[1 "abc"]]
+                   (-> (lib/query mp card-mp)
+                       (lib/filter (lib/= val-col "abc"))
+                       (qp/process-query)
+                       (mt/rows))))))))))
+
+(deftest ^:parallel recursive-cte-native-query-test
+  (mt/test-driver :clickhouse
+    (testing "can execute a native query with a recursive CTE (#73161)"
+      (is (= [[1] [2] [3]]
+             (->> "WITH RECURSIVE t AS ( SELECT 1 AS n UNION ALL SELECT n + 1 FROM t WHERE n < 3 ) SELECT * FROM t;"
+                  (lib/native-query (mt/metadata-provider))
+                  (qp/process-query)
+                  (mt/formatted-rows [int])))))))
+
+(deftest ^:parallel query-with-boolean-setting-test
+  (mt/test-driver :clickhouse
+    (testing "can execute a query with settings set to a boolean (#73431)"
+      (is (= [[2]]
+             (->> "select 2 SETTINGS use_query_cache = true"
+                  (lib/native-query (mt/metadata-provider))
+                  (qp/process-query)
+                  (mt/rows)))))))
+
+(defn- check-legacy-dbname [dbname exp-name]
+  (let [details (assoc (:details (mt/db)) :dbname dbname)
+        spec    (sql-jdbc.conn/connection-details->spec :clickhouse details)]
+    (is (true? (driver/can-connect? :clickhouse details)))
+    (is (= (format "//localhost:8123/%s" exp-name)
+           (:subname spec)))))
+
+(deftest ^:parallel handle-db-names-with-spaces-test
+  (mt/test-driver :clickhouse
+    (are [dbname exp-name] (check-legacy-dbname dbname exp-name)
+      "test_data default fake_db" "test_data"
+      "test_data"                 "test_data"
+      ""                          ""
+      nil                         "default")))
+
+(deftest ^:parallel handle-db-names-with-commas-test
+  (mt/test-driver :clickhouse
+    (are [dbname exp-name] (check-legacy-dbname dbname exp-name)
+      "test_data, fake_db" "test_data"
+      "test_data,fake_db"  "test_data"
+      "test_data,"         "test_data")))
+
+;; TODO (lbrdnk 2026-01-23): Excplicit exceptions from [[metabase.driver.util/parsed-query]] are shutdown
+;;                           at the moment to avoid potential log flooding. We should revisit this during further
+;;                           parsing work.
+#_(deftest ^:parallel parse-final-identifier-test
+    (mt/test-driver
+      :clickhouse
+      (testing "`final` is not allowed as identifier on Clickhouse, parsing fails with an exception"
+        (mt/with-temp [:model/Database db {:engine "clickhouse"
+                                           :name "final"
+                                           :initial_sync_status "complete"}]
+          (mt/with-db
+            db
+            (let [mp (mt/metadata-provider)
+                  broken-query (lib/native-query mp "select final from final")]
+              (is (thrown-with-msg? Exception #"SQL parsing failed."
+                                    (driver/native-query-deps :clickhouse broken-query)))
+              (is (thrown-with-msg? Exception #"SQL parsing failed."
+                                    (driver/native-result-metadata :clickhouse broken-query)))
+              (is (thrown-with-msg? Exception #"SQL parsing failed."
+                                    (driver/validate-native-query-fields :clickhouse broken-query)))))))))
+
+(deftest ^:parallel set-role-statement-quotes-role-test
+  (are [role sql] (= sql
+                     (sql-jdbc/set-role-statement :clickhouse nil role))
+    ;; the whole role is quoted as a single identifier
+    "x"                             "SET ROLE \"x\""
+    ;; a comma is part of the role name, not a separator between roles
+    "x,y"                           "SET ROLE \"x,y\""
+    "a,b"                           "SET ROLE \"a,b\""
+    ;; an already-quoted value is left as-is
+    "\"x\""                         "SET ROLE \"x\""
+    ;; default database role is emitted verbatim, not quoted
+    "NONE"                          "SET ROLE NONE"
+    ;; interior double-quotes are doubled
+    "x\"; SELECT sleep(10); --"     "SET ROLE \"x\"\"; SELECT sleep(10); --\""
+    "\"x\"; SELECT sleep(10); --\"" "SET ROLE \"x\"\"; SELECT sleep(10); --\""
+    ;; a trailing backslash is escaped so it cannot close the quoted identifier
+    "foo\\"                         "SET ROLE \"foo\\\\\""
+    "a\\\"b"                        "SET ROLE \"a\\\\\"\"b\""))
