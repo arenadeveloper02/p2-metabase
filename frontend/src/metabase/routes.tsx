@@ -20,7 +20,6 @@ import { MoveQuestionsIntoDashboardsModal } from "metabase/common/components/Mov
 import { NotFoundFallbackPage } from "metabase/common/components/NotFoundFallbackPage";
 import { UnsubscribePage } from "metabase/common/components/Unsubscribe";
 import { getDataStudioRoutes } from "metabase/data-studio/routes";
-import { getRoutes as getExplorationsRoutes } from "metabase/explorations/routes";
 import { getMetabotRoutes } from "metabase/metabot/routes";
 import { getMetricRoutes } from "metabase/metrics/routes";
 import NewModelOptions from "metabase/models/containers/NewModelOptions";
@@ -32,7 +31,11 @@ import {
   PLUGIN_TABLE_EDITING,
   PLUGIN_TENANTS,
 } from "metabase/plugins";
-import { QuestionHashRedirect } from "metabase/query_builder/components/QuestionHashRedirect";
+import {
+  QuestionHashRedirect,
+  loadMetabotQueryBuilder,
+  loadQueryBuilder,
+} from "metabase/query_builder";
 import type { State } from "metabase/redux/store";
 import { getReferenceRoutes } from "metabase/reference/routes";
 import {
@@ -88,14 +91,12 @@ export function LegacyBrowseRedirect() {
  * every later navigation to the query builder is synchronous again.
  */
 const queryBuilder = () =>
-  import(
-    /* webpackChunkName: "query-builder" */ "metabase/query_builder/containers/QueryBuilder"
-  ).then(({ QueryBuilder }) => ({ Component: QueryBuilder }));
+  loadQueryBuilder().then(({ QueryBuilder }) => ({ Component: QueryBuilder }));
 
 const metabotQueryBuilder = () =>
-  import(
-    /* webpackChunkName: "metabot-query-builder" */ "metabase/query_builder/components/MetabotQueryBuilder"
-  ).then(({ MetabotQueryBuilder }) => ({ Component: MetabotQueryBuilder }));
+  loadMetabotQueryBuilder().then(({ MetabotQueryBuilder }) => ({
+    Component: MetabotQueryBuilder,
+  }));
 
 /**
  * Documents, in their own chunk. It carries the rich text editing stack, which
@@ -443,7 +444,8 @@ export const getRoutes = (store: AppStore): RouteObject[] => [
                   { index: true, lazy: queryBuilder },
                   { path: "notebook", lazy: queryBuilder },
                   { path: "ask", lazy: metabotQueryBuilder },
-                  ...toRouteObjects(getExplorationsRoutes()),
+                  // Explorations are intentionally disabled on the v64 release branch. do not uncomment this
+                  // ...toRouteObjects(getExplorationsRoutes()),
                   { path: ":slug", lazy: queryBuilder },
                   { path: ":slug/notebook", lazy: queryBuilder },
                   { path: ":slug/metabot", lazy: queryBuilder },

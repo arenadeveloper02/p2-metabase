@@ -39,10 +39,14 @@ const deprecatedColors = {
   error: baseColors.lobster[50],
   filter: baseColors.octopus[50],
   focus: baseColors.blue[20],
-  "icon-brand": baseColors.brand[50],
-  "icon-primary": t.textIcon,
-  "icon-disabled": t.textIconMuted,
-  "icon-secondary": t.textSecondary,
+  "icon-brand": baseColors.brand[50], // Matches text-brand
+  "icon-brand-inverse": baseColors.brand[20],
+  "icon-primary": baseColors.orionAlpha[80], // Matches text-primary
+  "icon-primary-inverse": baseColors.orionAlphaInverse[80], // Matches text-primary-inverse
+  "icon-disabled": baseColors.orionAlpha[40], // Matches text-disabled
+  "icon-disabled-inverse": baseColors.orionAlphaInverse[40], // Matches text-disabled-inverse
+  "icon-secondary": baseColors.orionAlpha[60], // Matches text-secondary
+  "icon-secondary-inverse": baseColors.orionAlphaInverse[60], // Matches text-secondary-inverse
   "illustration-brand-secondary": baseColors.brand[10],
   "illustration-brand-tertiary": baseColors.brand[5],
   "metabase-brand": baseColors.blue[40],
@@ -160,6 +164,7 @@ const actualColors = {
   "feedback-warning-strong": baseColors.mango[60],
   "illustration-secondary-brand": baseColors.brand[10],
   "illustration-tertiary-brand": baseColors.brand[5],
+  "input-background": baseColors.orionAlpha[5],
   "input-focus": baseColors.blue[20],
   "modal-overlay": t.overlay,
   "navbar-admin": baseColors.octopus[60],
@@ -167,6 +172,10 @@ const actualColors = {
   "navbar-admin-secondary": baseColors.octopus[40],
   "shadow-default": t.shadow,
   "switch-off": t.surface6,
+  "switch-checked": baseColors.brand[60],
+  "switch-disabled": baseColors.orionAlpha[20],
+  "switch-unchecked": baseColors.orionAlpha[30],
+  "switch_thumb-disabled": baseColors.white,
   "text-brand": baseColors.brand[50],
   "text-brand-hover": baseColors.brand[60],
   "text-brand-strong": baseColors.brand[60],

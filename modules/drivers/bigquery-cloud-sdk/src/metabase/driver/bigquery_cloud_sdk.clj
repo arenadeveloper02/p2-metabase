@@ -1,5 +1,4 @@
 (ns metabase.driver.bigquery-cloud-sdk
-  (:refer-clojure :exclude [mapv some empty? not-empty])
   (:require
    [clojure.core.async :as a]
    [clojure.set :as set]
@@ -8,6 +7,7 @@
    [metabase.driver :as driver]
    [metabase.driver-api.core :as driver-api]
    [metabase.driver.bigquery-cloud-sdk.common :as bigquery.common]
+   [metabase.driver.bigquery-cloud-sdk.db :as bigquery.db]
    [metabase.driver.bigquery-cloud-sdk.params :as bigquery.params]
    [metabase.driver.bigquery-cloud-sdk.query-processor :as bigquery.qp]
    [metabase.driver.common :as driver.common]
@@ -29,10 +29,9 @@
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
-   [metabase.util.performance :refer [every? mapv some empty? not-empty]]
-   ^{:clj-kondo/ignore [:discouraged-namespace]}
-   [toucan2.core :as t2])
+   [metabase.util.performance :as perf])
   (:import
+   (clojure.core.async.impl.channels ManyToManyChannel)
    (clojure.lang PersistentList)
    (com.google.api.gax.rpc FixedHeaderProvider)
    (com.google.cloud.bigquery
@@ -50,6 +49,7 @@
     DatasetId
     Field
     Field$Mode
+    FieldList
     FieldValue
     FieldValueList
     Job
@@ -97,7 +97,7 @@
   chosen by whoever supplied the credentials rather than a fixed Google endpoint."
   [service-account-json]
   (or (when-not (str/blank? service-account-json)
-        (not-empty (get (json/decode service-account-json) "token_uri")))
+        (perf/not-empty (get (json/decode service-account-json) "token_uri")))
       default-token-uri))
 
 (defmethod driver/connection-hosts :bigquery-cloud-sdk
@@ -108,7 +108,7 @@
    [:api-host :token-host]))
 
 (mu/defn- database-details->client
-  ^BigQuery [details :- :map]
+  ^BigQuery [details :- :metabase.lib.schema.common/database-details]
   (driver.u/validate-connection-hosts! :bigquery-cloud-sdk details)
   (let [base-creds   (bigquery.common/database-details->service-account-credential details)
         creds        (.createScoped base-creds bigquery-scopes)
@@ -117,6 +117,9 @@
         user-agent   (format "Metabase/%s (GPN:Metabase; %s)" mb-version run-mode)
         header-provider (FixedHeaderProvider/create
                          (ImmutableMap/of "user-agent" user-agent))
+        universe-domain (or (:universe-domain details)
+                            (System/getenv "GOOGLE_CLOUD_UNIVERSE_DOMAIN")
+                            (System/getProperty "google.cloud.universe_domain"))
         read-timeout-ms driver.settings/*query-timeout-ms*
         transport-options (-> (HttpTransportOptions/newBuilder)
                               (.setReadTimeout read-timeout-ms)
@@ -125,8 +128,13 @@
                        (.setCredentials creds)
                        (.setHeaderProvider header-provider)
                        (.setTransportOptions transport-options))]
-    (when-let [host (not-empty (:host details))]
+    (when universe-domain
+      (.setUniverseDomain bq-bldr universe-domain))
+    (when-let [host (perf/not-empty (:host details))]
       (.setHost bq-bldr host))
+    (when-let [^String billing-project-id (perf/not-empty (:billing-project-id details))]
+      ;; Jobs are created and billed in this project; queried tables can live elsewhere.
+      (.setProjectId bq-bldr billing-project-id))
     (.. bq-bldr build getService)))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -164,7 +172,7 @@
   [{:keys [dataset-filters-type dataset-filters-patterns]}]
   (when (= "inclusion" dataset-filters-type)
     (let [segments (map str/trim (str/split (str dataset-filters-patterns) #","))]
-      (when (every? #(re-matches exact-dataset-id-re %) segments)
+      (when (perf/every? #(re-matches exact-dataset-id-re %) segments)
         ;; a scan yields each dataset once however many segments matched it
         (distinct segments)))))
 
@@ -240,7 +248,9 @@
     (.getTable client dataset-id table-id empty-table-options)))
 
 (mu/defn- get-table :- (driver-api/instance-of-class Table)
-  (^Table [database dataset-id table-id]
+  (^Table [database   :- :metabase.warehouses.schema/database-or-metadata
+           dataset-id :- driver-api/schema.common.non-blank-string
+           table-id   :- driver-api/schema.common.non-blank-string]
    (let [details    (driver.conn/effective-details database)
          project-id (:project-id details)]
      (get-table (database-details->client details) project-id dataset-id table-id)))
@@ -388,9 +398,11 @@
     [database-type (database-type->base-type database-type)]))
 
 (mu/defn- fields->metabase-field-info
-  ([fields]
+  ([fields :- (driver-api/instance-of-class FieldList)]
    (fields->metabase-field-info nil nil fields))
-  ([database-position nfc-path fields]
+  ([database-position :- [:maybe :int]
+    nfc-path          :- [:maybe [:sequential :string]]
+    fields            :- (driver-api/instance-of-class FieldList)]
    (into
     []
     (map
@@ -428,7 +440,7 @@
   [dataset-id {data-type :data_type field-path-str :field_path table-name :table_name}]
   (let [field-path                (str/split field-path-str #"\.")
         [database-type base-type] (raw-type->database+base-type data-type)]
-    (when-let [nfc-path (not-empty (pop field-path))]
+    (when-let [nfc-path (perf/not-empty (pop field-path))]
       {:name          (peek field-path)
        :table-name    table-name
        :table-schema  dataset-id
@@ -742,9 +754,9 @@
   lifted by matching the names in `fields` to the names in the table schema."
   [^Table bq-table fields rff]
   (let [^Schema schema (.. bq-table getDefinition getSchema)
-        field-idxs     (mapv :database_position fields)
+        field-idxs     (perf/mapv :database_position fields)
         all-parsers    (get-field-parsers schema)
-        parsers        (mapv all-parsers field-idxs)
+        parsers        (perf/mapv all-parsers field-idxs)
         probe          (list-sample-page bq-table (min (long initial-page-rows) table-rows-sample/max-sample-rows) nil)]
     (transduce
      (comp (take table-rows-sample/max-sample-rows)
@@ -758,7 +770,7 @@
 
 (defn- ingestion-time-partitioned-table?
   [table-id]
-  (t2/exists? :model/Field :table_id table-id :name partitioned-time-field-name :database_partitioned true :active true))
+  (bigquery.db/active-partitioned-field-exists? table-id partitioned-time-field-name))
 
 (defmethod driver/table-rows-sample :bigquery-cloud-sdk
   [driver {table-name :name, dataset-id :schema :as table} fields rff opts]
@@ -987,10 +999,11 @@
         columns (for [column (some-> schema .getFields fields->metabase-field-info)]
                   (-> column
                       (set/rename-keys {:base-type :base_type})
-                      (dissoc :database-type :database-position)))
+                      ;; `:nested-fields` describes a RECORD's sub-fields for sync, not a result column
+                      (dissoc :database-type :database-position :nested-fields)))
         cols {:cols columns}
         results (eduction (map (fn [^FieldValueList row]
-                                 (mapv parse-field-value row parsers)))
+                                 (perf/mapv parse-field-value row parsers)))
                           (reducible-bigquery-results page cancel-chan attempt-job-cancel-fn
                                                       (adaptive-query-next-page job)))]
     (respond cols results)))
@@ -1046,11 +1059,11 @@
         :ready  (bigquery-execute-response result job client respond cancel-chan)))))
 
 (mu/defn- ^:dynamic *process-native*
-  [respond  :- fn?
-   database :- [:map [:details :map]]
-   sql
-   parameters
-   cancel-chan]
+  [respond     :- fn?
+   database    :- :metabase.warehouses.schema/database-or-metadata
+   sql         :- :string
+   parameters  :- [:maybe [:sequential :metabase.lib.schema.common/field-value]]
+   cancel-chan :- [:maybe (driver-api/instance-of-class ManyToManyChannel)]]
   {:pre [(map? database) (map? (:details database))]}
   ;; automatically retry the query if it times out or otherwise fails. This is on top of the auto-retry added by
   ;; `execute`
@@ -1171,13 +1184,7 @@
     (log/infof "DB %s had hardcoded dataset-id; changing to an inclusion pattern and updating table schemas"
                (pr-str db-id))
     (try
-      (t2/query-one {:update (t2/table-name :model/Table)
-                     :set    {:schema dataset-id}
-                     :where  [:and
-                              [:= :db_id db-id]
-                              [:or
-                               [:= :schema nil]
-                               [:not= :schema dataset-id]]]})
+      (bigquery.db/set-table-schemas! db-id dataset-id)
       ;; if we are upgrading to the sdk driver after having downgraded back to the old driver we end up with
       ;; duplicated tables with nil schema. Happily only in the "dataset-id" schema and not all schemas. But just
       ;; leave them with nil schemas and they will get deactivated in sync.
@@ -1186,7 +1193,7 @@
                               (assoc :dataset-filters-type "inclusion")
                               (assoc :dataset-filters-patterns dataset-id)
                               (dissoc :dataset-id))]
-      (t2/update! :model/Database db-id {:details updated-details})
+      (bigquery.db/update-database-details! db-id updated-details)
       (assoc database :details updated-details))))
 
 ;; TODO: THIS METHOD SHOULD NOT BE UPDATING THE APP-DB (which it does in [convert-dataset-id-to-filters!])
@@ -1198,7 +1205,7 @@
 (defmethod driver/normalize-db-details :bigquery-cloud-sdk
   [_driver database]
   (let [details (driver.conn/default-details database)]
-    (when-not (empty? (filter some? ((juxt :auth-code :client-id :client-secret) details)))
+    (when-not (perf/empty? (filter some? ((juxt :auth-code :client-id :client-secret) details)))
       (log/errorf (str "Database ID %d, which was migrated from the legacy :bigquery driver to :bigquery-cloud-sdk, has"
                        " one or more OAuth style authentication scheme parameters saved to db-details, which cannot"
                        " be automatically migrated to the newer driver (since it *requires* service-account-json instead);"
@@ -1231,7 +1238,7 @@
 (defn- clustering-clause
   "Inline `CLUSTER BY col, ...` clause for a table's `indexes`, or nil when there's no clustering."
   [indexes]
-  (when-let [{:keys [columns]} (some #(when (= :clustering (:kind %)) %) indexes)]
+  (when-let [{:keys [columns]} (perf/some #(when (= :clustering (:kind %)) %) indexes)]
     (let [cols (str/join ", " (map #(sql.u/quote-name :bigquery-cloud-sdk :field (:name %)) columns))]
       (format "CLUSTER BY %s" cols))))
 
@@ -1247,7 +1254,7 @@
         (let [definition (.getDefinition bq-table)]
           (when (instance? StandardTableDefinition definition)
             (when-let [^Clustering clustering (.getClustering ^StandardTableDefinition definition)]
-              (not-empty (vec (.getFields clustering))))))))))
+              (perf/not-empty (vec (.getFields clustering))))))))))
 
 (defmethod driver/fetch-table-indexes :bigquery-cloud-sdk
   [_driver database schema table]
@@ -1301,14 +1308,14 @@
   (let [base      (#'driver.sql-jdbc/create-table!-sql driver table-name column-definitions :primary-key primary-key)
         cluster   (clustering-clause indexes)
         sql       (if cluster (str base " " cluster) base)
-        database  (t2/select-one :model/Database database-id)
+        database  (bigquery.db/database database-id)
         conn-spec (driver/connection-spec driver database)]
     (driver/execute-raw-queries! driver conn-spec [sql])))
 
 (defmethod driver/drop-table! :bigquery-cloud-sdk
   [driver database-id table-name]
   (let [sql       (driver/compile-drop-table driver table-name)
-        database  (t2/select-one :model/Database database-id)
+        database  (bigquery.db/database database-id)
         conn-spec (driver/connection-spec driver database)]
     (driver/execute-raw-queries! driver conn-spec [sql])))
 
@@ -1363,18 +1370,18 @@
   ;; update their metadata caches frequently enough for timely transform runs (or interactive previews).
   ;; rather than waiting many minutes, we trade torward consistency by using SQL DML, whose table metadata
   ;; is consistent, and we do not see cached non-existence and things like that causing trouble.
-  (let [database   (t2/select-one :model/Database db-id)
-        col-kws    (mapv (comp keyword name :name) columns)
+  (let [database   (bigquery.db/database db-id)
+        col-kws    (perf/mapv (comp keyword name :name) columns)
         num-cols   (count col-kws)
         ;; bigquery allows 10k query parameters per request
         max-rows   (max 1 (quot 10000 num-cols))
         chunk-size (min (or driver/*insert-chunk-rows* 1000) max-rows)]
     (doseq [chunk (partition-all chunk-size data)
             :let [lift       #(if (coll? %) [:lift %] %)
-                  lift-tuple #(mapv lift %)]]
+                  lift-tuple #(perf/mapv lift %)]]
       (let [[sql & params] (sql.qp/format-honeysql driver {:insert-into table-name
                                                            :columns     col-kws
-                                                           :values      (mapv lift-tuple chunk)})]
+                                                           :values      (perf/mapv lift-tuple chunk)})]
         (driver/execute-raw-queries! driver database [[sql params]])))))
 
 (defmethod driver/execute-raw-queries! :bigquery-cloud-sdk
@@ -1439,7 +1446,7 @@
          driver-api/database
          driver.conn/effective-details
          list-datasets
-         (some #{schema}))))
+         (perf/some #{schema}))))
 
 (defmethod driver/table-name-length-limit :bigquery-cloud-sdk
   [_driver]

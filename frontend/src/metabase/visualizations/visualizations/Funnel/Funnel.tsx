@@ -7,10 +7,10 @@ import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EC
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
 import { getFunnelChartOption } from "metabase/visualizations/echarts/funnel/option";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
-import { groupRawSeriesMetrics } from "metabase/visualizations/lib/dataset";
 import type { VisualizationProps } from "metabase/visualizations/types";
 import { BarChart } from "metabase/visualizations/visualizations/BarChart";
 import { funnelToBarTransform } from "metabase/visualizations/visualizations/Funnel/funnel-bar-transform";
+import { groupRawSeriesMetrics } from "metabase/viz-core";
 
 import { FunnelNormal } from "../../components/FunnelNormal";
 

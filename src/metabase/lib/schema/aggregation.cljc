@@ -292,7 +292,7 @@
                          :description  (i18n/tru "Maximum value of a column")})}])
 
 (mr/def ::operator
-  [:map
+  [:map {:closed true}
    [:lib/type [:= :operator/aggregation]]
    [:short (into [:enum] (map :short) aggregation-operators)]
    [:supported-field {:optional true} [:maybe :keyword]] ; TODO more precise type?
