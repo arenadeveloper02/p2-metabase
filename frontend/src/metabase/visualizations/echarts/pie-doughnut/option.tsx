@@ -4,21 +4,19 @@ import type { EChartsOption } from "echarts";
 
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { computeMaxDecimalsForValues } from "metabase/visualizations/lib/utils";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import {
-  getMarkerColorClass,
-  getTooltipBaseOption,
-} from "metabase/visualizations/echarts/tooltip";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
-import type { RawSeries } from "metabase-types/api";
-
 import {
   DIMENSIONS,
+  EChartsTooltip,
   OTHER_SLICE_KEY,
+  computeMaxDecimalsForValues,
+  getMarkerColorClass,
   getOtherSliceName,
+  getTooltipBaseOption,
   getTotalText,
-} from "../pie/constants";
+  type ComputedVisualizationSettings,
+  type RenderingContext,
+} from "metabase/viz-core";
+import type { RawSeries } from "metabase-types/api";
 
 export interface DoughnutDataPoint {
   name: string;
@@ -180,7 +178,7 @@ export function getDoughnutChartOption(
   height?: number,
   containerRef?: React.RefObject<HTMLDivElement>,
   hoveredName?: string,
-  renderingContext?: any,
+  renderingContext?: RenderingContext,
 ): EChartsOption {
   const { data, total, metricCol, metricColSettings } = chartData;
   
@@ -339,6 +337,15 @@ export function getDoughnutChartOption(
   // Available width is diameter of hole minus some padding
   const textMaxWidth = innerRadiusPx * 2 * 0.9;
 
+  const sliceLabelStyle = {
+    color: renderingContext?.getColor("text-primary") || "#000",
+    fontFamily: renderingContext?.fontFamily,
+    fontSize: renderingContext?.theme.cartesian.label.fontSize,
+    fontWeight: 400,
+    textBorderWidth: 0,
+    textBorderColor: "transparent" as const,
+  };
+
   return {
     tooltip: {
       ...getTooltipBaseOption(containerRef as React.RefObject<HTMLDivElement>),
@@ -401,13 +408,16 @@ export function getDoughnutChartOption(
         },
         label: {
           show: showLabels || showPercentOnChart,
-          formatter: (params: any) => getLabelText(params.dataIndex),
+          formatter: (params: { dataIndex: number }) =>
+            getLabelText(params.dataIndex),
+          ...sliceLabelStyle,
         },
         emphasis: {
           label: {
             show: showLabels || showPercentOnChart,
-            fontWeight: "bold",
-            formatter: (params: any) => getLabelText(params.dataIndex),
+            formatter: (params: { dataIndex: number }) =>
+              getLabelText(params.dataIndex),
+            ...sliceLabelStyle,
           },
         },
         labelLine: {

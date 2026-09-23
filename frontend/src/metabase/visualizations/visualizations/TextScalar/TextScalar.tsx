@@ -6,18 +6,18 @@ import DashboardS from "metabase/css/dashboard.module.css";
 import { color } from "metabase/ui/colors/palette";
 import { formatValue } from "metabase/value-formatting";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
-import { columnSettings } from "metabase/visualizations/lib/settings/column";
-import { fieldSetting } from "metabase/visualizations/lib/settings/utils";
-import {
-  getDefaultSize,
-  getMinSize,
-} from "metabase/visualizations/shared/utils/sizes";
 import type {
-  ComputedVisualizationSettings,
   VisualizationPassThroughProps,
   VisualizationProps,
 } from "metabase/visualizations/types";
 import { BarChart } from "metabase/visualizations/visualizations/BarChart";
+import {
+  columnSettings,
+  fieldSetting,
+  getDefaultSize,
+  getMinSize,
+  type ComputedVisualizationSettings,
+} from "metabase/viz-core";
 import type { DatasetColumn, DatasetData } from "metabase-types/api/dataset";
 
 import { TextScalarContainer, TextScalarRoot } from "./TextScalar.styled";

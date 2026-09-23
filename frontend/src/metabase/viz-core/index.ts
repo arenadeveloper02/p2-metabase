@@ -169,7 +169,12 @@ export {
   DATA_VISIBILITY_EVENT,
   isDataVisibilityResult,
 } from "./echarts/data-visibility";
-export { DIMENSIONS, OTHER_SLICE_KEY } from "./echarts/pie/constants";
+export {
+  DIMENSIONS,
+  OTHER_SLICE_KEY,
+  getOtherSliceName,
+  getTotalText,
+} from "./echarts/pie/constants";
 export { getPieChartFormatters } from "./echarts/pie/format";
 export type { PieChartFormatters } from "./echarts/pie/format";
 export { getPieChartModel } from "./echarts/pie/model";
@@ -395,6 +400,7 @@ export {
 export type { PreviousPeriodChange } from "./lib/trend-helpers";
 export {
   columnsAreValid,
+  computeMaxDecimalsForValues,
   DATA_IMAGE_URI_PATTERN,
   findSensibleSankeyColumns,
   getCardAfterVisualizationClick,

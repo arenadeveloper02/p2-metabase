@@ -12,31 +12,22 @@ import { useSet } from "react-use";
 import { isNotNull } from "metabase/utils/types";
 import { ChartWithLegend } from "metabase/visualizations/components/ChartWithLegend";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
-import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
-import { getArrayFromMapValues } from "metabase/visualizations/echarts/pie/util";
-import {
-  OTHER_SLICE_KEY,
-  getOtherSliceName,
-} from "metabase/visualizations/echarts/pie/constants";
 import {
   getDonutChartData,
   getDoughnutChartOption,
 } from "metabase/visualizations/echarts/pie-doughnut/option";
-import {
-  useCloseTooltipOnScroll,
-  useInjectSeriesColorsClasses,
-  usePieChartValuesColorsClasses,
-} from "metabase/visualizations/echarts/tooltip";
+import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import type { VisualizationProps } from "metabase/visualizations/types";
-import { useTooltipMouseLeave } from "metabase/visualizations/visualizations/CartesianChart/use-tooltip-mouse-leave";
 import {
   extractRemappings,
   getArrayFromMapValues,
+  getOtherSliceName,
   getPieChartFormatters,
   getPieChartModel,
   getPieChartOption,
   useCloseTooltipOnScroll,
+  useInjectSeriesColorsClasses,
   usePieChartValuesColorsClasses,
 } from "metabase/viz-core";
 
@@ -63,6 +54,7 @@ function PieChartComponent(props: VisualizationProps) {
     width: 0,
     height: 0,
   });
+  useCloseTooltipOnScroll(chartRef);
 
   const [hiddenSlices, { toggle: toggleSliceVisibility }] = useSet<
     string | number

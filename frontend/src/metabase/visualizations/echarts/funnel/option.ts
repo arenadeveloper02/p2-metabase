@@ -5,7 +5,7 @@ import type React from "react";
 import { getColorsForValues } from "metabase/ui/colors/charts";
 import { formatNullable } from "metabase/utils/formatting";
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
 
 import { getFunnelTooltipOption } from "./tooltip";

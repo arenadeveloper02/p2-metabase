@@ -4,12 +4,13 @@ import type React from "react";
 import { formatChangeWithSign } from "metabase/utils/formatting";
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import { computeChange } from "metabase/visualizations/lib/numeric";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import {
+  EChartsTooltip,
+  computeChange,
+  getTooltipBaseOption,
+  type ComputedVisualizationSettings,
+} from "metabase/viz-core";
 import type { DatasetColumn, RawSeries } from "metabase-types/api";
-
-import { getTooltipBaseOption } from "../tooltip";
 
 interface FunnelTooltipProps {
   dimensionName: string;

@@ -3,10 +3,11 @@ import type React from "react";
 
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import { getTooltipBaseOption } from "../tooltip";
-
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import {
+  EChartsTooltip,
+  getTooltipBaseOption,
+  type ComputedVisualizationSettings,
+} from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
 
 interface HeatmapTooltipProps {

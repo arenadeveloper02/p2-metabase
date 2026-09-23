@@ -177,19 +177,21 @@
 ;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
 ;; use our API + we will need it when we make auto-TypeScript-signature generation happen
 ;;
-#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-query-params-use-kebab-case
+                      :metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :get "/dashboard/:token/tab-preference"
   "Return the last selected tab for an embedded dashboard and external application user.
 
   Pass `external_user_id` as a query parameter. This should be your application's opaque user identifier, not a
   Metabase user id."
-  [{:keys [token]} :- [:map
+  [{:keys [token]} :- [:map {:closed true}
                        [:token api.embed.common/EncodedToken]]
-   {:keys [external_user_id]} :- [:map
+   {:keys [external_user_id]} :- [:map {:closed true}
                                   [:external_user_id ms/NonBlankString]]]
-  (let [unsigned       (unsign-and-translate-ids token)
-        dashboard-id   (api.embed.common/unsigned-token->dashboard-id unsigned)]
-    (api.embed.common/check-embedding-enabled-for-dashboard dashboard-id)
+  (let [unsigned     (unsign-and-translate-ids token)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)
+        dashboard    (api/check-404 (embedding-rest.db/dashboard dashboard-id))]
+    (api.embed.common/check-embedding-enabled-for-dashboard dashboard)
     (if-let [tab-id (embed-dashboard-tab-preference/get-preference external_user_id dashboard-id)]
       {:tab_id tab-id}
       {})))
@@ -200,15 +202,16 @@
 #_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :put "/dashboard/:token/tab-preference"
   "Save the last selected tab for an embedded dashboard and external application user."
-  [{:keys [token]} :- [:map
+  [{:keys [token]} :- [:map {:closed true}
                        [:token api.embed.common/EncodedToken]]
    _query-params
-   {:keys [external_user_id tab_id]} :- [:map
+   {:keys [external_user_id tab_id]} :- [:map {:closed true}
                                          [:external_user_id ms/NonBlankString]
                                          [:tab_id ms/PositiveInt]]]
   (let [unsigned     (unsign-and-translate-ids token)
-        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)]
-    (api.embed.common/check-embedding-enabled-for-dashboard dashboard-id)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)
+        dashboard    (api/check-404 (embedding-rest.db/dashboard dashboard-id))]
+    (api.embed.common/check-embedding-enabled-for-dashboard dashboard)
     (embed-dashboard-tab-preference/set-preference! external_user_id dashboard-id tab_id)))
 
 (defn- process-query-for-dashcard-with-signed-token
