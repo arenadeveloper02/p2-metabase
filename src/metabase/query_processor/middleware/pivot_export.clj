@@ -1,6 +1,7 @@
 (ns metabase.query-processor.middleware.pivot-export
   (:refer-clojure :exclude [get-in])
   (:require
+   [metabase.lib.pivot :as lib.pivot]
    [metabase.util.performance :refer [get-in]]))
 
 (defn add-data-for-pivot-export
@@ -11,9 +12,15 @@
     ;; the `qp.si/streaming-results-writer` implmementations can apply/not-apply formatting based on the key's value
     (let [opts     (get-in query [:middleware :pivot-options])
           ;; Ensure we always have defaults for these settings
-          opts     (-> opts
-                       (update :show-row-totals (fnil identity true))
-                       (update :show-column-totals (fnil identity true)))
+          opts     (when opts
+                     (let [opts   (update opts :show-row-totals (fnil identity true))
+                           totals (lib.pivot/read-totals-visibility opts)]
+                       (-> opts
+                           (assoc :show-subtotals (:show-subtotals totals)
+                                  :show-grand-totals (:show-grand-totals totals))
+                           ;; Keep legacy combined flag for older export consumers.
+                           (assoc :show-column-totals (and (:show-subtotals totals)
+                                                           (:show-grand-totals totals))))))
           pivot    (get-in query [:middleware :pivot?])
           metadata (cond-> metadata
                      opts  (assoc :pivot-export-options opts)

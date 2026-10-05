@@ -264,6 +264,8 @@ describe("data_grid", () => {
         [COLLAPSED_ROWS_SETTING]: { rows: [], value: collapsedRows },
         "pivot.show_row_totals": showRowTotals,
         "pivot.show_column_totals": showColumnTotals,
+        "pivot.show_subtotals": showColumnTotals,
+        "pivot.show_grand_totals": showColumnTotals,
         "pivot.condense_duplicate_totals": condenseDuplicateTotals,
       };
       return checkNotNull(multiLevelPivot(data, settings));

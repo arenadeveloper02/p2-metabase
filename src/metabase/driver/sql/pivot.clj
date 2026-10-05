@@ -148,11 +148,13 @@
         nr-idx-by-uuid    (into {} (map-indexed (fn [i b] [(lib.options/uuid b) i])) non-remap-bos)
         rows-idx          (mapv nr-idx-by-uuid (:rows pivot))
         cols-idx          (mapv nr-idx-by-uuid (:columns pivot))
-        combos            (qp.pivot/breakout-combinations (count non-remap-bos)
-                                                          rows-idx
-                                                          cols-idx
-                                                          (get pivot :show-row-totals    true)
-                                                          (get pivot :show-column-totals true))
+        combos            (let [totals (lib.pivot/read-totals-visibility pivot)]
+                            (qp.pivot/breakout-combinations (count non-remap-bos)
+                                                            rows-idx
+                                                            cols-idx
+                                                            (get pivot :show-row-totals true)
+                                                            (:show-subtotals totals)
+                                                            (:show-grand-totals totals)))
         sets-hsql         (mapv (fn [combo]
                                   (mapv #(nth breakout-hsql %)
                                         (expand-grouping-combo combo non-remap-poss orig->new)))

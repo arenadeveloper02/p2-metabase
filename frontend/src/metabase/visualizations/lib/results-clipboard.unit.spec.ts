@@ -509,6 +509,8 @@ describe("getResultsClipboardContent", () => {
         },
         "pivot.show_row_totals": false,
         "pivot.show_column_totals": false,
+        "pivot.show_subtotals": false,
+        "pivot.show_grand_totals": false,
       },
     });
 
@@ -557,6 +559,8 @@ describe("getResultsClipboardContent", () => {
           },
           "pivot.show_row_totals": false,
           "pivot.show_column_totals": false,
+          "pivot.show_subtotals": false,
+          "pivot.show_grand_totals": false,
           column_settings: {
             '["name","PRICE"]': {
               number_style: "currency",
@@ -653,6 +657,8 @@ describe("getResultsClipboardContent", () => {
           },
           "pivot.show_row_totals": false,
           "pivot.show_column_totals": false,
+          "pivot.show_subtotals": false,
+          "pivot.show_grand_totals": false,
         },
       });
       const data = createMockDatasetData({

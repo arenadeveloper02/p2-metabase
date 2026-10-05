@@ -55,6 +55,8 @@ export const PIVOT_CARD = createMockCard({
     },
     "pivot.show_row_totals": false,
     "pivot.show_column_totals": false,
+    "pivot.show_subtotals": false,
+    "pivot.show_grand_totals": false,
   },
 });
 

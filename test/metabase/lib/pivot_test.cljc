@@ -41,7 +41,9 @@
                      {:rows ["11111111-1111-1111-1111-111111111111"] :columns []})))
   (testing "::pivot accepts the optional show-* flags"
     (is (mr/validate :metabase.lib.schema/pivot
-                     {:rows [] :columns [] :show-row-totals false :show-column-totals true})))
+                     {:rows [] :columns [] :show-row-totals false :show-column-totals true}))
+    (is (mr/validate :metabase.lib.schema/pivot
+                     {:rows [] :columns [] :show-subtotals false :show-grand-totals true})))
   (testing "::pivot rejects non-UUID-shaped strings"
     (is (not (mr/validate :metabase.lib.schema/pivot
                           {:rows ["not-a-uuid"] :columns []}))))
@@ -131,3 +133,17 @@
     (is (= "first" (lib.pivot/read-show-flag {:b "second" :a "first"} :a :b))))
   (testing "treats nil values as present (not absent)"
     (is (nil? (lib.pivot/read-show-flag {:k nil} :k)))))
+
+(deftest ^:parallel read-totals-visibility-test
+  (testing "legacy show-column-totals alone controls both sides"
+    (is (= {:show-subtotals false :show-grand-totals false}
+           (lib.pivot/read-totals-visibility {:show-column-totals false})))
+    (is (= {:show-subtotals true :show-grand-totals true}
+           (lib.pivot/read-totals-visibility {}))))
+  (testing "split keys are independent, with missing side falling back to legacy"
+    (is (= {:show-subtotals true :show-grand-totals false}
+           (lib.pivot/read-totals-visibility {:show-subtotals true
+                                              :show-grand-totals false})))
+    (is (= {:show-subtotals true :show-grand-totals false}
+           (lib.pivot/read-totals-visibility {:show-subtotals true
+                                              :show-column-totals false})))))

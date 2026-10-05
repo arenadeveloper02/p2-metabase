@@ -310,12 +310,15 @@
 
 (mr/def ::pivot
   "Pivot intent. `:rows` and `:columns` are sequences of UUIDs that reference `:lib/uuid` values on breakouts of the
-  stage that carries this clause. `:show-row-totals` and `:show-column-totals` default to `true` when absent."
+  stage that carries this clause. Totals flags default to `true` when absent.
+  `:show-column-totals` is legacy: when the split keys are absent it controls both subtotals and grand totals."
   [:map
    {:decode/normalize common/normalize-map :closed true}
    [:rows               [:sequential ::common/uuid]]
    [:columns            [:sequential ::common/uuid]]
    [:show-row-totals    {:optional true} :boolean]
+   [:show-subtotals     {:optional true} :boolean]
+   [:show-grand-totals  {:optional true} :boolean]
    [:show-column-totals {:optional true} :boolean]])
 
 (mr/def ::pivot-only-on-last-stage
@@ -702,11 +705,15 @@
    [:pivot-cols         {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
    [:pivot-measures     {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
    [:show-row-totals    {:optional true} [:maybe :boolean]]
+   [:show-subtotals     {:optional true} [:maybe :boolean]]
+   [:show-grand-totals  {:optional true} [:maybe :boolean]]
    [:show-column-totals {:optional true} [:maybe :boolean]]
    [:pivot_rows         {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
    [:pivot_cols         {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
    [:pivot_measures     {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
    [:show_row_totals    {:optional true} [:maybe :boolean]]
+   [:show_subtotals     {:optional true} [:maybe :boolean]]
+   [:show_grand_totals  {:optional true} [:maybe :boolean]]
    [:show_column_totals {:optional true} [:maybe :boolean]]
    [:viz-settings {:optional true} [:maybe [:ref ::common/visualization-settings]]]
    [:user-parameters {:optional true} [:ref ::lib.schema.parameter/parameters]]

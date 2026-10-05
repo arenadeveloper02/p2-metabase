@@ -2400,6 +2400,8 @@
     [:pivot-cols                           {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
     [:pivot-measures                       {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
     [:show-row-totals                      {:optional true} [:maybe :boolean]]
+    [:show-subtotals                       {:optional true} [:maybe :boolean]]
+    [:show-grand-totals                    {:optional true} [:maybe :boolean]]
     [:show-column-totals                   {:optional true} [:maybe :boolean]]
     [:viz-settings                         {:optional true} [:maybe [:ref ::lib.schema.common/visualization-settings]]]
     [:user-parameters                      {:optional true} [:maybe [:ref ::lib.schema.parameter/parameters]]]

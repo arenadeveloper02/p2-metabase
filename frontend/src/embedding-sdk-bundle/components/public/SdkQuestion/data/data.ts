@@ -465,6 +465,8 @@ export const nativeQuestionWithParametersData = {
     "format-rows?": true,
     "pivot-export-options": {
       "show-row-totals": true,
+      "show-subtotals": true,
+      "show-grand-totals": true,
       "show-column-totals": true,
     },
     cols: [

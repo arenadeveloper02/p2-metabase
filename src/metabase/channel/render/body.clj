@@ -192,6 +192,8 @@
                                                      [:pivot-cols         {:optional true} [:maybe [:sequential :int]]]
                                                      [:pivot-measures     {:optional true} [:maybe [:sequential :int]]]
                                                      [:show-row-totals    {:optional true} :boolean]
+                                                     [:show-subtotals     {:optional true} :boolean]
+                                                     [:show-grand-totals  {:optional true} :boolean]
                                                      [:show-column-totals {:optional true} :boolean]
                                                      [:column-sort-order  {:optional true} [:maybe :metabase.query-processor.pivot/column-sort-order]]]]]]])
 
@@ -998,7 +1000,9 @@
         (when (and (seq val-idxs) (or (seq row-idxs) (seq col-idxs)))
           (let [tz     (:results_timezone data)
                 fr?    (get data :format-rows? true)
-                ;; Totals visibility is read from `settings` (:pivot.show_row_totals / :pivot.show_column_totals)
+                ;; Totals visibility is read from `settings`
+                ;; (:pivot.show_row_totals / :pivot.show_subtotals / :pivot.show_grand_totals,
+                ;; with legacy :pivot.show_column_totals fallback)
                 ;; by build-pivot-output, not from pivot-export-options.
                 peo    {:pivot-rows     row-idxs
                         :pivot-cols     col-idxs

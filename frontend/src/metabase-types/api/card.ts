@@ -441,6 +441,25 @@ export type VisualizationSettings = {
   /** Initially collapsed pivot rows. */
   "pivot_table.collapsed_rows"?: PivotTableCollapsedRowsSetting;
 
+  /** Show the right-side row totals column in pivot tables. */
+  "pivot.show_row_totals"?: boolean;
+
+  /** Show intermediate subtotal rows in pivot tables. */
+  "pivot.show_subtotals"?: boolean;
+
+  /** Show the bottom grand totals row in pivot tables. */
+  "pivot.show_grand_totals"?: boolean;
+
+  /**
+   * Legacy combined flag that hid both subtotals and grand totals.
+   * Prefer {@link VisualizationSettings["pivot.show_subtotals"]} and
+   * {@link VisualizationSettings["pivot.show_grand_totals"]}.
+   */
+  "pivot.show_column_totals"?: boolean;
+
+  /** Hide redundant totals when a group has only one child. */
+  "pivot.condense_duplicate_totals"?: boolean;
+
   /** Smart-scalar comparison configuration. */
   "scalar.comparisons"?: SmartScalarComparison[];
 

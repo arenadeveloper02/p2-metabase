@@ -113,6 +113,8 @@ export interface DatasetData {
   is_sandboxed?: boolean;
   "pivot-export-options"?: {
     "show-row-totals"?: boolean;
+    "show-subtotals"?: boolean;
+    "show-grand-totals"?: boolean;
     "show-column-totals"?: boolean;
   };
   untranslatedRows?: RowValues[];

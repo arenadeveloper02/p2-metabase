@@ -70,6 +70,8 @@ const rows = [
 
 const pivotSettings = {
   "pivot.show_column_totals": true,
+  "pivot.show_subtotals": true,
+  "pivot.show_grand_totals": true,
   "pivot.show_row_totals": true,
   "pivot.condense_duplicate_totals": true,
   "pivot_table.collapsed_rows": {

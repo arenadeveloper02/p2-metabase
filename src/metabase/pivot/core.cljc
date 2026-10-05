@@ -336,9 +336,19 @@
   [settings]
   (get settings :pivot.show_row_totals true))
 
-(defn- should-show-column-totals?
+(defn- should-show-subtotals?
+  "Subtotal rows (`Totals for …`). Falls back to legacy `:pivot.show_column_totals` when the split key is absent."
   [settings]
-  (get settings :pivot.show_column_totals true))
+  (if (contains? settings :pivot.show_subtotals)
+    (get settings :pivot.show_subtotals true)
+    (get settings :pivot.show_column_totals true)))
+
+(defn- should-show-grand-totals?
+  "Bottom grand-totals row. Falls back to legacy `:pivot.show_column_totals` when the split key is absent."
+  [settings]
+  (if (contains? settings :pivot.show_grand_totals)
+    (get settings :pivot.show_grand_totals true)
+    (get settings :pivot.show_column_totals true)))
 
 (defn- maybe-add-row-totals-column
   "If needed, adds a column header to the end of the column tree for the column containing row totals"
@@ -356,7 +366,7 @@
 (defn- maybe-add-grand-totals-row
   "If needed, adds a row header to the end of the row tree for the row containing the grand total at the bottom-right of the table."
   [row-tree settings]
-  (if (should-show-column-totals? settings)
+  (if (should-show-grand-totals? settings)
     (conj
      row-tree
      {:value (i18n/tru "Grand totals")
@@ -436,7 +446,7 @@
 (defn- add-subtotals
   "Adds subtotal rows to the pivot table based on settings."
   [row-tree row-indexes settings col-settings]
-  (if-not (should-show-column-totals? settings)
+  (if-not (should-show-subtotals? settings)
     (vec row-tree)
     (let [subtotal-settings-by-col (map (fn [idx]
                                           (not= ((nth col-settings idx) :pivot_table.column_show_totals)

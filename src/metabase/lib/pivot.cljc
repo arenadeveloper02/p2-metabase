@@ -48,6 +48,35 @@
     (get m k)
     true))
 
+(def ^:private subtotals-keys
+  [:pivot.show_subtotals "pivot.show_subtotals" :show-subtotals :show_subtotals])
+
+(def ^:private grand-totals-keys
+  [:pivot.show_grand_totals "pivot.show_grand_totals" :show-grand-totals :show_grand_totals])
+
+(def ^:private legacy-column-totals-keys
+  [:pivot.show_column_totals "pivot.show_column_totals" :show-column-totals :show_column_totals])
+
+(defn- has-any-key? [m ks]
+  (boolean (m/find-first #(contains? m %) ks)))
+
+(defn read-totals-visibility
+  "Return `{:show-subtotals bool, :show-grand-totals bool}` from a viz-settings, pivot-options, or `:pivot` clause map.
+
+  Prefers the split keys (`show-subtotals` / `show-grand-totals`, including `pivot.show_*` viz-settings forms).
+  When a split key is absent, that side falls back to the legacy combined `show-column-totals` flag (default `true`).
+  When neither split key is present, both values follow the legacy flag."
+  [m]
+  (let [legacy   (apply read-show-flag m legacy-column-totals-keys)
+        has-sub? (has-any-key? m subtotals-keys)
+        has-grand? (has-any-key? m grand-totals-keys)]
+    {:show-subtotals    (if has-sub?
+                          (apply read-show-flag m subtotals-keys)
+                          legacy)
+     :show-grand-totals (if has-grand?
+                          (apply read-show-flag m grand-totals-keys)
+                          legacy)}))
+
 (defn splice-pivot-grouping
   "Insert [[pivot-grouping-column-metadata]] into `cols` immediately after the leading run of breakout columns.
   Returns a vector."

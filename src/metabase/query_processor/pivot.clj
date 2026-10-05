@@ -69,6 +69,9 @@
                        [:pivot-cols         {:optional true} [:maybe ::pivot-cols]]
                        [:pivot-measures     {:optional true} [:maybe ::pivot-measures]]
                        [:show-row-totals    {:optional true} [:maybe :boolean]]
+                       [:show-subtotals     {:optional true} [:maybe :boolean]]
+                       [:show-grand-totals  {:optional true} [:maybe :boolean]]
+                       ;; Legacy combined flag; prefer :show-subtotals / :show-grand-totals.
                        [:show-column-totals {:optional true} [:maybe :boolean]]
                        [:column-sort-order  {:optional true} [:maybe ::column-sort-order]]]])
 
@@ -83,14 +86,16 @@
 (mu/defn breakout-combinations :- ::pivot.common/breakout-combinations
   "Return a sequence of all breakout combinations (by index) we should generate queries for.
 
-    (breakout-combinations 3 [1 2] nil) ;; -> [[0 1 2] [] [1 2] [2] [1]]"
+    (breakout-combinations 3 [1 2] nil true true true) ;; -> ..."
   [num-breakouts      :- ::pivot.common/num-breakouts
    pivot-rows         :- [:maybe ::pivot-rows]
    pivot-cols         :- [:maybe ::pivot-cols]
    show-row-totals    :- [:maybe :boolean]
-   show-column-totals :- [:maybe :boolean]]
-  (let [row-totals (if (nil? show-row-totals)    true show-row-totals)
-        col-totals (if (nil? show-column-totals) true show-column-totals)]
+   show-subtotals     :- [:maybe :boolean]
+   show-grand-totals  :- [:maybe :boolean]]
+  (let [row-totals   (if (nil? show-row-totals)   true show-row-totals)
+        subtotals    (if (nil? show-subtotals)    true show-subtotals)
+        grand-totals (if (nil? show-grand-totals) true show-grand-totals)]
     ;; validate pivot-rows/pivot-cols
     (doseq [[k pivots] [[:pivot-rows pivot-rows]
                         [:pivot-cols pivot-cols]]
@@ -120,7 +125,7 @@
           ;; subtotal rows
           ;; _.range(1, pivotRows.length).map(i => [...pivotRow.slice(0, i), ...pivotCols])
           ;;  => [0 _ _ 3] [0 1 _ 3] => 0110 0100 => Group #6, #4
-          (when col-totals
+          (when subtotals
             (for [i (range 1 (count pivot-rows))]
               (concat (take i pivot-rows) pivot-cols)))
           ;; "row totals" on the right
@@ -131,16 +136,16 @@
           ;; subtotal rows within "row totals"
           ;; _.range(1, pivotRows.length).map(i => pivotRow.slice(0, i))
           ;; => [0 _ _ _] [0 1 _ _] => 1110 1100 => Group #14, #12
-          (when (and row-totals col-totals)
+          (when (and row-totals subtotals)
             (for [i (range 1 (count pivot-rows))]
               (take i pivot-rows)))
           ;; "grand totals" row
           ;; pivotCols
           ;; => [_ _ _ 3] => 0111 => Group #7
-          (when col-totals
+          (when grand-totals
             [pivot-cols])
           ;; bottom right corner [_ _ _ _] => 1111 => Group #15
-          (when (and row-totals col-totals)
+          (when (and row-totals grand-totals)
             [[]]))))))))
 
 (mu/defn- keep-breakouts-at-indexes :- ::lib.schema/query
@@ -158,14 +163,16 @@
 (mu/defn- generate-queries :- [:sequential ::lib.schema/query]
   "Generate the additional queries to perform a generic pivot table"
   [query :- ::lib.schema/query
-   {:keys [pivot-rows pivot-cols show-row-totals show-column-totals] :as _pivot-options} :- ::pivot-opts]
+   {:keys [pivot-rows pivot-cols show-row-totals] :as pivot-options} :- ::pivot-opts]
   (try
-    (let [all-breakouts (lib/breakouts query)
+    (let [{:keys [show-subtotals show-grand-totals]} (lib.pivot/read-totals-visibility pivot-options)
+          all-breakouts (lib/breakouts query)
           all-queries   (for [breakout-indexes (u/prog1 (breakout-combinations (count all-breakouts)
                                                                                pivot-rows
                                                                                pivot-cols
                                                                                show-row-totals
-                                                                               show-column-totals)
+                                                                               show-subtotals
+                                                                               show-grand-totals)
                                                  (log/tracef "Using breakout combinations: %s" (pr-str <>)))]
                           (-> query
                               (assoc :qp.pivot/unremapped-breakout-combination breakout-indexes)
@@ -320,8 +327,8 @@
   [query        :- ::qp.schema/any-query
    viz-settings :- [:maybe :metabase.lib.schema.common/visualization-settings]]
   (let [{:keys [rows columns values]} (:pivot_table.column_split viz-settings)
-        show-row-totals    (get viz-settings :pivot.show_row_totals true)
-        show-column-totals (get viz-settings :pivot.show_column_totals true)
+        show-row-totals (get viz-settings :pivot.show_row_totals true)
+        totals          (lib.pivot/read-totals-visibility viz-settings)
         metadata-provider  (or (:lib/metadata query)
                                (lib-be/application-database-metadata-provider (:database query)))
         query              (lib/query metadata-provider query)
@@ -337,11 +344,12 @@
         process-columns    (fn process-columns [column-names]
                              (when (seq column-names)
                                (into [] (keep column-name->index) column-names)))
-        pivot-opts         {:pivot-rows         (process-columns rows)
-                            :pivot-cols         (process-columns columns)
-                            :pivot-measures     (process-columns values)
-                            :show-row-totals    show-row-totals
-                            :show-column-totals show-column-totals}]
+        pivot-opts         (merge
+                            {:pivot-rows         (process-columns rows)
+                             :pivot-cols         (process-columns columns)
+                             :pivot-measures     (process-columns values)
+                             :show-row-totals    show-row-totals}
+                            totals)]
     (when (some some? (vals pivot-opts))
       pivot-opts)))
 
@@ -371,8 +379,8 @@
   [query        :- ::qp.schema/any-query
    viz-settings :- [:maybe :metabase.lib.schema.common/visualization-settings]]
   (let [{:keys [rows columns values]} (:pivot_table.column_split viz-settings)
-        show-row-totals    (get viz-settings "pivot.show_row_totals" true)
-        show-column-totals (get viz-settings "pivot.show_column_totals" true)
+        show-row-totals (get viz-settings "pivot.show_row_totals" true)
+        totals          (lib.pivot/read-totals-visibility viz-settings)
         metadata-provider             (or (:lib/metadata query)
                                           (lib-be/application-database-metadata-provider (:database query)))
         mbql5-query                    (lib/query metadata-provider query)
@@ -400,11 +408,12 @@
         process-refs                  (fn process-refs [refs]
                                         (when (seq refs)
                                           (into [] (keep index-in-breakouts) refs)))
-        pivot-opts                    {:pivot-rows         (process-refs rows)
-                                       :pivot-cols         (process-refs columns)
-                                       :pivot-measures     (process-refs values)
-                                       :show-row-totals    show-row-totals
-                                       :show-column-totals show-column-totals}]
+        pivot-opts                    (merge
+                                       {:pivot-rows         (process-refs rows)
+                                        :pivot-cols         (process-refs columns)
+                                        :pivot-measures     (process-refs values)
+                                        :show-row-totals    show-row-totals}
+                                       totals)]
     (when (some some? (vals pivot-opts))
       pivot-opts)))
 
@@ -451,10 +460,11 @@
     (let [row-uuids (resolve-refs-to-uuids query rows)
           col-uuids (resolve-refs-to-uuids query columns)]
       (when (or (seq row-uuids) (seq col-uuids))
-        {:rows               (or row-uuids [])
-         :columns            (or col-uuids [])
-         :show-row-totals    (lib.pivot/read-show-flag viz-settings :pivot.show_row_totals    "pivot.show_row_totals")
-         :show-column-totals (lib.pivot/read-show-flag viz-settings :pivot.show_column_totals "pivot.show_column_totals")}))))
+        (merge
+         {:rows            (or row-uuids [])
+          :columns         (or col-uuids [])
+          :show-row-totals (lib.pivot/read-show-flag viz-settings :pivot.show_row_totals "pivot.show_row_totals")}
+         (lib.pivot/read-totals-visibility viz-settings))))))
 
 (mu/defn apply-pivot-viz-settings :- ::lib.schema/query
   "Attach a `:pivot` clause to the last stage of `query`, derived from `viz-settings` (see [[build-pivot-clause]]
@@ -475,6 +485,8 @@
    :pivot-cols :pivot_cols
    :pivot-measures :pivot_measures
    :show-row-totals :show_row_totals
+   :show-subtotals :show_subtotals
+   :show-grand-totals :show_grand_totals
    :show-column-totals :show_column_totals])
 
 (mu/defn apply-legacy-pivot-keys :- ::lib.schema/query
@@ -503,10 +515,11 @@
         (if (and (empty? row-uuids) (empty? col-uuids))
           stripped
           (lib.pivot/with-pivot stripped
-            {:rows               row-uuids
-             :columns            col-uuids
-             :show-row-totals    (lib.pivot/read-show-flag query :show-row-totals    :show_row_totals)
-             :show-column-totals (lib.pivot/read-show-flag query :show-column-totals :show_column_totals)}))))))
+            (merge
+             {:rows            row-uuids
+              :columns         col-uuids
+              :show-row-totals (lib.pivot/read-show-flag query :show-row-totals :show_row_totals)}
+             (lib.pivot/read-totals-visibility query))))))))
 
 (defn- has-window-fn-aggregation?
   "True iff any aggregation in the last stage of `query` contains a window-function aggregation clause at any depth."
@@ -608,7 +621,8 @@
   (or
    (pivot-options query (get query :viz-settings))
    (pivot-options query (get-in query [:info :visualization-settings]))
-   (not-empty (select-keys query [:pivot-rows :pivot-cols :pivot-measures :show-row-totals :show-column-totals]))))
+   (not-empty (select-keys query [:pivot-rows :pivot-cols :pivot-measures
+                                  :show-row-totals :show-subtotals :show-grand-totals :show-column-totals]))))
 
 (mu/defn- run-pivot-query-multi
   "Generate one subquery per breakout combination implied by `query`'s pivot intent (viz-settings or legacy keys),
@@ -687,7 +701,7 @@
   [query]
   (cond-> query
     (not (lib.pivot/has-pivot? query))
-    (lib.pivot/with-pivot {:rows [] :columns [] :show-row-totals true :show-column-totals true})))
+    (lib.pivot/with-pivot {:rows [] :columns [] :show-row-totals true :show-subtotals true :show-grand-totals true})))
 
 (defn- run-native-pivot-query
   "Translate `query`'s pivot intent (legacy top-level keys and/or viz-settings) into an MBQL5 `:pivot` clause

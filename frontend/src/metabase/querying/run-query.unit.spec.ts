@@ -195,6 +195,8 @@ describe("metabase/querying/run-query > runQuestionQuery", () => {
         pivot_cols: [],
         pivot_rows: [],
         show_column_totals: true,
+        show_subtotals: true,
+        show_grand_totals: true,
         show_row_totals: true,
       });
     });

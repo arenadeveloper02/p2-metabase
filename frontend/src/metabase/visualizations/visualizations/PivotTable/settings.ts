@@ -21,6 +21,7 @@ import {
   getFieldRefForComparison,
   migratePivotColumnSplitSetting,
 } from "metabase-lib/v1/queries/utils/pivot";
+import { getPivotTotalsVisibility } from "metabase-lib/v1/queries/utils/pivot-options";
 import { isDimension } from "metabase-lib/v1/types/utils/isa";
 import type {
   Card,
@@ -154,13 +155,28 @@ export const settings = {
     getDefault: () => true,
     inline: true,
   },
-  "pivot.show_column_totals": {
+  "pivot.show_subtotals": {
     getSection: () => t`Columns`,
     get title() {
-      return t`Show column totals`;
+      return t`Show subtotals`;
     },
     widget: "toggle",
-    getDefault: () => true,
+    getDefault: (
+      _series: RawSeries,
+      settings: ComputedVisualizationSettings,
+    ) => getPivotTotalsVisibility(settings).showSubtotals,
+    inline: true,
+  },
+  "pivot.show_grand_totals": {
+    getSection: () => t`Columns`,
+    get title() {
+      return t`Show grand totals`;
+    },
+    widget: "toggle",
+    getDefault: (
+      _series: RawSeries,
+      settings: ComputedVisualizationSettings,
+    ) => getPivotTotalsVisibility(settings).showGrandTotals,
     inline: true,
   },
   "pivot.condense_duplicate_totals": {
@@ -178,12 +194,20 @@ export const settings = {
       _series: RawSeries,
       settings: ComputedVisualizationSettings,
     ) => {
+      const { showSubtotals, showGrandTotals } =
+        getPivotTotalsVisibility(settings);
       return (
         !settings["pivot.show_row_totals"] &&
-        !settings["pivot.show_column_totals"]
+        !showSubtotals &&
+        !showGrandTotals
       );
     },
-    readDependencies: ["pivot.show_row_totals", "pivot.show_column_totals"],
+    readDependencies: [
+      "pivot.show_row_totals",
+      "pivot.show_subtotals",
+      "pivot.show_grand_totals",
+      "pivot.show_column_totals",
+    ],
   },
   "pivot_table.column_widths": {},
   [COLUMN_FORMATTING_SETTING]: {

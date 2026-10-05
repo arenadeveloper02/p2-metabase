@@ -74,6 +74,8 @@ export const datasetApi = Api.injectEndpoints({
         pivot_rows?: number[];
         pivot_cols?: number[];
         show_row_totals?: boolean;
+        show_subtotals?: boolean;
+        show_grand_totals?: boolean;
         show_column_totals?: boolean;
       } & RtkCacheKeyed &
         IgnorableError

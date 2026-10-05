@@ -55,7 +55,7 @@
             [0 1]
             [0]
             []]
-           (#'qp.pivot/breakout-combinations 3 [0 1 2] [] true true)))))
+           (#'qp.pivot/breakout-combinations 3 [0 1 2] [] true true true)))))
 
 (deftest ^:parallel breakout-combinations-test-2
   (testing "Should return the combos that Paul specified in (#14329)"
@@ -75,7 +75,7 @@
              [3]
              ;; bottom right corner
              []])
-           (#'qp.pivot/breakout-combinations 4 [0 1 2] [3] true true)))))
+           (#'qp.pivot/breakout-combinations 4 [0 1 2] [3] true true true)))))
 
 (deftest ^:parallel breakout-combinations-test-3
   (testing "Should return the combos that Paul specified in (#14329)"
@@ -88,39 +88,39 @@
               [1]
               [0]
               []]
-             (#'qp.pivot/breakout-combinations 3 [] [] true true))))))
+             (#'qp.pivot/breakout-combinations 3 [] [] true true true))))))
 
 (deftest ^:parallel breakout-combinations-test-row-totals-disabled
   (testing "Should return the correct combos when row totals are disabled but column totals are enabled"
     (is (= [[0 1] [0]]
-           (#'qp.pivot/breakout-combinations 2 [1] [0] false true)))))
+           (#'qp.pivot/breakout-combinations 2 [1] [0] false true true)))))
 
 (deftest ^:parallel breakout-combinations-test-col-totals-disabled
   (testing "Should return the correct combos when column totals are disabled but row totals are enabled"
     (is (= [[0 1] [1]]
-           (#'qp.pivot/breakout-combinations 2 [1] [0] true false)))))
+           (#'qp.pivot/breakout-combinations 2 [1] [0] true false false)))))
 
 (deftest ^:parallel breakout-combinations-test-row-col-totals-disabled
   (testing "Should return only the main query when both row and column totals are disabled"
     (is (= [[0 1]]
-           (#'qp.pivot/breakout-combinations 2 [1] [0] false false)))))
+           (#'qp.pivot/breakout-combinations 2 [1] [0] false false false)))))
 
 (deftest ^:parallel breakout-combinations-test-4
   (testing "The breakouts are sorted ascending."
     (is (= [[0 1 2] [1 2] [2] [0 1] [1] []]
-           (#'qp.pivot/breakout-combinations 3 [1 0] [2] true true)))))
+           (#'qp.pivot/breakout-combinations 3 [1 0] [2] true true true)))))
 
 (deftest ^:parallel validate-pivot-rows-cols-test
   (testing "Should throw an Exception if you pass in invalid pivot-rows"
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"Invalid pivot-rows: specified breakout at index 3, but we only have 3 breakouts"
-         (#'qp.pivot/breakout-combinations 3 [0 1 2 3] [] true true))))
+         (#'qp.pivot/breakout-combinations 3 [0 1 2 3] [] true true true))))
   (testing "Should throw an Exception if you pass in invalid pivot-cols"
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"Invalid pivot-cols: specified breakout at index 3, but we only have 3 breakouts"
-         (#'qp.pivot/breakout-combinations 3 [] [0 1 2 3] true true)))))
+         (#'qp.pivot/breakout-combinations 3 [] [0 1 2 3] true true true)))))
 ;; TODO -- we should require these columns to be distinct as well (I think?)
 ;; TODO -- require all numbers to be positive
 ;; TODO -- can you specify something in both pivot-rows and pivot-cols?
@@ -201,13 +201,14 @@
           viz-settings  (:visualization_settings (qp.pivot.test-util/pivot-card))
           pivot-options {:pivot-rows [1 0], :pivot-cols [2] :pivot-measures nil :column-sort-order {}}]
       (let [actual-pivot-options (#'qp.pivot/pivot-options query viz-settings)]
-        (is (= (assoc pivot-options :show-row-totals true :show-column-totals true)
+        (is (= (assoc pivot-options :show-row-totals true :show-subtotals true :show-grand-totals true)
                actual-pivot-options)))
       (are [num-breakouts expected] (= expected
                                        (#'qp.pivot/breakout-combinations
                                         num-breakouts
                                         (:pivot-rows pivot-options)
                                         (:pivot-cols pivot-options)
+                                        true
                                         true
                                         true))
         3 [[0 1 2]   [1 2] [2] [0 1] [1] []]
@@ -226,14 +227,15 @@
                           :columns ["RATING"]}}
           pivot-options (#'qp.pivot/pivot-options query viz-settings)]
       (is (= {:pivot-rows [], :pivot-cols [] :pivot-measures nil :column-sort-order {},
-              :show-row-totals true, :show-column-totals true}
+              :show-row-totals true, :show-subtotals true, :show-grand-totals true}
              pivot-options))
       (is (= [[0 1] [1] [0] []]
              (#'qp.pivot/breakout-combinations 2
                                                (:pivot-rows pivot-options)
                                                (:pivot-cols pivot-options)
                                                (:show-row-totals pivot-options)
-                                               (:show-column-totals pivot-options)))))))
+                                               (:show-subtotals pivot-options)
+                                               (:show-grand-totals pivot-options)))))))
 
 ;;; ---- apply-pivot-viz-settings ----
 
@@ -260,7 +262,8 @@
       (is (= {:rows               [(breakout-uuid q 0)]
               :columns            [(breakout-uuid q 1)]
               :show-row-totals    true
-              :show-column-totals true}
+              :show-subtotals     true
+              :show-grand-totals  true}
              (pivot-of (qp.pivot/apply-pivot-viz-settings q viz)))))))
 
 (deftest ^:parallel apply-pivot-viz-settings-field-ref-test
@@ -271,7 +274,8 @@
       (is (= {:rows               [(breakout-uuid q 0)]
               :columns            [(breakout-uuid q 1)]
               :show-row-totals    true
-              :show-column-totals true}
+              :show-subtotals     true
+              :show-grand-totals  true}
              (pivot-of (qp.pivot/apply-pivot-viz-settings q viz)))))))
 
 (deftest ^:parallel apply-pivot-viz-settings-idempotent-test
@@ -287,7 +291,7 @@
   (testing "if :pivot is already attached to the last stage, viz-settings are ignored"
     (let [q          (two-breakout-query)
           cols       (filter :lib/breakout? (lib/returned-columns q))
-          existing   {:rows [(breakout-uuid q 0)] :columns [] :show-row-totals false :show-column-totals false}
+          existing   {:rows [(breakout-uuid q 0)] :columns [] :show-row-totals false :show-subtotals false :show-grand-totals false}
           with-pivot (lib.util/update-query-stage q -1 assoc :pivot existing)
           viz        {:pivot_table.column_split {:rows    []
                                                  :columns [(:name (second cols))]}}
@@ -321,16 +325,16 @@
           name0   (:name (first (filter :lib/breakout? (lib/returned-columns q))))
           base-vs {:pivot_table.column_split {:rows [name0] :columns []}}]
       (testing "defaults"
-        (is (=? {:show-row-totals true :show-column-totals true}
+        (is (=? {:show-row-totals true :show-subtotals true :show-grand-totals true}
                 (pivot-of (qp.pivot/apply-pivot-viz-settings q base-vs)))))
       (testing "explicit false (keyword keys)"
-        (is (=? {:show-row-totals false :show-column-totals false}
+        (is (=? {:show-row-totals false :show-subtotals false :show-grand-totals false}
                 (pivot-of (qp.pivot/apply-pivot-viz-settings q
                                                              (assoc base-vs
                                                                     :pivot.show_row_totals    false
                                                                     :pivot.show_column_totals false))))))
       (testing "explicit false (string keys)"
-        (is (=? {:show-row-totals false :show-column-totals false}
+        (is (=? {:show-row-totals false :show-subtotals false :show-grand-totals false}
                 (pivot-of (qp.pivot/apply-pivot-viz-settings q
                                                              (assoc base-vs
                                                                     "pivot.show_row_totals"    false
@@ -349,7 +353,8 @@
       (is (=? {:rows               [(breakout-uuid q 1) (breakout-uuid q 0)]
                :columns            [(breakout-uuid q 0)]
                :show-row-totals    true
-               :show-column-totals true}
+               :show-subtotals     true
+               :show-grand-totals  true}
               (pivot-of (qp.pivot/apply-legacy-pivot-keys q)))))))
 
 (deftest ^:parallel apply-legacy-pivot-keys-snake-case-test
@@ -363,12 +368,12 @@
   (testing "totals flags default to true and preserve explicit false (both shapes)"
     (let [q-defaults (two-breakout-query-with-legacy-pivot-keys {:pivot-rows [0]})
           q-kebab    (two-breakout-query-with-legacy-pivot-keys {:pivot-rows [0]
-                                                                 :show-row-totals false :show-column-totals false})
+                                                                 :show-row-totals false :show-subtotals false :show-grand-totals false})
           q-snake    (two-breakout-query-with-legacy-pivot-keys {:pivot-rows [0]
                                                                  :show_row_totals false :show_column_totals false})]
-      (is (=? {:show-row-totals true  :show-column-totals true}  (pivot-of (qp.pivot/apply-legacy-pivot-keys q-defaults))))
-      (is (=? {:show-row-totals false :show-column-totals false} (pivot-of (qp.pivot/apply-legacy-pivot-keys q-kebab))))
-      (is (=? {:show-row-totals false :show-column-totals false} (pivot-of (qp.pivot/apply-legacy-pivot-keys q-snake)))))))
+      (is (=? {:show-row-totals true  :show-subtotals true :show-grand-totals true}  (pivot-of (qp.pivot/apply-legacy-pivot-keys q-defaults))))
+      (is (=? {:show-row-totals false :show-subtotals false :show-grand-totals false} (pivot-of (qp.pivot/apply-legacy-pivot-keys q-kebab))))
+      (is (=? {:show-row-totals false :show-subtotals false :show-grand-totals false} (pivot-of (qp.pivot/apply-legacy-pivot-keys q-snake)))))))
 
 (deftest ^:parallel apply-legacy-pivot-keys-drops-out-of-range-indices-test
   (testing "out-of-range indices are silently dropped (matching legacy)"
@@ -381,16 +386,20 @@
       (is (nil? (:pivot out))))))
 
 (deftest ^:parallel apply-legacy-pivot-keys-strips-all-legacy-keys-test
-  (testing "all 10 legacy key variants are stripped, including :pivot-measures"
+  (testing "all legacy key variants are stripped, including :pivot-measures"
     (let [q   (two-breakout-query-with-legacy-pivot-keys {:pivot-rows [0] :pivot_rows [0]
                                                           :pivot-cols [1] :pivot_cols [1]
                                                           :pivot-measures [0] :pivot_measures [0]
                                                           :show-row-totals true :show_row_totals true
+                                                          :show-subtotals true :show_subtotals true
+                                                          :show-grand-totals true :show_grand_totals true
                                                           :show-column-totals true :show_column_totals true})
           out (qp.pivot/apply-legacy-pivot-keys q)]
       (doseq [k [:pivot-rows :pivot_rows :pivot-cols :pivot_cols
                  :pivot-measures :pivot_measures
                  :show-row-totals :show_row_totals
+                 :show-subtotals :show_subtotals
+                 :show-grand-totals :show_grand_totals
                  :show-column-totals :show_column_totals]]
         (testing (str "stripped: " k)
           (is (not (contains? out k))))))))
@@ -398,7 +407,7 @@
 (deftest ^:parallel apply-legacy-pivot-keys-noop-when-pivot-already-present-test
   (testing "existing :pivot on the last stage is preserved; legacy keys still get stripped"
     (let [q        (two-breakout-query)
-          existing {:rows [(breakout-uuid q 0)] :columns [] :show-row-totals false :show-column-totals false}
+          existing {:rows [(breakout-uuid q 0)] :columns [] :show-row-totals false :show-subtotals false :show-grand-totals false}
           input    (-> q
                        (lib.util/update-query-stage -1 assoc :pivot existing)
                        (assoc :pivot-rows [1] :pivot-cols [0]))
@@ -822,14 +831,15 @@
                                 :columns ["CREATED_AT"]}}
                 pivot-options (#'qp.pivot/pivot-options query viz-settings)]
             (is (= {:pivot-rows [0], :pivot-cols [1] :pivot-measures nil :column-sort-order {},
-                    :show-row-totals true, :show-column-totals true}
+                    :show-row-totals true, :show-subtotals true, :show-grand-totals true}
                    pivot-options))
             (is (= [[0 1] [1] [0] []]
                    (#'qp.pivot/breakout-combinations 2
                                                      (:pivot-rows pivot-options)
                                                      (:pivot-cols pivot-options)
                                                      (:show-row-totals pivot-options)
-                                                     (:show-column-totals pivot-options))))
+                                                     (:show-subtotals pivot-options)
+                                                     (:show-grand-totals pivot-options))))
             (is (=? {:status    :completed
                      :row_count 156
                      :data {:cols [{:lib/desired-column-alias "CATEGORY"}
@@ -1319,7 +1329,7 @@
                         :table.columns nil}]
       ;; Without deduplication, :pivot-rows' value would be just [0].
       (is (= {:pivot-rows [0 1], :pivot-cols nil, :pivot-measures [2],
-              :show-row-totals true, :show-column-totals true}
+              :show-row-totals true, :show-subtotals true, :show-grand-totals true}
              (#'qp.pivot/column-name-pivot-options query viz-settings))))))
 
 (deftest ^:parallel horrible-pivot-test
@@ -1528,27 +1538,49 @@
       (is (=? {:status :completed}
               (qp.pivot/run-pivot-query (qp.pivot.test-util/filters-query)))))))
 
+(deftest ^:parallel breakout-combinations-test-subtotals-only
+  (testing "Subtotals on and grand totals off keeps intermediate subtotals but drops grand-total sets"
+    (is (= [[0 1 2] [0 2] [0 1] [0]]
+           (#'qp.pivot/breakout-combinations 3 [0 1] [2] true true false)))))
+
+(deftest ^:parallel breakout-combinations-test-grand-totals-only
+  (testing "Grand totals on and subtotals off keeps grand-total sets but drops intermediate subtotals"
+    (is (= [[0 1 2] [2] [0 1] []]
+           (#'qp.pivot/breakout-combinations 3 [0 1] [2] true false true)))))
+
 (deftest ^:parallel show-totals-flags-test
-  (testing "show-row-totals / show-column-totals flags select which grouping sets are returned end-to-end"
+  (testing "show-row-totals / show-subtotals / show-grand-totals flags select which grouping sets are returned end-to-end"
     (mt/test-drivers (qp.pivot.test-util/applicable-drivers)
       (let [base      (qp.pivot.test-util/pivot-query false)
-            run       (fn [r? c?]
+            run       (fn [r? s? g?]
                         (qp.pivot/run-pivot-query
                          (merge base {:pivot-rows         [1 0]
                                       :pivot-cols         [2]
                                       :show-row-totals    r?
-                                      :show-column-totals c?})))
+                                      :show-subtotals     s?
+                                      :show-grand-totals  g?})))
+            ;; Legacy combined flag still hides both when split keys are absent.
+            run-legacy (fn [r? c?]
+                         (qp.pivot/run-pivot-query
+                          (merge base {:pivot-rows         [1 0]
+                                       :pivot-cols         [2]
+                                       :show-row-totals    r?
+                                       :show-column-totals c?})))
             groupings (fn [result] (into #{} (map #(nth % 3)) (mt/rows result)))]
         ;; For 3 breakouts with `:pivot-rows [1 0] :pivot-cols [2]`, breakout-combinations produces six grouping
-        ;; sets selectively driven by the two totals flags. The pivot-grouping bitmask values for each:
-        (testing "both totals on → all six grouping sets present"
-          (is (= #{0 1 3 4 5 7} (groupings (run true true)))))
-        (testing "show-column-totals false → subtotal-row and grand-total sets absent"
-          (is (= #{0 4} (groupings (run true false)))))
+        ;; sets selectively driven by the totals flags. The pivot-grouping bitmask values for each:
+        (testing "all totals on → all six grouping sets present"
+          (is (= #{0 1 3 4 5 7} (groupings (run true true true)))))
+        (testing "legacy show-column-totals false → subtotal-row and grand-total sets absent"
+          (is (= #{0 4} (groupings (run-legacy true false)))))
+        (testing "subtotals off, grand totals on → grand-total sets present, subtotals absent"
+          (is (= #{0 3 4 7} (groupings (run true false true)))))
+        (testing "subtotals on, grand totals off → subtotals present, grand-total sets absent"
+          (is (= #{0 1 4 5} (groupings (run true true false)))))
         (testing "show-row-totals false → row-totals column and its subtotals absent"
-          (is (= #{0 1 3} (groupings (run false true)))))
-        (testing "both totals off → only the detail grouping set"
-          (is (= #{0} (groupings (run false false)))))))))
+          (is (= #{0 1 3} (groupings (run false true true)))))
+        (testing "all totals off → only the detail grouping set"
+          (is (= #{0} (groupings (run false false false)))))))))
 
 (deftest ^:parallel pivoting-same-name-breakouts-end-to-end-test
   (testing "Pivot queries with same-named breakout columns produce results with both columns intact (#52769)"

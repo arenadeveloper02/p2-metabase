@@ -86,6 +86,8 @@
                                                [:pivot-cols         {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
                                                [:pivot-measures     {:optional true} [:maybe [:sequential [:int {:min 0}]]]]
                                                [:show-row-totals    {:optional true} :boolean]
+                                               [:show-subtotals     {:optional true} :boolean]
+                                               [:show-grand-totals  {:optional true} :boolean]
                                                [:show-column-totals {:optional true} :boolean]
                                                [:column-sort-order  {:optional true} [:maybe [:multi {:dispatch map?}
                                                                                               [true  [:map-of [:maybe [:int {:min 0}]] [:maybe :keyword]]]
