@@ -34,9 +34,10 @@ describe("getPickerColorAlias", () => {
 });
 
 describe("createHexToAccentNumberMap", () => {
-  it("should not throw when leftover accent8 aliases are absent from the palette", () => {
+  it("should include accent8+ hexes in the accent number map", () => {
     expect(() => createHexToAccentNumberMap()).not.toThrow();
     const map = createHexToAccentNumberMap();
     expect(map.size).toBeGreaterThan(0);
+    expect([...map.values()]).toEqual(expect.arrayContaining(["8", "13"]));
   });
 });

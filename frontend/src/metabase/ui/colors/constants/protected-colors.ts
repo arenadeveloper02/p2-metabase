@@ -26,6 +26,12 @@ export const PROTECTED_COLORS = [
   "accent5",
   "accent6",
   "accent7",
+  "accent8",
+  "accent9",
+  "accent10",
+  "accent11",
+  "accent12",
+  "accent13",
 
   // Grey accent colors
   "accent-gray",

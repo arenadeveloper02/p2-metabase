@@ -218,4 +218,10 @@ export type ProtectedColorKey =
   | "accent4"
   | "accent5"
   | "accent6"
-  | "accent7";
+  | "accent7"
+  | "accent8"
+  | "accent9"
+  | "accent10"
+  | "accent11"
+  | "accent12"
+  | "accent13";

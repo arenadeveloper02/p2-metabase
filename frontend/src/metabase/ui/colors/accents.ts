@@ -10,7 +10,7 @@ import type { ChartColorV2 } from "./types";
 import type { MetabaseAccentColorKey } from "./types/color-keys";
 
 /**
- * Transforms chartColors array into accent0 - accent7.
+ * Transforms chartColors array into accent0–accent13 (+ accent-gray).
  * This makes defining chart colors a little bit nicer.
  *
  * Each chart color can be:
@@ -24,35 +24,40 @@ export function mapChartColorsToAccents(
 ): Partial<Record<MetabaseAccentColorKey, string>> {
   const mappedColors: Partial<Record<MetabaseAccentColorKey, string>> = {};
 
-  chartColors.slice(0, 9).forEach((color, index) => {
-    if (!color) {
-      return;
-    }
+  chartColors
+    .slice(0, ACCENT_COLOR_NAMES_MAP.length)
+    .forEach((color, index) => {
+      if (!color) {
+        return;
+      }
 
-    const accentKeys = ACCENT_COLOR_NAMES_MAP[index];
+      const accentKeys = ACCENT_COLOR_NAMES_MAP[index];
+      if (!accentKeys) {
+        return;
+      }
 
-    if (typeof color === "string") {
-      mappedColors[accentKeys.base] = color;
+      if (typeof color === "string") {
+        mappedColors[accentKeys.base] = color;
 
-      // Derive tint and shade when only base color is provided.
-      // Previously, we relied on the color aliases in `lib/colors/palette.ts`,
-      // but this color is defined directly in Mantine now.
-      mappedColors[accentKeys.tint] = deriveChartTintColor(color);
-      mappedColors[accentKeys.shade] = deriveChartShadeColor(color);
+        // Derive tint and shade when only base color is provided.
+        // Previously, we relied on the color aliases in `lib/colors/palette.ts`,
+        // but this color is defined directly in Mantine now.
+        mappedColors[accentKeys.tint] = deriveChartTintColor(color);
+        mappedColors[accentKeys.shade] = deriveChartShadeColor(color);
 
-      return;
-    }
+        return;
+      }
 
-    if (typeof color === "object") {
-      mappedColors[accentKeys.base] = color.base;
+      if (typeof color === "object") {
+        mappedColors[accentKeys.base] = color.base;
 
-      // Use provided tint/shade or derive from base
-      mappedColors[accentKeys.tint] =
-        color.tint ?? deriveChartTintColor(color.base);
-      mappedColors[accentKeys.shade] =
-        color.shade ?? deriveChartShadeColor(color.base);
-    }
-  });
+        // Use provided tint/shade or derive from base
+        mappedColors[accentKeys.tint] =
+          color.tint ?? deriveChartTintColor(color.base);
+        mappedColors[accentKeys.shade] =
+          color.shade ?? deriveChartShadeColor(color.base);
+      }
+    });
 
   return mappedColors;
 }

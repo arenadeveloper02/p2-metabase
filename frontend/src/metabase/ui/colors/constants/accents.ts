@@ -15,6 +15,12 @@ export const ACCENT_COLOR_NAMES_MAP = [
   { base: "accent5", tint: "accent5-light", shade: "accent5-dark" },
   { base: "accent6", tint: "accent6-light", shade: "accent6-dark" },
   { base: "accent7", tint: "accent7-light", shade: "accent7-dark" },
+  { base: "accent8", tint: "accent8-light", shade: "accent8-dark" },
+  { base: "accent9", tint: "accent9-light", shade: "accent9-dark" },
+  { base: "accent10", tint: "accent10-light", shade: "accent10-dark" },
+  { base: "accent11", tint: "accent11-light", shade: "accent11-dark" },
+  { base: "accent12", tint: "accent12-light", shade: "accent12-dark" },
+  { base: "accent13", tint: "accent13-light", shade: "accent13-dark" },
   { base: "accent-gray", tint: "accent-gray-light", shade: "accent-gray-dark" },
 ] as const satisfies ChartColorV2[];
 

@@ -322,9 +322,11 @@ describe("useEmbeddingThemeEditor", () => {
         Color(BRAND).hue(359).lightness(50).hex().toLowerCase(),
       );
 
-      // Charts: brand verbatim at index 0, then 45° rotations clockwise.
+      // Charts: brand verbatim at index 0, then 45° rotations for accent1–7,
+      // then designed default accents (accent8–13).
       const charts = colors?.charts as string[];
-      expect(charts).toHaveLength(8);
+      const expected = suggestHarmonyColors(BRAND).charts;
+      expect(charts).toHaveLength(expected.length);
       expect(charts[0]).toBe(BRAND.toLowerCase());
       for (let i = 1; i < 8; i++) {
         expect(charts[i]).toBe(
@@ -334,6 +336,7 @@ describe("useEmbeddingThemeEditor", () => {
             .toLowerCase(),
         );
       }
+      expect(charts.slice(8)).toEqual(expected.slice(8));
     });
   });
 

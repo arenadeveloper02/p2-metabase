@@ -14,6 +14,9 @@ const POSITIVE_HUE = 89;
 const NEGATIVE_HUE = 359;
 const POSITIVE_NEGATIVE_LIGHTNESS = 50;
 
+/** Brand-derived octagonal slots (accent0–accent7); remaining accents use defaults. */
+const BRAND_HARMONY_CHART_COUNT = 8;
+
 export interface HarmonyColors {
   filter: string;
   summarize: string;
@@ -26,17 +29,19 @@ const toHex = (c: ColorInstance) => c.hex().toLowerCase();
 
 const normalize = (cssColor: string) => toHex(Color(cssColor));
 
+const DEFAULT_CHART_BASES = DEFAULT_ACCENT_COLORS.flatMap((c) => {
+  if (c == null) {
+    return [];
+  }
+  return [normalize(typeof c === "string" ? c : c.base)];
+});
+
 const FALLBACK: HarmonyColors = {
   filter: normalize(METABASE_LIGHT_THEME.colors.filter),
   summarize: normalize(METABASE_LIGHT_THEME.colors.summarize),
   positive: normalize(METABASE_LIGHT_THEME.colors["feedback-positive"]),
   negative: normalize(METABASE_LIGHT_THEME.colors["feedback-negative"]),
-  charts: DEFAULT_ACCENT_COLORS.flatMap((c) => {
-    if (c == null) {
-      return [];
-    }
-    return [normalize(typeof c === "string" ? c : c.base)];
-  }),
+  charts: DEFAULT_CHART_BASES,
 };
 Object.freeze(FALLBACK);
 Object.freeze(FALLBACK.charts);
@@ -45,7 +50,7 @@ const rotated = (brand: ColorInstance, degrees: number) =>
   toHex(brand.rotate(degrees));
 
 /**
- * Derives accessory colors and an 8-color chart palette from a brand color.
+ * Derives accessory colors and a chart palette from a brand color.
  *
  * - `filter` and `summarize` use the square color harmony (brand ±90°), preserving
  *   the brand's lightness so they read at the same visual weight.
@@ -53,6 +58,7 @@ const rotated = (brand: ColorInstance, degrees: number) =>
  *   keeping the brand's saturation so they fit the palette tonally.
  * - `charts[0]` is the brand color itself; `charts[1..7]` follow the octagonal
  *   color harmony at 45° increments, each preserving the brand's lightness.
+ * - `charts[8..]` keep the designed default accent hues (accent8–accent13).
  *
  * If the brand color's HSL saturation is below ~20%, returns a fixed default
  * palette regardless — rotations off a near-grey hue produce visually
@@ -65,10 +71,17 @@ export const suggestHarmonyColors = (brand: string): HarmonyColors => {
     return FALLBACK;
   }
 
-  const charts = [
+  const brandCharts = [
     toHex(brandColor),
-    ...Array.from({ length: 7 }, (_, i) => rotated(brandColor, (i + 1) * 45)),
+    ...Array.from({ length: BRAND_HARMONY_CHART_COUNT - 1 }, (_, i) =>
+      rotated(brandColor, (i + 1) * 45),
+    ),
   ];
+
+  const charts = Array.from(
+    { length: DEFAULT_CHART_BASES.length },
+    (_, i) => brandCharts[i] ?? DEFAULT_CHART_BASES[i] ?? toHex(brandColor),
+  );
 
   return {
     filter: rotated(brandColor, FILTER_HUE_OFFSET),

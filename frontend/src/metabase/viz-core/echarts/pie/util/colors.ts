@@ -42,7 +42,7 @@ export function createHexToAccentNumberMap() {
     try {
       hexToAccentNumber.set(hexGetter(colors).toUpperCase(), accentKey);
     } catch {
-      // Skip aliases whose base color was removed (e.g. accent8-light).
+      // Skip aliases whose base color is missing from the palette.
     }
   }
 

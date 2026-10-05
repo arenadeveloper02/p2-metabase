@@ -59,20 +59,24 @@ describe("mapChartColorsToAccents", () => {
     });
   });
 
-  it("only maps the first 9 colors (8 + grey)", () => {
-    const manyColors = Array.from({ length: 12 }, () => "#FF0000");
+  it("maps accent0–accent13 plus grey (15 slots)", () => {
+    const manyColors = Array.from({ length: 20 }, () => "#FF0000");
     const result = mapChartColorsToAccents(manyColors);
 
-    // 9 base + 9 tint + 9 shade = 27 keys
-    expect(Object.keys(result)).toHaveLength(27);
+    // 15 base + 15 tint + 15 shade = 45 keys
+    expect(Object.keys(result)).toHaveLength(45);
 
-    // accent8 should not exist
-    expect(result).not.toHaveProperty("accent8");
-    expect(result).not.toHaveProperty("accent8-light");
+    expect(result).toHaveProperty("accent8");
+    expect(result).toHaveProperty("accent8-light");
+    expect(result).toHaveProperty("accent13");
+    expect(result).toHaveProperty("accent13-dark");
 
-    // gray should exist
+    // gray should exist as the last slot
     expect(result).toHaveProperty("accent-gray");
     expect(result).toHaveProperty("accent-gray-light");
+
+    // beyond the name map is ignored
+    expect(result).not.toHaveProperty("accent14");
   });
 
   it("skips all variants if color at index is null", () => {

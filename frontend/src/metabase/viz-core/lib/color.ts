@@ -10,7 +10,7 @@ export function getHexColor(color: string) {
     try {
       return Color(candidate).hex();
     } catch {
-      // Named tokens like leftover "accent8" are not CSS colors.
+      // Named tokens that are not CSS colors fall through to the next candidate.
     }
   }
   return Color(paletteColor("accent0")).hex();

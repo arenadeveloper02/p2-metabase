@@ -22,10 +22,11 @@ describe("palette", () => {
     expect(color("accent1-light")).toBeDefined();
   });
 
-  it("should not expose aliases for removed accent8+ colors", () => {
-    expect(() => color("accent8-light")).not.toThrow();
-    expect(color("accent8-light")).toBe("accent8-light");
-    expect(color("accent8")).toBe("accent8");
+  it("should resolve accent8–accent13 from the palette", () => {
+    expect(color("accent8")).toMatch(/^#/i);
+    expect(color("accent8-light")).toMatch(/^#/i);
+    expect(color("accent13")).toMatch(/^#/i);
+    expect(color("accent13-dark")).toMatch(/^#/i);
   });
 });
 

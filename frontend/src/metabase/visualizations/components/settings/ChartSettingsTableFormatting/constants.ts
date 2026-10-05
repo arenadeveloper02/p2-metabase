@@ -1,14 +1,19 @@
 import {
   getAccentColors,
   getStatusColorRanges,
+  getStatusColors,
 } from "metabase/ui/colors/groups";
 import type {
   ColumnRangeFormattingSetting,
   ColumnSingleFormattingSetting,
 } from "metabase-types/api";
 
-// TODO
-export const COLORS = getAccentColors({ dark: false });
+/** Full accent palette (accent0–13 × base/light/dark + gray) plus status colors. */
+export const COLORS = Array.from(
+  new Set(
+    [...getAccentColors(), ...getStatusColors()].map((c) => c.toUpperCase()),
+  ),
+);
 export const COLOR_RANGES = getStatusColorRanges();
 
 export const DEFAULTS_BY_TYPE: {

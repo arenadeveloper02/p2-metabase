@@ -15,11 +15,12 @@ describe("suggestHarmonyColors", () => {
     });
   });
 
-  describe("chart colors (octagonal harmony)", () => {
+  describe("chart colors (octagonal harmony + default accents)", () => {
     const result = suggestHarmonyColors(BRAND);
 
-    it("returns 8 chart colors", () => {
-      expect(result.charts).toHaveLength(8);
+    it("returns ACCENT_COUNT chart colors", () => {
+      expect(result.charts).toHaveLength(DEFAULT_HARMONY_COLORS.charts.length);
+      expect(result.charts.length).toBeGreaterThanOrEqual(14);
     });
 
     it("uses the brand color verbatim for chart[0]", () => {
@@ -28,7 +29,7 @@ describe("suggestHarmonyColors", () => {
 
     it("places chart[1..7] at 45° increments from the brand hue", () => {
       const brandHue = Color(BRAND).hue();
-      result.charts.slice(1).forEach((chart, i) => {
+      result.charts.slice(1, 8).forEach((chart, i) => {
         const expectedHue = (brandHue + (i + 1) * 45) % 360;
         const actualHue = Color(chart).hue();
         expect(Math.abs(actualHue - expectedHue)).toBeLessThan(1);
@@ -37,11 +38,17 @@ describe("suggestHarmonyColors", () => {
 
     it("preserves brand saturation and lightness across chart[1..7]", () => {
       const brand = Color(BRAND);
-      result.charts.slice(1).forEach((chart) => {
+      result.charts.slice(1, 8).forEach((chart) => {
         const c = Color(chart);
         expect(Math.abs(c.saturationl() - brand.saturationl())).toBeLessThan(1);
         expect(Math.abs(c.lightness() - brand.lightness())).toBeLessThan(1);
       });
+    });
+
+    it("keeps designed default hues for chart[8..]", () => {
+      expect(result.charts.slice(8)).toEqual(
+        DEFAULT_HARMONY_COLORS.charts.slice(8),
+      );
     });
   });
 
