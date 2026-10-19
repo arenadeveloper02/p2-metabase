@@ -14,6 +14,13 @@ import { isWithinIframe } from "metabase/utils/iframe";
 
 import { EmbedFrame } from "../../components/EmbedFrame";
 
+import { EmbeddedDashboardWorkspace } from "./analytics-assistant/EmbeddedDashboardWorkspace";
+import {
+  analyticsAssistantEndpoint,
+  embeddedDashboardToken,
+  publicDashboardUuid,
+} from "./analytics-assistant/constants";
+
 export function PublicOrEmbeddedDashboardView() {
   const {
     setParameterValue,
@@ -61,8 +68,15 @@ export function PublicOrEmbeddedDashboardView() {
   });
 
   const isCompactHeader = !titled && !hasVisibleParameters && !dashboardHasTabs;
+  const embedToken = embeddedDashboardToken(window.location.pathname);
+  const publicUuid = publicDashboardUuid(window.location.pathname);
+  const assistantEndpoint = embedToken
+    ? analyticsAssistantEndpoint({ token: embedToken })
+    : publicUuid
+      ? analyticsAssistantEndpoint({ uuid: publicUuid })
+      : null;
 
-  return (
+  const frame = (
     <EmbedFrame
       name={dashboard && dashboard.name}
       description={dashboard && dashboard.description}
@@ -93,6 +107,21 @@ export function PublicOrEmbeddedDashboardView() {
         <Dashboard.Grid />
       </FullWidthContainer>
     </EmbedFrame>
+  );
+
+  if (!assistantEndpoint || dashboard == null) {
+    return frame;
+  }
+
+  return (
+    <EmbeddedDashboardWorkspace
+      endpoint={assistantEndpoint}
+      dashboardId={dashboard.id}
+      dashboardName={dashboard.name}
+      selectedTabId={typeof selectedTabId === "number" ? selectedTabId : null}
+    >
+      {frame}
+    </EmbeddedDashboardWorkspace>
   );
 }
 

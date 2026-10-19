@@ -1,0 +1,55 @@
+.workspace {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dashboard {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.ask {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 400;
+  box-shadow: 0 2px 8px var(--mb-color-shadow);
+}
+
+.panel {
+  flex: 0 0 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panelOpen {
+  flex: 0 0 35%;
+  width: 35%;
+  max-width: 50%;
+  min-width: 280px;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--mb-color-border);
+}
+
+@media (max-width: 64em) {
+  .workspace {
+    flex-direction: column;
+  }
+
+  .panelOpen {
+    flex: 0 0 42%;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid var(--mb-color-border);
+  }
+}

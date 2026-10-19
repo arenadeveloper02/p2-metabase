@@ -341,6 +341,21 @@
   (u/prog1 (dashboard-with-uuid uuid)
     (events/publish-event! :event/dashboard-read {:object-id (:id <>), :user-id api/*current-user-id*})))
 
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :post "/dashboard/:uuid/analytics-assistant"
+  "Stream a public dashboard analytics question through the prod Arena assistant.
+  The client sends the assistant input. This endpoint adds the server-side API key and posts to Sim."
+  [{:keys [uuid]} :- [:map {:closed true}
+                      [:uuid ms/UUIDString]]
+   _query-params
+   body :- public-sharing/analytics-assistant-request-schema]
+  (public-sharing.validation/check-public-sharing-enabled)
+  (let [dashboard-id (api/check-404 (public-sharing/public-uuid->id :model/Dashboard uuid))]
+    (public-sharing/analytics-assistant-response dashboard-id body)))
+
 (defn process-query-for-dashcard
   "Return the results of running a query for pre-loaded Card `card` on pre-loaded DashboardCard `dashcard` belonging to
   pre-loaded Dashboard `dashboard`.

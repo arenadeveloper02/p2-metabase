@@ -954,7 +954,7 @@
            server
            settings
            util}
-   :model-imports #{:model/Card :model/Dashboard}
+   :model-imports #{:model/Card :model/Dashboard :model/DashboardTab}
    :model-exports #{:model/EmbeddingTheme}}
 
 
@@ -972,6 +972,7 @@
            models
            notification
            parameters
+           public-sharing
            public-sharing.rest
            queries
            query-processor
@@ -1960,6 +1961,7 @@
            metabase.public-sharing.init
            metabase.public-sharing.validation}
    :uses #{api
+           server
            settings
            util}
    :model-imports #{:model/Action

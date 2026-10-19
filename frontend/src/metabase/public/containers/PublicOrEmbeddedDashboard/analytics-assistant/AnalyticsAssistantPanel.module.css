@@ -1,0 +1,87 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--mb-color-bg-primary);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--mb-color-border);
+}
+
+.title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--mb-color-text-primary);
+}
+
+.dashboardName {
+  margin: 0.25rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mb-color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.intro {
+  margin: 0;
+  color: var(--mb-color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.user,
+.assistant {
+  max-width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.user {
+  align-self: flex-end;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--mb-color-bg-medium);
+  color: var(--mb-color-text-primary);
+}
+
+.thinking {
+  margin-bottom: 0.5rem;
+  color: var(--mb-color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.thinking summary {
+  cursor: pointer;
+}
+
+.form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding: 0.75rem;
+  border-top: 1px solid var(--mb-color-border);
+}
+
+.input {
+  flex: 1 1 auto;
+}

@@ -25,6 +25,7 @@
    [metabase.embedding.models.embed-dashboard-tab-preference :as embed-dashboard-tab-preference]
    [metabase.events.core :as events]
    [metabase.parameters.schema :as parameters.schema]
+   [metabase.public-sharing.core :as public-sharing]
    [metabase.query-processor.card :as qp.card]
    [metabase.query-processor.middleware.constraints :as qp.constraints]
    [metabase.query-processor.pivot :as qp.pivot]
@@ -213,6 +214,23 @@
         dashboard    (api/check-404 (embedding-rest.db/dashboard dashboard-id))]
     (api.embed.common/check-embedding-enabled-for-dashboard dashboard)
     (embed-dashboard-tab-preference/set-preference! external_user_id dashboard-id tab_id)))
+
+;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
+;; use our API + we will need it when we make auto-TypeScript-signature generation happen
+;;
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :post "/dashboard/:token/analytics-assistant"
+  "Stream an embedded dashboard analytics question through the prod Arena assistant.
+  The client sends the assistant input. This endpoint adds the server-side API key and posts to Sim."
+  [{:keys [token]} :- [:map {:closed true}
+                       [:token api.embed.common/EncodedToken]]
+   _query-params
+   body :- public-sharing/analytics-assistant-request-schema]
+  (let [unsigned (unsign-and-translate-ids token)
+        dashboard-id (api.embed.common/unsigned-token->dashboard-id unsigned)
+        dashboard (api/check-404 (embedding-rest.db/dashboard-embedding-flags dashboard-id))]
+    (api.embed.common/check-embedding-enabled-for-dashboard dashboard)
+    (public-sharing/analytics-assistant-response dashboard-id body)))
 
 (defn- process-query-for-dashcard-with-signed-token
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the

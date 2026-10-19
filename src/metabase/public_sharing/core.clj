@@ -1,6 +1,7 @@
 (ns metabase.public-sharing.core
   (:require
    [medley.core :as m]
+   [metabase.public-sharing.analytics-assistant :as public-sharing.assistant]
    [metabase.public-sharing.db :as public-sharing.db]
    [metabase.public-sharing.settings :as public-sharing.settings]
    [toucan2.core :as t2]))
@@ -88,3 +89,13 @@
                        :model/Action    (public-sharing.db/unarchived-actions-by-public-uuid-prefix prefix)
                        :model/Document  (public-sharing.db/unarchived-documents-by-public-uuid-prefix prefix))]
       (m/find-first #(= uuid (:public_uuid %)) candidates))))
+
+(def analytics-assistant-request-schema
+  "Malli schema for [[analytics-assistant-response]]."
+  public-sharing.assistant/request-body-schema)
+
+(defn analytics-assistant-response
+  "Stream the prod Arena analytics assistant for dashboard `dashboard-id`.
+  `body` is the client payload. The Sim API key stays in this process."
+  [dashboard-id body]
+  (public-sharing.assistant/respond! dashboard-id body))
