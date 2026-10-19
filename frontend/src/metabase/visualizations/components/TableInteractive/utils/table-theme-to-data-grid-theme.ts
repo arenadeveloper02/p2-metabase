@@ -11,6 +11,7 @@ export function tableThemeToDataGridTheme(
     stickyBackgroundColor:
       tableTheme.stickyBackgroundColor ??
       "var(--mb-color-background_page-secondary)",
+    stripedBackgroundColor: tableTheme.stripedBackgroundColor,
     fontSize: resolveFontSizeToPx(tableTheme.cell.fontSize, baseFontSize),
     cell: {
       backgroundColor:

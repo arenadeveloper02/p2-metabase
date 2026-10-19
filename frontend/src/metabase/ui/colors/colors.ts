@@ -32,4 +32,5 @@ export const staticVizOverrides = {
   "text-primary": ds.light.textPrimary,
   "text-secondary": ds.light.textSecondary,
   "text-disabled": ds.light.textMuted,
+  "chart-axis": ds.light.textMuted,
 };

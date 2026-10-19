@@ -1,7 +1,7 @@
 import Color from "color";
 
 import { DEFAULT_ACCENT_COLORS } from "./constants/accent-colors";
-import { METABASE_LIGHT_THEME } from "./constants/themes/light";
+import { getLightTheme } from "./constants/themes/light";
 
 type ColorInstance = ReturnType<typeof Color>;
 
@@ -36,11 +36,13 @@ const DEFAULT_CHART_BASES = DEFAULT_ACCENT_COLORS.flatMap((c) => {
   return [normalize(typeof c === "string" ? c : c.base)];
 });
 
+const lightTheme = getLightTheme();
+
 const FALLBACK: HarmonyColors = {
-  filter: normalize(METABASE_LIGHT_THEME.colors.filter),
-  summarize: normalize(METABASE_LIGHT_THEME.colors.summarize),
-  positive: normalize(METABASE_LIGHT_THEME.colors["feedback-positive"]),
-  negative: normalize(METABASE_LIGHT_THEME.colors["feedback-negative"]),
+  filter: normalize(lightTheme.colors["core-filter"]),
+  summarize: normalize(lightTheme.colors["core-summarize"]),
+  positive: normalize(lightTheme.colors["feedback-positive"]),
+  negative: normalize(lightTheme.colors["feedback-negative"]),
   charts: DEFAULT_CHART_BASES,
 };
 Object.freeze(FALLBACK);

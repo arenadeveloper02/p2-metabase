@@ -145,12 +145,9 @@
                   ;; `:if` is an alias for `:case`. Then/default branches may be
                   ;; scalar literals, so walk each form rather than seqing it.
                   (if (#{:case :if} tag)
-                    (let [[pairs default] args]
-                      (or (some (fn [pair]
-                                  (when (sequential? pair)
-                                    (some walk pair)))
-                                pairs)
-                          (walk default)))
+                    (let [[pairs fallback] args]
+                      (or (some walk (eduction cat pairs))
+                          (walk fallback)))
                     (some walk args)))))]
     (walk x)))
 

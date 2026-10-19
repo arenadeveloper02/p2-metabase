@@ -1,5 +1,5 @@
-import { METABASE_DARK_THEME } from "./dark";
-import { METABASE_LIGHT_THEME } from "./light";
+import { getDarkTheme } from "./dark";
+import { getLightTheme } from "./light";
 
 // Static viz renders on the server and feeds every theme color straight into
 // the `color` library, which only parses literals. Anything the browser would
@@ -17,8 +17,8 @@ const isWhitelabelDerived = (value: string) =>
   WHITELABEL_COLOR_KEYS.some((key) => value.includes(`var(--mb-color-${key})`));
 
 describe.each([
-  ["light", METABASE_LIGHT_THEME],
-  ["dark", METABASE_DARK_THEME],
+  ["light", getLightTheme()],
+  ["dark", getDarkTheme()],
 ])("%s theme", (_name, theme) => {
   it("should define every non-whitelabel color as a literal value", () => {
     const offenders = Object.entries(theme.colors)
@@ -32,20 +32,24 @@ describe.each([
 
 describe("Sim DS semantic mapping", () => {
   it("uses Sim neutrals and Metabase default brand in light", () => {
-    expect(METABASE_LIGHT_THEME.colors["text-primary"]).toBe("#1A1A1A");
-    expect(METABASE_LIGHT_THEME.colors["background_page-primary"]).toBe(
-      "#FEFEFE",
+    const colors = getLightTheme().colors;
+    expect(colors["text-primary"]).toBe("#1A1A1A");
+    expect(colors["background_page-primary"]).toBe("#FEFEFE");
+    expect(colors["border-neutral"]).toBe("#DEDEDE");
+    expect(colors["core-brand"]).toBe("hsla(208, 72%, 60%, 1.00)");
+    expect(colors["button-filled-brand-default"]).toBe(
+      "color-mix(in srgb, var(--mb-color-core-brand), black 28%)",
     );
-    expect(METABASE_LIGHT_THEME.colors["border-neutral"]).toBe("#DEDEDE");
-    expect(METABASE_LIGHT_THEME.colors.brand).toBe("hsla(208, 72%, 60%, 1.00)");
   });
 
   it("uses Sim neutrals and Metabase default brand in dark", () => {
-    expect(METABASE_DARK_THEME.colors["text-primary"]).toBe("#E6E6E6");
-    expect(METABASE_DARK_THEME.colors["background_page-primary"]).toBe(
-      "#1B1B1B",
+    const colors = getDarkTheme().colors;
+    expect(colors["text-primary"]).toBe("#E6E6E6");
+    expect(colors["background_page-primary"]).toBe("#1B1B1B");
+    expect(colors["border-neutral"]).toBe("#444444");
+    expect(colors["core-brand"]).toBe("hsla(208, 72%, 60%, 1.00)");
+    expect(colors["button-filled-brand-default"]).toBe(
+      "color-mix(in srgb, var(--mb-color-core-brand), white 70%)",
     );
-    expect(METABASE_DARK_THEME.colors["border-neutral"]).toBe("#444444");
-    expect(METABASE_DARK_THEME.colors.brand).toBe("hsla(208, 72%, 60%, 1.00)");
   });
 });

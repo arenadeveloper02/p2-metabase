@@ -36,15 +36,8 @@ import { PIE_CHART_DEFINITION } from "./definition";
 import { useChartEvents } from "./use-chart-events";
 
 function PieChartComponent(props: VisualizationProps) {
-  const {
-    fontFamily,
-    rawSeries,
-    settings,
-    onRender,
-    isDashboard,
-    isDocument,
-    isFullscreen,
-  } = props;
+  const { fontFamily, rawSeries, settings, onRender, isDashboard, isDocument } =
+    props;
   const hoveredIndex = props.hovered?.index;
   const hoveredSliceKeyPath = props.hovered?.pieSliceKeyPath;
 
@@ -68,7 +61,6 @@ function PieChartComponent(props: VisualizationProps) {
   const renderingContext = useBrowserRenderingContext({
     fontFamily,
     isDashboard,
-    isFullscreen,
   });
   const rawSeriesWithRemappings = useMemo(
     () => extractRemappings(rawSeries) || [],

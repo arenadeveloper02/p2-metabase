@@ -24,5 +24,5 @@
           pivot    (get-in query [:middleware :pivot?])
           metadata (cond-> metadata
                      opts  (assoc :pivot-export-options opts)
-                     pivot (assoc :pivot? pivot))]
+                     (and pivot opts) (assoc :pivot? pivot))]
       (rff metadata))))

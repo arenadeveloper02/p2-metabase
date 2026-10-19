@@ -89,7 +89,7 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
     },
     splitLine: {
       lineStyle: {
-        color: "var(--mb-color-cartesian-grid-line)",
+        color: "var(--mb-color-chart-axis)",
       },
     },
   },

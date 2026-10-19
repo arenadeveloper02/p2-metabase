@@ -1,35 +1,59 @@
 import cx from "classnames";
 
 import type { PillSize } from "metabase/common/components/ColorPill";
-import { ColorSelector } from "metabase/common/components/ColorSelector";
+import {
+  ColorSelector,
+  type ColorSelectorOption,
+} from "metabase/common/components/ColorSelector";
 import CS from "metabase/css/core/index.css";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import { Box } from "metabase/ui";
-import { getAccentColors, getStatusColors, getNamedAccentColors } from "metabase/ui/colors/groups";
+import { Box, Title } from "metabase/ui";
+import {
+  getNamedAccentColors,
+  getStatusColors,
+} from "metabase/ui/colors/groups";
 import type { AccentColorOptions } from "metabase/ui/colors/types";
+
+import S from "./ChartSettingColorPicker.module.css";
 
 interface ChartSettingColorPickerProps {
   className?: string;
   value: string;
   title?: string;
   pillSize?: PillSize;
+  bordered?: boolean;
   /**
    * Reports the palette color name of the picked color to onChange. Off by
    * default because the settings widget framework treats the second onChange
    * argument as a Question override.
    */
   forwardColorName?: boolean;
+  /**
+   * Must be false when the picker is rendered inside a parent Mantine popover,
+   * where a portaled color dropdown registers as an outside click and closes
+   * the parent before the selection is applied.
+   */
+  withinPortal?: boolean;
   onChange?: (hexValue: string, colorName?: string) => void;
   accentColorOptions?: AccentColorOptions;
   additionalColors?: string[];
 }
+
+const colorHex = (colorOption: ColorSelectorOption) =>
+  (typeof colorOption === "string"
+    ? colorOption
+    : colorOption.value
+  ).toUpperCase();
 
 export const ChartSettingColorPicker = ({
   className,
   value,
   title,
   pillSize,
+  bordered,
   forwardColorName,
+  // the SDK renders chart settings inside a parent Mantine popover
+  withinPortal = !isEmbeddingSdk(),
   onChange,
   accentColorOptions = {
     main: true,
@@ -40,33 +64,39 @@ export const ChartSettingColorPicker = ({
   },
   additionalColors = [],
 }: ChartSettingColorPickerProps) => {
-  // For the SDK the ColorSelector is rendered inside a parent Mantine popover,
-  // so as a nested popover it should not be rendered within a portal
-  const withinPortal = !isEmbeddingSdk();
-
-  const normalizeColor = (colorValue: string) => colorValue.toUpperCase();
-  const uniqueColors = Array.from(
-    new Set(
-      [
-        ...getAccentColors(accentColorOptions),
-        ...getStatusColors(),
-        ...additionalColors,
-      ].map(normalizeColor),
-    ),
+  const namedColors = getNamedAccentColors(accentColorOptions);
+  const namedHexes = new Set(
+    namedColors.map((namedColor) => colorHex(namedColor)),
   );
+  const extraColors = [...getStatusColors(), ...additionalColors]
+    .map((colorValue) => colorValue.toUpperCase())
+    .filter(
+      (hex, index, all) => all.indexOf(hex) === index && !namedHexes.has(hex),
+    );
 
   return (
-    <Box className={cx(CS.flex, CS.alignCenter, className)}>
+    <Box
+      className={cx(
+        CS.flex,
+        CS.alignCenter,
+        { [S.bordered]: bordered },
+        className,
+      )}
+    >
       <ColorSelector
         value={value}
-        colors={getNamedAccentColors(accentColorOptions)}
+        colors={[...namedColors, ...extraColors]}
         withinPortal={withinPortal}
         onChange={(hexValue, colorName) =>
           onChange?.(hexValue, forwardColorName ? colorName : undefined)
         }
         pillSize={pillSize}
       />
-      {title && <h4 className={CS.ml1}>{title}</h4>}
+      {title && (
+        <Title order={4} fz="md" ml={bordered ? "lg" : "sm"}>
+          {title}
+        </Title>
+      )}
     </Box>
   );
 };
