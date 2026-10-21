@@ -29,6 +29,7 @@ export const mutateColors = (whitelabelColors: ColorSettings) => {
 };
 
 export const staticVizOverrides = {
+  "chart-axis": ds.light.border,
   "text-primary": ds.light.textPrimary,
   "text-secondary": ds.light.textSecondary,
   "text-disabled": ds.light.textMuted,

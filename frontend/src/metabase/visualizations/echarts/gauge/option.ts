@@ -2,7 +2,7 @@
 import type { EChartsOption } from "echarts";
 
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
 
 const ANIMATION_DURATION = 1000;
@@ -12,8 +12,6 @@ const OUTER_RADIUS = 200;
 const INNER_RADIUS = 170;
 const POINTER_INNER_RADIUS = 40;
 const INSIDE_PANEL_RADIUS = 140;
-
-
 
 interface GaugeSegment {
   min: number;
@@ -98,12 +96,7 @@ export function getGaugeMeterOption(
   // User requested to consider height as well.
   // For a semi-circle, height corresponds to half width, so we compare width vs height*2.
   const limitingSize = Math.min(actualWidth, actualHeight * 2);
-  const splitNumber =
-    limitingSize < 300
-      ? 4
-      : limitingSize < 400
-      ? 6
-      : 8;
+  const splitNumber = limitingSize < 300 ? 4 : limitingSize < 400 ? 6 : 8;
 
   // -----------------------------
   // Dynamic detail box width

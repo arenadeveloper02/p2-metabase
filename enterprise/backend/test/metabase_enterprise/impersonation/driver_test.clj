@@ -19,10 +19,12 @@
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
+   [metabase.lib.test-metadata :as meta]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.test :as qp]
    [metabase.request.core :as request]
+   [metabase.secrets.core :as secrets]
    [metabase.sync.core :as sync]
    [metabase.test :as mt]
    [metabase.test.data.interface :as tx]
@@ -208,6 +210,18 @@
   [_driver]
   "ACCOUNTADMIN")
 
+(defn- snowflake-key-details
+  "`details` with the private key supplied outright rather than by reference.
+
+  Details read back from the app DB carry the key only as a `:private-key-id` pointing at a Secret row owned by that
+  Database. A second Database inserted with the same id shares the row, so deleting either one deletes the key both
+  authenticate with."
+  [driver details]
+  (merge (dissoc details :private-key-id)
+         {:private-key-options "uploaded"
+          :private-key-value   (mt/priv-key->base64-uri (tx/db-test-env-var-or-throw driver :private-key))
+          :use-password        false}))
+
 (defmulti impersonation-granting-details
   "The database details that will be used to create roles and grant them permissions"
   {:arglists '([driver db])}
@@ -219,8 +233,8 @@
   details)
 
 (defmethod impersonation-granting-details :snowflake
-  [_driver {:keys [details]}]
-  (assoc details :role "ACCOUNTADMIN"))
+  [driver {:keys [details]}]
+  (assoc (snowflake-key-details driver details) :role "ACCOUNTADMIN"))
 
 (defmulti impersonation-details
   "The database details that will be used for the impersonation connection"
@@ -238,15 +252,27 @@
 
 (defmethod impersonation-details :snowflake
   [driver {:keys [details]}]
-  (let [priv-key (tx/db-test-env-var-or-throw driver :private-key)]
-    (merge (dissoc details :private-key-id)
-           {:private-key-options "uploaded"
-            :private-key-value (mt/priv-key->base64-uri priv-key)
-            :use-password false})))
+  (snowflake-key-details driver details))
 
 (defmethod impersonation-details :postgres
   [_driver {:keys [details]}]
   details)
+
+(defn- assert-owns-its-secrets
+  "Throw unless `details` reaches its credentials without borrowing `source-db`'s Secret rows.
+
+  Deleting a Database deletes every Secret its details name, so a Database built from another one's `-id` references
+  takes that Database's credentials down with it when it is deleted."
+  [driver details source-db]
+  (when-let [shared (->> (keys (secrets/secret-conn-props-by-name driver))
+                         (map #(keyword (str % "-id")))
+                         (filter #(some? (get details %)))
+                         (filter #(= (get details %) (get (:details source-db) %)))
+                         seq)]
+    (throw (ex-info (str "Impersonation Database details reuse the source Database's Secret rows: " (pr-str shared)
+                         ". Give `impersonation-granting-details` the credential's raw value for this driver so the"
+                         " Database gets Secret rows of its own.")
+                    {:driver driver, :shared-secret-properties shared}))))
 
 (def ^:private impersonation-databases
   "Databases built by [[impersonation-database!]], keyed by `[driver source-database-id]`.
@@ -271,12 +297,14 @@
   (let [source-db (mt/db)
         cache-key [driver (u/the-id source-db)]]
     (or (get @impersonation-databases cache-key)
-        (let [database (first (t2/insert-returning-instances!
+        (let [details  (impersonation-granting-details driver source-db)
+              _        (assert-owns-its-secrets driver details source-db)
+              database (first (t2/insert-returning-instances!
                                :model/Database
                                (merge (t2.with-temp/with-temp-defaults :model/Database)
                                       {:engine  driver
                                        :name    (format "impersonation-%s-%d" (name driver) (u/the-id source-db))
-                                       :details (impersonation-granting-details driver source-db)})))]
+                                       :details details})))]
           (sync/sync-database! database {:scan :schema})
           (t2/update! :model/Database :id (u/the-id database)
                       {:details (cond-> (impersonation-details driver source-db)
@@ -310,6 +338,7 @@
                           (when-let [ids (seq (map u/the-id (vals (first (reset-vals! impersonation-databases {})))))]
                             ;; the linter's concern is a fixture racing tests that share the rows it touches; these
                             ;; ids were created by this namespace and are deleted after its last test finishes.
+                            ;; [kondo-keep] suppresses a warning :redundant-ignore can't see; --audit rechecks
                             #_{:clj-kondo/ignore [:metabase/validate-deftest]}
                             (t2/delete! :model/Database :id [:in ids]))))))
 
@@ -817,7 +846,27 @@
                     (testing "Query from admin hits the model cache"
                       (is (str/includes? (-> admin-result :data :native_form :query)
                                          (:table_name persisted-info))
-                          "Did not use the persisted model cache")))
+                          "Did not use the persisted model cache"))
+                    (testing "Native query referencing the model via a {{#N}} template tag"
+                      ;; an impersonated user only needs to be able to *read* a saved native Card that references the
+                      ;; persisted Model to hit this code path
+                      (mt/with-temp [:model/Card card {:dataset_query
+                                                       (lib/native-query (mt/metadata-provider)
+                                                                         (format "SELECT count(*) FROM {{#%d}} AS m"
+                                                                                 (:id model)))}]
+                        (let [run-card            #(mt/user-http-request % :post 202 (format "card/%d/query" (:id card)))
+                              impersonated-result (run-card :rasta)
+                              ;; Make sure we run admin query second to reset the DB role on the connection!
+                              admin-result        (run-card :crowberto)]
+                          (testing "Impersonated user (rasta) does not hit the model cache"
+                            (is (= 200 (-> impersonated-result mt/rows ffirst)))
+                            (is (not (str/includes? (-> impersonated-result :data :native_form :query)
+                                                    (:table_name persisted-info)))
+                                "Erroneously used the persisted model cache"))
+                          (testing "Query from admin hits the model cache"
+                            (is (str/includes? (-> admin-result :data :native_form :query)
+                                               (:table_name persisted-info))
+                                "Did not use the persisted model cache"))))))
                   (finally
                     (doseq [statement ["REVOKE ALL PRIVILEGES ON TABLE \"products\" FROM \"impersonation_role\";"
                                        "DROP ROLE IF EXISTS \"impersonation_role\";"]]
@@ -1201,6 +1250,14 @@
           (is (= qp.error-type/invalid-query (:type (ex-data thrown))))
           (is (re-find #"single select statement" (ex-message thrown))))))))
 
+(deftest ^:parallel impersonated-query-placeholder-cast-test
+  (let [sql "SELECT (?::date - bill_date::date) AS diff FROM some_table"
+        query (lib/native-query meta/metadata-provider sql)
+        out-sql (-> (driver/validate-impersonated-query :postgres query)
+                    (get-in [:stages 0 :native]))]
+    (is (string? out-sql))
+    (is (re-find #"\?" out-sql) "the placeholder must survive into the re-emitted SQL")))
+
 (deftest ^:parallel validate-impersonated-query-keys-on-allow-write-flag-test
   (testing "validate-impersonated-query* derives read-vs-write from *impersonation-allow-write?*"
     (let [query   (fn [sql] {:stages [{:lib/type :mbql.stage/native :native sql}]})
@@ -1218,3 +1275,16 @@
         (binding [driver.settings/*impersonation-allow-write?* true]
           (is (= :ok       (outcome (query write))))
           (is (= :rejected (outcome (query select)))))))))
+
+(deftest validate-impersonated-query-is-enforced-for-all-impersonation-drivers-test
+  (testing "every driver that supports connection-impersonation enforces the single-statement guard (SEC-1189)"
+    (mt/test-drivers (mt/normal-drivers-with-feature :connection-impersonation)
+      (let [query (fn [sql] {:stages [{:lib/type :mbql.stage/native :native sql}]})]
+        (testing "a multi-statement native query is rejected"
+          (is (thrown-with-msg?
+               clojure.lang.ExceptionInfo #"single select statement"
+               (driver/validate-impersonated-query driver/*driver* (query "SELECT 1; SELECT 2")))))
+        (testing "a single select statement is still allowed"
+          (let [result (driver/validate-impersonated-query :mysql (query "SELECT 1"))]
+            (is (map? result))
+            (is (string? (get-in result [:stages 0 :native])))))))))

@@ -1,24 +1,21 @@
+import type { EChartsOption } from "echarts";
 import React from "react";
 import { t } from "ttag";
-import type { EChartsOption } from "echarts";
 
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { computeMaxDecimalsForValues } from "metabase/visualizations/lib/utils";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
 import {
-  getMarkerColorClass,
-  getTooltipBaseOption,
-} from "metabase/visualizations/echarts/tooltip";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
-import type { RawSeries } from "metabase-types/api";
-
-import {
+  computeMaxDecimalsForValues,
+  type ComputedVisualizationSettings,
   DIMENSIONS,
-  OTHER_SLICE_KEY,
+  EChartsTooltip,
+  getMarkerColorClass,
   getOtherSliceName,
+  getTooltipBaseOption,
   getTotalText,
-} from "../pie/constants";
+  OTHER_SLICE_KEY,
+} from "metabase/viz-core";
+import type { RawSeries } from "metabase-types/api";
 
 export interface DoughnutDataPoint {
   name: string;
@@ -65,7 +62,7 @@ export function getDonutChartData(
     const value = Number(row[metricIndex]) || 0;
     dataMap.set(key, value);
   });
-  
+
   // Generate candidate slices based on pieRows and hiddenSlices
   let candidateSlices: DoughnutDataPoint[] = [];
 
@@ -129,20 +126,22 @@ export function getDonutChartData(
     // Sort all kept slices by value descending to find the smallest ones
     // We exclusion-check for "Other" slice because it might already exist
     const otherName = getOtherSliceName();
-    let otherSlice = keptSlices.find(s => s.name === otherName);
-    const normalSlices = keptSlices.filter(s => s.name !== otherName);
-    
+    let otherSlice = keptSlices.find((s) => s.name === otherName);
+    const normalSlices = keptSlices.filter((s) => s.name !== otherName);
+
     // Sort normal slices to pick which ones to move to Other
     normalSlices.sort((a, b) => b.value - a.value);
-    
+
     const numToKeep = MAX_SLICES - 1; // Keep top 6, 7th is Other
     const remainingSlices = normalSlices.slice(0, numToKeep);
     const toPool = normalSlices.slice(numToKeep);
-    
+
     if (otherSlice) {
       // Merge into existing other
       otherSlice.value += toPool.reduce((sum, s) => sum + s.value, 0);
-      otherSlice.children = [...(otherSlice.children || []), ...toPool].sort((a, b) => b.value - a.value);
+      otherSlice.children = [...(otherSlice.children || []), ...toPool].sort(
+        (a, b) => b.value - a.value,
+      );
     } else {
       // Create new other
       const otherVal = toPool.reduce((sum, s) => sum + s.value, 0);
@@ -153,7 +152,7 @@ export function getDonutChartData(
         children: toPool.sort((a, b) => b.value - a.value),
       };
     }
-    
+
     keptSlices = [...remainingSlices, otherSlice];
   }
 
@@ -183,7 +182,7 @@ export function getDoughnutChartOption(
   renderingContext?: any,
 ): EChartsOption {
   const { data, total, metricCol, metricColSettings } = chartData;
-  
+
   // Calculate percentages based on the final data
   // Note: if 'total' is the sum of visible slices, these percentages sum to 100%.
   const percentages = data.map((d) => (total > 0 ? d.value / total : 0));
@@ -226,7 +225,7 @@ export function getDoughnutChartOption(
   const showPercentOnChart =
     percentVisibility === "inside" || percentVisibility === "both";
 
-  // Note: showPercentInLegend is handled by the external component now, 
+  // Note: showPercentInLegend is handled by the external component now,
   // but we keep this logic if we were using internal legend.
   // Actually, we are REMOVING internal legend.
 
@@ -255,8 +254,8 @@ export function getDoughnutChartOption(
   // Build tooltip formatter matching Metabase styles (All Slices + Total)
   const tooltipFormatter = (params: any) => {
     const isOtherHovered = params.name === getOtherSliceName();
-    const otherSlice = data.find(d => d.name === getOtherSliceName());
-    
+    const otherSlice = data.find((d) => d.name === getOtherSliceName());
+
     // If hovering "Other" and it has detailed children, show those.
     // Otherwise show ALL top-level slices (standard Metabase Pie behavior).
     let tooltipData = data;
@@ -271,17 +270,17 @@ export function getDoughnutChartOption(
       // Logic for focus:
       // If showing top-level slices:
       const isFocused = d.name === params.name;
-      
+
       const dValue = formatMetric(d.value);
-      const dPercent = formatPercent(
-        total > 0 ? d.value / total : 0,
-        "chart"
-      );
-      
+      const dPercent = formatPercent(total > 0 ? d.value / total : 0, "chart");
+
       return {
         name: d.name,
-        values: [dValue, dPercent], 
-        markerColorClass: (!isOtherHovered && d.itemStyle) ? getMarkerColorClass(d.itemStyle.color) : undefined,
+        values: [dValue, dPercent],
+        markerColorClass:
+          !isOtherHovered && d.itemStyle
+            ? getMarkerColorClass(d.itemStyle.color)
+            : undefined,
         isFocused,
       };
     });
@@ -291,12 +290,13 @@ export function getDoughnutChartOption(
     const tooltipModel = {
       header: String(settings["pie.dimension"] || "Data"),
       rows: tooltipRows,
-      footer: (showTotal && tooltipData.length > 1)
-        ? {
-            name: t`Total`,
-            values: [formatMetric(tooltipTotal), formatPercent(1, "chart")], // 100%
-          }
-        : undefined,
+      footer:
+        showTotal && tooltipData.length > 1
+          ? {
+              name: t`Total`,
+              values: [formatMetric(tooltipTotal), formatPercent(1, "chart")], // 100%
+            }
+          : undefined,
     };
 
     return reactNodeToHtmlString(<EChartsTooltip {...tooltipModel} />);
@@ -306,7 +306,9 @@ export function getDoughnutChartOption(
   let centerValue = "";
   let centerLabel = "";
   if (showTotal && total > 0) {
-    const hoveredSlice = hoveredName ? data.find(d => d.name === hoveredName) : null;
+    const hoveredSlice = hoveredName
+      ? data.find((d) => d.name === hoveredName)
+      : null;
     if (hoveredSlice) {
       centerValue = formatMetric(hoveredSlice.value);
       centerLabel = hoveredSlice.name;
@@ -323,19 +325,19 @@ export function getDoughnutChartOption(
 
   const hasLabels = showLabels || showPercentOnChart;
   const radius = hasLabels ? ["50%", "70%"] : ["55%", "85%"];
-  
+
   const actualWidth = width ?? 500;
   const actualHeight = height ?? 400;
-  
+
   // Calculate specific pixel coordinates for the center graphic
   const cx = actualWidth * 0.5;
   const cy = actualHeight * 0.5;
 
   const minDim = Math.min(actualWidth, actualHeight);
   // Adjust inner calculation to match the dynamic radius
-  // 70% radius -> ~35% minDim. 
+  // 70% radius -> ~35% minDim.
   // We use a safe approximation for text width.
-  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.5 : 0.55); 
+  const innerRadiusPx = (minDim / 2) * (hasLabels ? 0.5 : 0.55);
   // Available width is diameter of hole minus some padding
   const textMaxWidth = innerRadiusPx * 2 * 0.9;
 
@@ -376,7 +378,8 @@ export function getDoughnutChartOption(
                 fontSize: DIMENSIONS.total.labelFontSize,
                 fontWeight: DIMENSIONS.total.fontWeight,
                 align: "center",
-                fill: renderingContext?.getColor?.("text-secondary") || "#949AAB",
+                fill:
+                  renderingContext?.getColor?.("text-secondary") || "#949AAB",
                 width: textMaxWidth,
                 overflow: "truncate",
                 ellipsis: "...",

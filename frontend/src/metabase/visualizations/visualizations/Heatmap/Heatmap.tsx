@@ -7,25 +7,19 @@ import CS from "metabase/css/core/index.css";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { getHeatmapChartOption } from "metabase/visualizations/echarts/heatmap/option";
+import type { VisualizationProps } from "metabase/visualizations/types";
 import {
   ChartSettingsError,
-  MinColumnsError,
-  MinRowsError,
-} from "metabase/visualizations/lib/errors";
-import { columnSettings } from "metabase/visualizations/lib/settings/column";
-import {
+  columnSettings,
+  type ComputedVisualizationSettings,
   dimensionSetting,
-  metricSetting,
-} from "metabase/visualizations/lib/settings/utils";
-import {
   getDefaultSize,
   getMinSize,
-} from "metabase/visualizations/shared/utils/sizes";
-import type {
-  ComputedVisualizationSettings,
-  VisualizationDefinition,
-  VisualizationProps,
-} from "metabase/visualizations/types";
+  metricSetting,
+  MinColumnsError,
+  MinRowsError,
+  type VisualizationDefinition,
+} from "metabase/viz-core";
 import type { DatasetData, RawSeries } from "metabase-types/api";
 
 export const HEATMAP_CHART_DEFINITION: VisualizationDefinition = {
@@ -159,4 +153,7 @@ function HeatmapComponent(props: VisualizationProps) {
   );
 }
 
-export const Heatmap = Object.assign(HeatmapComponent, HEATMAP_CHART_DEFINITION);
+export const Heatmap = Object.assign(
+  HeatmapComponent,
+  HEATMAP_CHART_DEFINITION,
+);

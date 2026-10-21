@@ -82,7 +82,7 @@ export const DatabaseCacheScheduleField = ({
   };
 
   return (
-    <FormField title={title} description={description}>
+    <FormField mb="lg" title={title} description={description}>
       <ScheduleModePicker
         value={scheduleMode}
         onChange={handleScheduleModeChange}
@@ -90,7 +90,7 @@ export const DatabaseCacheScheduleField = ({
 
       {scheduleMode === "full" && (
         <Schedule
-          mt="md"
+          mt="lg"
           value={value ?? DEFAULT_SCHEDULE}
           scheduleOptions={SCHEDULE_OPTIONS}
           onScheduleChange={handleScheduleChange}

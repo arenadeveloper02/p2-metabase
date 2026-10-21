@@ -5,7 +5,7 @@ import type React from "react";
 import { getColorsForValues } from "metabase/ui/colors/charts";
 import { formatNullable } from "metabase/utils/formatting";
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
 
 import { getFunnelTooltipOption } from "./tooltip";
@@ -43,10 +43,10 @@ export function getFunnelChartOption(
   let data: FunnelDataPoint[];
   if (funnelRows) {
     data = funnelRows
-      .filter(fr => fr.enabled)
-      .map(fr => {
+      .filter((fr) => fr.enabled)
+      .map((fr) => {
         const row = rows.find(
-          row => formatNullable(row[dimensionIndex]) === fr.key,
+          (row) => formatNullable(row[dimensionIndex]) === fr.key,
         );
         if (row && row[dimensionIndex] != null && row[metricIndex] != null) {
           return {
@@ -59,8 +59,8 @@ export function getFunnelChartOption(
       .filter((d): d is FunnelDataPoint => d !== null);
   } else {
     data = rows
-      .filter(row => row[dimensionIndex] != null && row[metricIndex] != null)
-      .map(row => ({
+      .filter((row) => row[dimensionIndex] != null && row[metricIndex] != null)
+      .map((row) => ({
         name: String(row[dimensionIndex]),
         value: Number(row[metricIndex]),
       }))
@@ -176,8 +176,10 @@ export function getFunnelChartOption(
           position: "outer",
           formatter: (params: any) => {
             if (valuesBelowLabels) {
-              const dataPoint = data.find(d => d.name === params.name);
-              const formattedValue = dataPoint ? formatMetricValue(dataPoint.value) : "";
+              const dataPoint = data.find((d) => d.name === params.name);
+              const formattedValue = dataPoint
+                ? formatMetricValue(dataPoint.value)
+                : "";
               return `{value|${formattedValue}}\n{name|${params.name}}`;
             }
             return params.name;

@@ -79,8 +79,8 @@ The following fields are available in this table.
 {% if table_related_tables_xml %}
 ### Related Tables
 Foreign key fields from related tables. Usage patterns:
-- Can be used directly in notebook queries (non-sql) as if they were part of the table.
-- For SQL queries: Use "fieldname" with explicit JOINs
+- Can be used directly in notebook queries as if they were part of the table.
+- They are not columns of the table itself; any other kind of query must join the related table through the listed foreign key.
 
 {{table_related_tables_xml|safe}}
 {% endif %}
@@ -133,8 +133,8 @@ The following fields are available in this model.
 
 ### Related Tables
 Foreign key fields from related tables. Usage patterns:
-- Can be used directly in notebook queries (non-sql) as if they were part of the model.
-- For SQL queries: Use "fieldname" with explicit JOINs
+- Can be used directly in notebook queries as if they were part of the model.
+- They are not columns of the model itself; any other kind of query must join the related table through the listed foreign key.
 
 {{model_related_tables_xml|safe}}
 {% endif %}
@@ -248,6 +248,8 @@ The question is visualized as follows:
   The dashboard is stored in the following collection:
   {{dashboard_collection_xml|safe}}
 {% endif %}
+{% if dashboard_filters_xml %}
+{{dashboard_filters_xml|safe}}{% endif %}
 {% if dashboard_tabs_xml %}
 {{dashboard_tabs_xml|safe}}{% endif %}
 </dashboard>
@@ -307,7 +309,9 @@ Here are the search results:
 The following sample values show the data format in this field. The actual dataset may contain
 other values following the same pattern:
 
-{{sample_values_table|safe}}
+{{sample_values_table|safe}}{% if sample_values_total %}
+
+This list shows {{sample_values_shown}} of the field's {{sample_values_total}}{% if sample_values_more %}+{% endif %} values. The rest can include the value the user asked for, so don't assume it's missing or swap in the closest listed one: when the user asks for a specific value, filter on that value, following the casing the listed values show.{% endif %}
 {% else %}
 **Sample Values**
 This field hasn't been sampled yet. Continue without samples.

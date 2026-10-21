@@ -1,6 +1,6 @@
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { fireEvent, renderWithProviders, screen } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import type { User } from "metabase-types/api";
 import { createMockUser } from "metabase-types/api/mocks";
 
@@ -61,6 +61,19 @@ describe("AccountHeader", () => {
   });
 
   describe("authentication tab", () => {
+    it.each(["active", "inactive"] as const)(
+      "should show the tab for an SSO user with an %s Slack account",
+      (status) => {
+        setup({
+          user: getUser({ sso_source: "google", slack_account_status: status }),
+        });
+
+        expect(
+          screen.getByRole("tab", { name: "Authentication" }),
+        ).toBeInTheDocument();
+      },
+    );
+
     it("should show the tab for a user who can change their password", () => {
       setup({ user: getUser({ sso_source: null }) });
 

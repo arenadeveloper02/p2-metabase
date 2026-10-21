@@ -2,8 +2,9 @@ import type { EChartsOption } from "echarts";
 import type React from "react";
 
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
+
 import { getHeatmapTooltipOption } from "./tooltip";
 
 export interface HeatmapDataPoint {
@@ -68,9 +69,9 @@ export function getHeatmapChartOption(
   });
 
   // Find column indices
-  const xIndex = cols.findIndex(col => col.name === xDimensionName);
-  const yIndex = cols.findIndex(col => col.name === yDimensionName);
-  const valueIndex = cols.findIndex(col => col.name === valueName);
+  const xIndex = cols.findIndex((col) => col.name === xDimensionName);
+  const yIndex = cols.findIndex((col) => col.name === yDimensionName);
+  const valueIndex = cols.findIndex((col) => col.name === valueName);
 
   // eslint-disable-next-line no-console
   console.log("🔥 HEATMAP DEBUG - Column Indices:", {
@@ -80,8 +81,8 @@ export function getHeatmapChartOption(
   });
 
   // Get unique values for X and Y axes
-  const xValues = Array.from(new Set(rows.map(row => String(row[xIndex]))));
-  const yValues = Array.from(new Set(rows.map(row => String(row[yIndex]))));
+  const xValues = Array.from(new Set(rows.map((row) => String(row[xIndex]))));
+  const yValues = Array.from(new Set(rows.map((row) => String(row[yIndex]))));
 
   // eslint-disable-next-line no-console
   console.log("🔥 HEATMAP DEBUG - Unique Values:", {
@@ -93,7 +94,7 @@ export function getHeatmapChartOption(
 
   // Create a map for quick lookup
   const dataMap = new Map<string, number>();
-  rows.forEach(row => {
+  rows.forEach((row) => {
     const key = `${row[xIndex]}_${row[yIndex]}`;
     const value = Number(row[valueIndex]) || 0;
     dataMap.set(key, value);
@@ -123,7 +124,7 @@ export function getHeatmapChartOption(
 
   // Calculate min and max for visual map
   const numericValues = Array.from(dataMap.values()).filter(
-    v => typeof v === "number",
+    (v) => typeof v === "number",
   );
   const minValue = Math.min(...numericValues, 0);
   const maxValue = Math.max(...numericValues, 10);
