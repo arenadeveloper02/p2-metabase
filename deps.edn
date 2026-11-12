@@ -252,8 +252,10 @@
  :mvn/repos
  {"metabase-maven-downloads" {:url "https://s3.amazonaws.com/metabase-maven-downloads"}
   "redshift" {:url "https://s3.amazonaws.com/redshift-maven-repository/release"}
-  ;; for metabase/saml20-clj
-  "opensaml" {:url "https://build.shibboleth.net/nexus/content/repositories/releases/"}}
+  ;; for metabase/saml20-clj. OpenSAML is not on Maven Central. Shibboleth's
+  ;; repository returns HTTP 403 from Docker and other datacenter addresses, so
+  ;; resolve the same artifacts from the JBoss public mirror instead.
+  "opensaml" {:url "https://repository.jboss.org/nexus/content/repositories/public/"}}
 
  :aliases
  {;;; Local Dev & test profiles
