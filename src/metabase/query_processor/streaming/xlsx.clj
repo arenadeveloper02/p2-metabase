@@ -51,6 +51,7 @@
     ::mb.viz/number-separators
     ::mb.viz/currency
     ::mb.viz/currency-style
+    ::mb.viz/currency-position
     ::mb.viz/currency-in-header
     ::mb.viz/decimals
     ::mb.viz/scale
@@ -66,31 +67,25 @@
     ::mb.viz/time-style})
 
 (defn- currency-format-string
-  "Adds a currency to the base format string as either a suffix (for pluralized names) or
-  prefix (for symbols or codes)."
-  [base-string format-settings]
+  "Adds the currency label at the configured position. Currency names always follow the amount."
+  [base-string {::mb.viz/keys [currency-style currency-position] :as format-settings}]
   (let [currency-code (::mb.viz/currency format-settings "USD")
         currency-identifier (streaming.common/currency-identifier format-settings)]
-    (condp = (::mb.viz/currency-style format-settings "symbol")
-      "symbol"
-      (if (currency/supports-symbol? currency-code)
-        (str "[$" currency-identifier "]" base-string)
-        (str "[$" currency-identifier "] " base-string))
+    (cond
+      (= currency-style "name")
+      (str base-string "\" " currency-identifier "\"")
 
-      "narrowSymbol"
-      (if (currency/supports-symbol? currency-code)
-        (str "[$" currency-identifier "]" base-string)
-        (str "[$" currency-identifier "] " base-string))
+      (= currency-position "after")
+      (str base-string "\"\u00a0\"[$" currency-identifier "]")
 
-      "code"
-      (str "[$" currency-identifier "] " base-string)
-
-      "name"
-      (str base-string "\" " currency-identifier "\""))))
+      :else
+      (str "[$" currency-identifier "]"
+           (when (or (= currency-style "code") (not (currency/supports-symbol? currency-code))) " ")
+           base-string))))
 
 (defn- unformatted-number?
   "Use default formatting for decimal number types that have no other format settings defined
-  aside from prefix, suffix or scale."
+  aside from prefix, suffix, scale or currency label position."
   [format-settings]
   (and
    ;; This is a decimal or currency number (not a percentage or scientific notation)
@@ -101,6 +96,7 @@
    (not (seq (dissoc format-settings
                      ::mb.viz/number-style
                      ::mb.viz/number-separators
+                     ::mb.viz/currency-position
                      ::mb.viz/scale
                      ::mb.viz/prefix
                      ::mb.viz/suffix)))))
@@ -281,10 +277,17 @@
     (.setDataFormat (. data-format getFormat ^String format-string))))
 
 (defn- compute-column-cell-styles
-  "Compute a sequence of cell styles for each column"
-  [^Workbook workbook ^DataFormat data-format viz-settings cols format-rows?]
+  "Compute a sequence of cell styles for each column. When `inline-currency?` is true, currency columns render the
+  symbol in the cell (used for pivot exports, whose measures have no column header to carry it) -- expressed by
+  forcing `currency-in-header` off for the column."
+  [^Workbook workbook ^DataFormat data-format viz-settings cols format-rows? inline-currency?]
   (for [col cols]
-    (let [settings       (streaming.common/viz-settings-for-col col viz-settings)
+    (let [base-settings  (streaming.common/viz-settings-for-col col viz-settings)
+          ;; Scope the override to currency columns only -- injecting `currency-in-header` into a non-currency
+          ;; column's settings would perturb the number-formatting heuristics that inspect the setting keys.
+          settings       (cond-> base-settings
+                           (and inline-currency? (streaming.common/currency-settings? base-settings))
+                           (assoc ::mb.viz/currency-in-header false))
           format-strings (format-settings->format-strings settings col format-rows?)]
       (when (seq format-strings)
         (mapv
@@ -366,6 +369,7 @@
   [^Cell cell t styles typed-styles]
   (set-cell! cell (t/offset-date-time t) styles typed-styles))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *number-of-characters-cell*
   "Total number of characters that a cell can contain, 32767 is the maximum number supported by the cell."
   ;; See https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3
@@ -418,8 +422,8 @@
   (when (isa? semantic_type :type/Coordinate)
     (try (formatter/format-geographic-coordinates semantic_type value)
          ;; Fallback to plain string value if it couldn't be parsed
-         (catch Exception _ value
-                value))))
+         (catch Exception _
+           value))))
 
 (defn- maybe-parse-temporal-value
   "The format-rows qp middleware formats rows into strings, which circumvents the formatting done in this namespace.
@@ -434,8 +438,8 @@
              (string? value))
     (try (u.date/parse value)
          ;; Fallback to plain string value if it couldn't be parsed
-         (catch Exception _ value
-                value))))
+         (catch Exception _
+           value))))
 
 ;; ColumnHelper hack.
 ;;
@@ -563,6 +567,7 @@
                                scaled-val)]
           (set-cell! cell parsed-value styles typed-cell-styles))))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *auto-sizing-threshold*
   "The maximum number of rows we should use for auto-sizing. If this number is too large, exports
   of large datasets will be prohibitively slow."
@@ -656,9 +661,10 @@
    :val-formatters (create-formatters cell-styles cols val-indexes timezone settings format-rows?)})
 
 (defn- generate-styles
-  [workbook viz-settings non-pivot-cols format-rows?]
+  [workbook viz-settings non-pivot-cols format-rows? & {:keys [inline-currency?]}]
   (let [data-format (. ^SXSSFWorkbook workbook createDataFormat)]
-    {:cell-styles (compute-column-cell-styles workbook data-format viz-settings non-pivot-cols format-rows?)
+    {:cell-styles (compute-column-cell-styles workbook data-format viz-settings non-pivot-cols format-rows?
+                                              inline-currency?)
      :typed-cell-styles (compute-typed-cell-styles workbook data-format format-rows?)}))
 
 (defmethod qp.si/streaming-results-writer :xlsx
@@ -726,7 +732,7 @@
                 {:keys [pivot-rows pivot-cols pivot-measures]} pivot-export-options
 
                 {:keys [cell-styles typed-cell-styles]}
-                (generate-styles workbook settings non-pivot-cols format-rows?)
+                (generate-styles workbook settings non-pivot-cols format-rows? :inline-currency? true)
 
                 formatters (make-formatters cell-styles
                                             non-pivot-cols
@@ -754,5 +760,7 @@
         (try
           (spreadsheet/save-workbook-into-stream! os workbook)
           (finally
-            (.dispose ^SXSSFWorkbook workbook)
-            (.close os)))))))
+            (try
+              (.close ^SXSSFWorkbook workbook)
+              (finally
+                (.close os)))))))))

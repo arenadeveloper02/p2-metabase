@@ -139,9 +139,14 @@
         (println (c/green "Done!")))
       (println (c/green "No unused requires found.")))))
 
+;; Match mage.format's batch size. clj-kondo over a whole merge is large enough
+;; for the OS to SIGKILL the process.
+(def ^:private file-batch-size 20)
+
 (defn fix-files
   "Fix unused requires in specified files."
   [{:keys [arguments]}]
   (if (seq arguments)
-    (fix-unused-requires! arguments)
+    (doseq [batch (partition-all file-batch-size arguments)]
+      (fix-unused-requires! batch))
     (println (c/red "No files specified."))))

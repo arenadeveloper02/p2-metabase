@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- FIXME: any-typed values */
 import type { ReactNode } from "react";
+
+import type { CurrencyPosition } from "metabase-types/api";
 
 import { COMPACT_CURRENCY_OPTIONS, getCurrencySymbol } from "./currency";
 
@@ -20,6 +23,7 @@ export type FormatNumberOptions = {
   compact?: boolean;
   currency?: string;
   currency_in_header?: boolean;
+  currency_position?: CurrencyPosition;
   currency_style?: string;
   decimals?: string | number;
   maximumFractionDigits?: number;
@@ -124,7 +128,13 @@ export function formatNumber(
         nf = numberFormatterForOptions(options);
       }
 
-      let formatted = nf.format(number);
+      const currencyAfterAmount =
+        options.number_style === "currency" &&
+        options.currency_position === "after" &&
+        options.currency_style !== "name";
+      let formatted = currencyAfterAmount
+        ? formatCurrencyAfterAmount(nf, number)
+        : nf.format(number);
 
       // extract number portion of currency if we're formatting a cell
       if (
@@ -163,6 +173,24 @@ export function formatNumber(
   }
 }
 
+function formatCurrencyAfterAmount(
+  formatter: Intl.NumberFormat,
+  value: number | bigint,
+): string {
+  const parts = formatter.formatToParts(value);
+  const currency = parts.find((part) => part.type === "currency");
+  if (!currency) {
+    return formatter.format(value);
+  }
+
+  const amount = parts
+    .filter((part) => part.type !== "currency" && part.type !== "literal")
+    .map((part) => part.value)
+    .join("");
+
+  return `${amount}\u00a0${currency.value}`;
+}
+
 export function formatChangeWithSign(
   change: number,
   { maximumFractionDigits = 2 } = {},
@@ -182,14 +210,15 @@ export function formatChangeWithSign(
 export const formatPercent = (percent: number) =>
   `${(100 * percent).toFixed(Math.abs(percent) === 1 ? 0 : 2)} %`;
 
+const NUMBER_FORMATTER_CACHE_SIZE = 100;
+const numberFormatterCache = new Map<string, Intl.NumberFormat>();
+
 export function numberFormatterForOptions(options: FormatNumberOptions) {
   options = {
     ...getDefaultNumberOptions(options),
     ...options,
   };
-  // always use "en" locale so we have known number separators we can replace depending on number_separators option
-  // TODO: if we do that how can we get localized currency names?
-  return new Intl.NumberFormat("en", {
+  const formatterOptions: Intl.NumberFormatOptions = {
     // Unjustified type cast. FIXME
     style: options.number_style as Intl.NumberFormatOptions["style"],
     currency: options.currency,
@@ -203,7 +232,23 @@ export function numberFormatterForOptions(options: FormatNumberOptions) {
     maximumFractionDigits: options.maximumFractionDigits,
     minimumSignificantDigits: options.minimumSignificantDigits,
     maximumSignificantDigits: options.maximumSignificantDigits,
-  });
+  };
+  const cacheKey = JSON.stringify(formatterOptions);
+  const cached = numberFormatterCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  // always use "en" locale so we have known number separators we can replace depending on number_separators option
+  // TODO: if we do that how can we get localized currency names?
+  const formatter = new Intl.NumberFormat("en", formatterOptions);
+  if (numberFormatterCache.size >= NUMBER_FORMATTER_CACHE_SIZE) {
+    const oldestKey = numberFormatterCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      numberFormatterCache.delete(oldestKey);
+    }
+  }
+  numberFormatterCache.set(cacheKey, formatter);
+  return formatter;
 }
 
 function formatNumberCompact(
@@ -219,17 +264,23 @@ function formatNumberCompact(
         ...options,
         ...COMPACT_CURRENCY_OPTIONS,
       });
+      const currencyPosition = options.currency_position ?? "before";
 
       if (abs(value) < DISPLAY_COMPACT_DECIMALS_CUTOFF) {
-        return nf.format(value);
+        return currencyPosition === "after"
+          ? formatCurrencyAfterAmount(nf, value)
+          : nf.format(value);
       }
       const { value: currency } = nf
         .formatToParts(value)
-        .find((p: any) => p.type === "currency") ?? { value: "" };
+        .find((part) => part.type === "currency") ?? { value: "" };
 
       const valueSign = value < 0 ? "-" : "";
+      const amount = _formatNumberCompact(abs(value), options);
 
-      return valueSign + currency + _formatNumberCompact(abs(value), options);
+      return currencyPosition === "after"
+        ? `${valueSign}${amount}\u00a0${currency}`
+        : valueSign + currency + amount;
     } catch (e) {
       // Intl.NumberFormat failed, so we fall back to a non-currency number
       return _formatNumberCompact(value, options);

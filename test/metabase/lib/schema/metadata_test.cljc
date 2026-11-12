@@ -170,3 +170,43 @@
           :metabase.lib.field/original-effective-type        :type/Text
           :metabase.lib.field/simple-display-name            "Category: Name"
           :metabase.lib.query/transformation-added-base-type true)))))
+
+(deftest ^:parallel column-data-sensitivity-test
+  (testing "every member of the severity-ordered vector validates and the vector has no duplicates"
+    (is (= 10 (count lib.schema.metadata/column-data-sensitivity-types)))
+    (is (apply distinct? lib.schema.metadata/column-data-sensitivity-types))
+    (doseq [member lib.schema.metadata/column-data-sensitivity-types]
+      (is (mr/validate ::lib.schema.metadata/column.data-sensitivity member))))
+  (testing "the most severe member comes first and PUBLIC comes last"
+    (is (= :SEC_KEY (first lib.schema.metadata/column-data-sensitivity-types)))
+    (is (= :PUBLIC (last lib.schema.metadata/column-data-sensitivity-types))))
+  (testing "normalization keywordizes a string member"
+    (is (= :PII (lib/normalize ::lib.schema.metadata/column.data-sensitivity "PII"))))
+  (testing "values outside the enum are rejected"
+    (are [value] (not (mr/validate ::lib.schema.metadata/column.data-sensitivity value))
+      :pii
+      :NOT_A_MEMBER
+      "PII"
+      nil)))
+
+(deftest ^:parallel normalize-column-remapping-test
+  (is (= {:lib/type :metadata.column.remapping/external
+          :id       72
+          :name     "Category ID"
+          :field-id 67}
+         (lib/normalize ::lib.schema.metadata/column.remapping.external
+                        {"lib/type" "metadata.column.remapping/external"
+                         "id"       72
+                         "name"     "Category ID"
+                         "field-id" 67})))
+  (is (= {:lib/type              :metadata.column.remapping/internal
+          :id                    66
+          :name                  "ID"
+          :values                [1 2]
+          :human-readable-values ["One" "Two"]}
+         (lib/normalize ::lib.schema.metadata/column.remapping.internal
+                        {"lib/type"              "metadata.column.remapping/internal"
+                         "id"                    66
+                         "name"                  "ID"
+                         "values"                [1 2]
+                         "human_readable_values" ["One" "Two"]}))))

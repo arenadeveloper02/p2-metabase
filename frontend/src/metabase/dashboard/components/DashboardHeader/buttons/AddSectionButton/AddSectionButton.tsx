@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { t } from "ttag";
 
 import { ToolbarButton } from "metabase/common/components/ToolbarButton";
@@ -38,7 +39,7 @@ export const AddSectionButton = () => {
         <Flex
           direction="column"
           align="center"
-          gap="md"
+          gap="lg"
           p="12px"
           className={AddSectionButtonS.AddSectionButton}
         >

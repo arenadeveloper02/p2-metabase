@@ -1,19 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return -- FIXME: any-typed values */
 import { getIn } from "icepick";
 import { t } from "ttag";
 
-import { Messages } from "metabase/admin/permissions/constants/messages";
 import {
-  getPermissionWarning,
-  getPermissionWarningModal,
-} from "metabase/admin/permissions/selectors/confirmations";
-import {
-  DataPermissionType,
+  Messages,
   type PermissionOption,
   type PermissionSectionConfig,
-} from "metabase/admin/permissions/types";
-import { getSchemasPermission } from "metabase/admin/permissions/utils/graph";
+  getPermissionWarning,
+  getPermissionWarningModal,
+  getSchemasPermission,
+} from "metabase/permissions";
 import {
   DataPermission,
+  DataPermissionType,
   DataPermissionValue,
   type Group,
   type GroupsPermissions,

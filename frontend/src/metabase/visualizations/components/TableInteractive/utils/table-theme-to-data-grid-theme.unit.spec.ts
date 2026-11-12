@@ -5,6 +5,7 @@ import { tableThemeToDataGridTheme } from "./table-theme-to-data-grid-theme";
 describe("tableThemeToDataGridTheme", () => {
   const mockTableTheme: MantineTheme["other"]["table"] = {
     stickyBackgroundColor: "#ffffff",
+    stripedBackgroundColor: "#eeeeee",
     cell: {
       fontSize: "14px",
       backgroundColor: "#f5f5f5",
@@ -34,6 +35,7 @@ describe("tableThemeToDataGridTheme", () => {
 
     expect(result).toEqual({
       stickyBackgroundColor: "#ffffff",
+      stripedBackgroundColor: "#eeeeee",
       fontSize: "14px",
       cell: {
         backgroundColor: "#f5f5f5",
@@ -46,7 +48,7 @@ describe("tableThemeToDataGridTheme", () => {
     });
   });
 
-  it("replaces transparent backgroundColor with CSS variable", () => {
+  it("leaves cell.backgroundColor unset when the theme has none", () => {
     const themeWithoutCellBg = {
       ...mockTableTheme,
       cell: { ...mockTableTheme.cell, backgroundColor: undefined },
@@ -54,15 +56,7 @@ describe("tableThemeToDataGridTheme", () => {
 
     const result = tableThemeToDataGridTheme(themeWithoutCellBg);
 
-    expect(result.cell?.backgroundColor).toBe(
-      "var(--mb-color-background_page-primary)",
-    );
-  });
-
-  it("prefers cell.backgroundColor over provided backgroundColor", () => {
-    const result = tableThemeToDataGridTheme(mockTableTheme);
-
-    expect(result.cell?.backgroundColor).toBe("#f5f5f5");
+    expect(result.cell?.backgroundColor).toBeUndefined();
   });
 
   it("handles missing idColumn", () => {

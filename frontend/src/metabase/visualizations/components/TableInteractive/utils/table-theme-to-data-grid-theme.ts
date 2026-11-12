@@ -8,14 +8,11 @@ export function tableThemeToDataGridTheme(
   baseFontSize?: string,
 ): DataGridTheme {
   return {
-    stickyBackgroundColor:
-      tableTheme.stickyBackgroundColor ??
-      "var(--mb-color-background_page-secondary)",
+    stickyBackgroundColor: tableTheme.stickyBackgroundColor,
+    stripedBackgroundColor: tableTheme.stripedBackgroundColor,
     fontSize: resolveFontSizeToPx(tableTheme.cell.fontSize, baseFontSize),
     cell: {
-      backgroundColor:
-        tableTheme.cell.backgroundColor ??
-        "var(--mb-color-background_page-primary)",
+      backgroundColor: tableTheme.cell.backgroundColor,
       textColor: tableTheme.cell.textColor,
     },
     pillCell: {

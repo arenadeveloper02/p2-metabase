@@ -3,16 +3,16 @@ import _ from "underscore";
 
 import { createMockMetadata } from "__support__/metadata";
 import { setupDatabaseEndpoints } from "__support__/server-mocks";
-import { createMockEntitiesState } from "__support__/store";
-import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import type { State } from "metabase/redux/store";
 import {
   createMockQueryBuilderState,
   createMockState,
-} from "metabase/redux/store/mocks";
+} from "__support__/state";
+import { createMockEntitiesState } from "__support__/store";
+import { renderWithProviders, screen, waitFor } from "__support__/ui";
+import type { State } from "metabase/redux/store";
 import * as Lib from "metabase-lib";
+import type { JsMetadata } from "metabase-lib";
 import { DEFAULT_TEST_QUERY, SAMPLE_PROVIDER } from "metabase-lib/test-helpers";
-import type Metadata from "metabase-lib/v1/metadata/Metadata";
 import type { Database } from "metabase-types/api";
 import {
   COMMON_DATABASE_FEATURES,
@@ -78,9 +78,7 @@ function createQueryWithInlineExpression() {
             value: {
               type: "operator",
               operator: "avg",
-              args: [
-                { type: "column", name: "QUANTITY", sourceName: "ORDERS" },
-              ],
+              args: [{ type: "column", name: "QUANTITY" }],
             },
           },
         ],
@@ -131,7 +129,7 @@ function createMetadata({
 type SetupOpts = {
   database?: Database;
   state?: State;
-  metadata?: Metadata;
+  metadata?: JsMetadata;
   query?: Lib.Query;
   allowCustomExpressions?: boolean;
 };
@@ -372,7 +370,7 @@ describe("AggregationPicker", () => {
     it("should open the editor when a named expression with operator is used", async () => {
       setup({ query: createQueryWithInlineExpressionWithOperator() });
 
-      expect(screen.getByText("Custom Expression")).toBeInTheDocument();
+      expect(await screen.findByText("Custom Expression")).toBeInTheDocument();
       expect(screen.getByDisplayValue("My count")).toBeInTheDocument();
     });
 
@@ -397,13 +395,13 @@ describe("AggregationPicker", () => {
       expect(screen.queryByText("Custom Expression")).not.toBeInTheDocument();
     });
 
-    it("should open the editor even if `allowCustomExpressions` prop is false if expression is used", () => {
+    it("should open the editor even if `allowCustomExpressions` prop is false if expression is used", async () => {
       setup({
         query: createQueryWithInlineExpression(),
         allowCustomExpressions: false,
       });
 
-      expect(screen.getByText("Custom Expression")).toBeInTheDocument();
+      expect(await screen.findByText("Custom Expression")).toBeInTheDocument();
       expect(screen.getByDisplayValue("Avg Q")).toBeInTheDocument();
     });
   });

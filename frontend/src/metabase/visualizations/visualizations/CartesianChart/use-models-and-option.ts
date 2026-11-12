@@ -2,23 +2,25 @@ import { useCallback, useMemo } from "react";
 
 import { useTranslateContent } from "metabase/content-translation/hooks";
 import { isReducedMotionPreferred } from "metabase/utils/dom";
-import { extractRemappings } from "metabase/visualizations";
-import { getChartLayout } from "metabase/visualizations/echarts/cartesian/layout";
-import { getCartesianChartModel } from "metabase/visualizations/echarts/cartesian/model";
-import type {
-  CartesianChartModel,
-  ScatterPlotModel,
-  WaterfallChartModel,
-} from "metabase/visualizations/echarts/cartesian/model/types";
-import { getCartesianChartOption } from "metabase/visualizations/echarts/cartesian/option";
+import type { LegendChart } from "metabase/visualizations/components/legend/plots";
 import { getTooltipOption } from "metabase/visualizations/echarts/cartesian/option/tooltip";
-import { getScatterPlotModel } from "metabase/visualizations/echarts/cartesian/scatter/model";
-import { getScatterPlotOption } from "metabase/visualizations/echarts/cartesian/scatter/option";
-import { getTimelineEventsModel } from "metabase/visualizations/echarts/cartesian/timeline-events/model";
-import { getWaterfallChartModel } from "metabase/visualizations/echarts/cartesian/waterfall/model";
-import { getWaterfallChartOption } from "metabase/visualizations/echarts/cartesian/waterfall/option";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import type { VisualizationProps } from "metabase/visualizations/types";
+import {
+  type CartesianChartModel,
+  type ScatterPlotModel,
+  type WaterfallChartModel,
+  extractRemappings,
+  getCartesianChartModel,
+  getCartesianChartOption,
+  getChartLayout,
+  getChartModelAtHeight,
+  getScatterPlotModel,
+  getScatterPlotOption,
+  getTimelineEventsModel,
+  getWaterfallChartModel,
+  getWaterfallChartOption,
+} from "metabase/viz-core";
 import type { CardDisplayType, TimelineEventId } from "metabase-types/api";
 
 const NO_SELECTED_TIMELINE_EVENT_IDS: TimelineEventId[] = [];
@@ -35,16 +37,17 @@ export function useModelsAndOption(
     timelineEvents,
     selectedTimelineEventIds = NO_SELECTED_TIMELINE_EVENT_IDS,
     onRender,
-    isFullscreen,
-    gridSize,
+    isDashboard,
   }: VisualizationProps,
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  containerSize: Pick<VisualizationProps, "width" | "height">,
 ) {
   const tc = useTranslateContent();
 
   const renderingContext = useBrowserRenderingContext({
     fontFamily,
-    isFullscreen,
+    isDashboard,
+    containerSize,
   });
 
   const seriesToRender = useMemo(
@@ -61,7 +64,7 @@ export function useModelsAndOption(
     ? timelineEvents.length !== 0
     : false;
 
-  const chartModel = useMemo(() => {
+  const baseChartModel = useMemo(() => {
     let getModel;
 
     settings["graph.x_axis.title_text"] = tc(
@@ -69,6 +72,9 @@ export function useModelsAndOption(
     );
     settings["graph.y_axis.title_text"] = tc(
       settings["graph.y_axis.title_text"],
+    );
+    settings["graph.y_axis.right.title_text"] = tc(
+      settings["graph.y_axis.right.title_text"],
     );
 
     getModel = getCartesianChartModel;
@@ -84,7 +90,6 @@ export function useModelsAndOption(
       Array.from(hiddenSeries),
       renderingContext,
       showWarning,
-      gridSize,
     );
 
     if (model.dimensionModel.column) {
@@ -92,7 +97,6 @@ export function useModelsAndOption(
         model.dimensionModel.column.display_name,
       );
     }
-
 
     return model;
   }, [
@@ -102,9 +106,24 @@ export function useModelsAndOption(
     hiddenSeries,
     renderingContext,
     showWarning,
-    gridSize,
     tc,
   ]);
+
+  // Fold before layout: the fold decides which category labels get measured.
+  const chartModel = useMemo(
+    () => getChartModelAtHeight(baseChartModel, height, settings),
+    [baseChartModel, height, settings],
+  );
+
+  const legendChart: LegendChart = useMemo(
+    () => ({
+      chartModel: baseChartModel,
+      settings,
+      hasTimelineEvents,
+      renderingContext,
+    }),
+    [baseChartModel, settings, hasTimelineEvents, renderingContext],
+  );
 
   const chartLayout = useMemo(
     () =>
@@ -208,6 +227,7 @@ export function useModelsAndOption(
   return {
     chartModel,
     chartLayout,
+    legendChart,
     timelineEventsModel,
     option,
     renderingContext,

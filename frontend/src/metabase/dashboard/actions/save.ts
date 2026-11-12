@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { assocIn, dissocIn, getIn } from "icepick";
 import _ from "underscore";
 
@@ -68,6 +69,7 @@ export const updateDashboardAndCards = createThunkAction(
         );
 
         if (!cardsHaveChanged && !dashboardHasChanged) {
+          dispatch(setEditingDashboard(null, location));
           return;
         }
       }

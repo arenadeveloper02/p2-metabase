@@ -1,4 +1,4 @@
-import { QueryMetadataSchema } from "metabase/schema";
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import type {
   CopyDashboardRequest,
   CreateDashboardRequest,
@@ -16,7 +16,6 @@ import type {
   GetPublicDashboard,
   GetRemappedDashboardParameterValueRequest,
   GetValidDashboardFilterFieldsRequest,
-  ListCollectionItemsRequest,
   ListCollectionItemsResponse,
   ListDashboardsRequest,
   ListDashboardsResponse,
@@ -40,7 +39,6 @@ import {
   provideValidDashboardFilterFieldTags,
   tag,
 } from "./tags";
-import { hydrateMetadataStore } from "./utils/hydrate-metadata-store";
 
 export const dashboardApi = Api.injectEndpoints({
   endpoints: (builder) => {
@@ -97,7 +95,6 @@ export const dashboardApi = Api.injectEndpoints({
         }),
         providesTags: (metadata) =>
           metadata ? provideDashboardQueryMetadataTags(metadata) : [],
-        onQueryStarted: hydrateMetadataStore(QueryMetadataSchema),
       }),
       getDashboardCardQuery: builder.query<
         Dataset,
@@ -165,10 +162,7 @@ export const dashboardApi = Api.injectEndpoints({
       }),
       listDashboardItems: builder.query<
         ListCollectionItemsResponse,
-        Omit<
-          ListCollectionItemsRequest,
-          "id" | "q" | "include_available_models"
-        > & { id: DashboardId }
+        { id: DashboardId }
       >({
         query: ({ id, ...body }) => ({
           method: "GET",
@@ -222,6 +216,8 @@ export const dashboardApi = Api.injectEndpoints({
             // Archiving the dashboard the user has as their homepage clears the homepage server-side.
             // getCurrentUser provides this tag, so invalidating it refetches the user.
             idTag("user-homepage-dashboard", id),
+            // archiving a dashboard resolves any content-diagnostics finding for it
+            listTag("content-diagnostics-finding"),
           ]),
       }),
       deleteDashboard: builder.mutation<void, DashboardId>({
@@ -269,7 +265,7 @@ export const dashboardApi = Api.injectEndpoints({
       }),
       updateDashboardEnableEmbedding: updateDashboardPropertiesMutation<
         "enable_embedding" | "embedding_type"
-      >([listTag("embedding-hub-checklist")]),
+      >([listTag("setup-guide-checklist")]),
       updateDashboardEmbeddingParams: updateDashboardPropertiesMutation<
         "embedding_params" | "embedding_type"
       >(),

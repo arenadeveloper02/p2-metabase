@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- FIXME: any-typed values */
 import { skipToken, useGetUserQuery } from "metabase/api";
 import { getUser } from "metabase/current-user";
 import { useSelector } from "metabase/redux";
@@ -75,7 +76,7 @@ const ModerationReviewText = ({
         name={iconName}
         c={iconColor}
         size={ICON_BUTTON_SIZE}
-        mt="xs"
+        mt="xxs"
       />
       <Text>
         {bannerText} {relativeCreationTime}

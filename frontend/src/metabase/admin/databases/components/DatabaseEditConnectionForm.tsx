@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { updateIn } from "icepick";
 import { type ComponentType, useState } from "react";
 import _ from "underscore";
 
-import ErrorBoundary from "metabase/ErrorBoundary";
+import ErrorBoundary from "metabase/common/components/ErrorBoundary";
 import { GenericError } from "metabase/common/components/ErrorPages";
 import { LeaveRouteConfirmModal } from "metabase/common/components/LeaveConfirmModal";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
@@ -107,7 +108,7 @@ export const DatabaseEditConnectionForm = ({
             onEngineChange={onEngineChange}
           />
         ) : (
-          <Text my="md">{getDbNotModifiableMessage(database)}</Text>
+          <Text my="lg">{getDbNotModifiableMessage(database)}</Text>
         )}
       </LoadingAndErrorWrapper>
       <LeaveRouteConfirmModal isEnabled={isDirty && !isCallbackScheduled} />

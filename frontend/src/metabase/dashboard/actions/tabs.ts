@@ -156,9 +156,9 @@ function _selectTab({
   state.selectedTabId = tabId;
 }
 
-export const deleteTab = createAction<DeleteTabPayload>(DELETE_TAB);
+export const deleteTabAction = createAction<DeleteTabPayload>(DELETE_TAB);
 
-export const undoDeleteTab =
+export const undoDeleteTabAction =
   createAction<UndoDeleteTabPayload>(UNDO_DELETE_TAB);
 
 export const renameTab = createAction<RenameTabPayload>(RENAME_TAB);
@@ -393,7 +393,7 @@ export const tabsReducer = createReducer<DashboardState>(
     );
 
     builder.addCase(
-      deleteTab,
+      deleteTabAction,
       (state, { type, payload: { tabId, tabDeletionId } }) => {
         const { prevDash, prevTabs } = getPrevDashAndTabs({
           state,
@@ -439,7 +439,7 @@ export const tabsReducer = createReducer<DashboardState>(
     );
 
     builder.addCase(
-      undoDeleteTab,
+      undoDeleteTabAction,
       (state, { type, payload: { tabDeletionId } }) => {
         const { prevTabs } = getPrevDashAndTabs({ state });
         const { tabId, removedDashCardIds } = state.tabDeletions[tabDeletionId];

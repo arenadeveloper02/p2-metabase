@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return -- FIXME: any-typed values */
 import { getIn } from "icepick";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMount, usePrevious } from "react-use";
@@ -8,7 +9,7 @@ import {
   type DashboardContextReturned,
   useDashboardContext,
 } from "metabase/dashboard/context";
-import { isTableDisplay } from "metabase/dashboard/utils";
+import { hasColumnLevelClickBehavior } from "metabase/dashboard/utils";
 import { canSaveClickBehavior } from "metabase/dashboard/utils/click-behavior";
 import { getColumnKey } from "metabase-lib/v1/queries/utils/column-key";
 import type {
@@ -63,7 +64,7 @@ export function ClickBehaviorSidebarInner({
   const hasSelectedColumn = selectedColumn != null;
 
   const clickBehavior: ClickBehavior | undefined = useMemo(() => {
-    if (isTableDisplay(dashcard) && !hasSelectedColumn) {
+    if (hasColumnLevelClickBehavior(dashcard) && !hasSelectedColumn) {
       return;
     }
     if (hasSelectedColumn) {

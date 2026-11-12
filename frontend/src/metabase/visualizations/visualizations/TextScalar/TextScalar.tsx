@@ -1,4 +1,4 @@
-import { Component } from "react";
+import { type CSSProperties, Component } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -6,22 +6,55 @@ import DashboardS from "metabase/css/dashboard.module.css";
 import { color } from "metabase/ui/colors/palette";
 import { formatValue } from "metabase/value-formatting";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
-import { columnSettings } from "metabase/visualizations/lib/settings/column";
-import { fieldSetting } from "metabase/visualizations/lib/settings/utils";
-import {
-  getDefaultSize,
-  getMinSize,
-} from "metabase/visualizations/shared/utils/sizes";
 import type {
-  ComputedVisualizationSettings,
   VisualizationPassThroughProps,
   VisualizationProps,
 } from "metabase/visualizations/types";
 import { BarChart } from "metabase/visualizations/visualizations/BarChart";
+import {
+  type ComputedVisualizationSettings,
+  columnSettings,
+  fieldSetting,
+  getDefaultSize,
+  getMinSize,
+} from "metabase/viz-core";
 import type { DatasetColumn, DatasetData } from "metabase-types/api/dataset";
+
+import {
+  readSetting,
+  settingNumber,
+  settingString,
+} from "../../lib/read-setting";
 
 import { TextScalarContainer, TextScalarRoot } from "./TextScalar.styled";
 import { textScalarToBarTransform } from "./text-scalar-bar-transform";
+
+const TEXT_SCALAR_FONT_WEIGHTS = [
+  "normal",
+  "bold",
+  "100",
+  "200",
+  "300",
+  "400",
+  "500",
+  "600",
+  "700",
+  "800",
+  "900",
+] as const;
+
+type TextScalarFontWeight = (typeof TEXT_SCALAR_FONT_WEIGHTS)[number];
+
+function isTextScalarFontWeight(value: unknown): value is TextScalarFontWeight {
+  return (
+    typeof value === "string" &&
+    TEXT_SCALAR_FONT_WEIGHTS.some((weight) => weight === value)
+  );
+}
+
+function textScalarFontWeight(value: unknown): TextScalarFontWeight {
+  return isTextScalarFontWeight(value) ? value : "normal";
+}
 
 // TextScalar visualization shows a single text value
 // Multiseries TextScalar is transformed to a Bar chart
@@ -53,23 +86,21 @@ export class TextScalar extends Component<
         {
           data: { cols },
         },
-      ]: any) => cols[0]?.name,
+      ]) => cols[0]?.name,
       getHidden: ([
         {
           data: { cols },
         },
       ]) => cols.length < 2,
-      getProps: (series: any, settings: any, onChange: any) => {
-        // Get default props from fieldSetting (options, columns, etc.)
+      getProps: (series, _settings, onChange) => {
         const [
           {
             data: { cols },
           },
         ] = series;
 
-        // Create default options and columns (matching fieldSetting's default getProps)
         const defaultProps = {
-          options: cols.map((col: any) => ({
+          options: cols.map((col) => ({
             name: col.display_name,
             value: col.name,
           })),
@@ -304,12 +335,17 @@ export class TextScalar extends Component<
       }
     };
 
-    const textColor = settings["textscalar.color"];
-    const hoverColor = settings["textscalar.hover_color"];
-    const fontSize = settings["textscalar.font_size"] ?? 70;
-    const fontWeight = settings["textscalar.font_weight"] || "normal";
+    const textColor = settingString(readSetting(settings, "textscalar.color"));
+    const hoverColor = settingString(
+      readSetting(settings, "textscalar.hover_color"),
+    );
+    const fontSize =
+      settingNumber(readSetting(settings, "textscalar.font_size")) ?? 70;
+    const fontWeight = textScalarFontWeight(
+      readSetting(settings, "textscalar.font_weight"),
+    );
 
-    const textStyle: React.CSSProperties = {
+    const textStyle: CSSProperties = {
       color: textColor || undefined,
       fontSize: fontSize ? `${fontSize}px` : undefined,
       fontWeight,
@@ -326,7 +362,9 @@ export class TextScalar extends Component<
         >
           <span
             onClick={handleClick}
-            ref={(textScalar) => (this._textScalar = textScalar)}
+            ref={(textScalar) => {
+              this._textScalar = textScalar;
+            }}
             style={{
               ...textStyle,
               cursor: isClickable ? "pointer" : "default",

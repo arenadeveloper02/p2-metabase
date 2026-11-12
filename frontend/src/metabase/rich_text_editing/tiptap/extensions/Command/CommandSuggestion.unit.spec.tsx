@@ -10,8 +10,8 @@ import {
   setupSearchEndpoints,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen, within } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import { Input } from "metabase/ui";
 import { type RecentItem, isRecentTableItem } from "metabase-types/api";
 import {
@@ -83,7 +83,6 @@ const getRecentItemName = (item: RecentItem) =>
   isRecentTableItem(item) ? (item.display_name ?? item.name) : item.name;
 
 const MOCK_DATABASE = createMockDatabase({
-  is_saved_questions: true,
   native_permissions: "write",
 });
 
@@ -343,7 +342,6 @@ describe("CommandSuggestion", () => {
 
     setupDatabasesEndpoints([
       createMockDatabase({
-        is_saved_questions: false,
         native_permissions: "none",
       }),
     ]);

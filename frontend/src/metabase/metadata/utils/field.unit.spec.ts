@@ -1,4 +1,4 @@
-import { NULL_DISPLAY_VALUE } from "metabase/utils/constants";
+import { getNullDisplayValue } from "metabase/utils/constants";
 import MetabaseSettings from "metabase/utils/settings";
 import {
   createMockDatabase,
@@ -17,7 +17,6 @@ import {
   canFieldUnfoldJson,
   getFieldCurrency,
   getFieldDisplayName,
-  getRawTableFieldId,
   isFieldJsonUnfolded,
 } from "./field";
 
@@ -123,22 +122,6 @@ describe("canCoerceFieldType", () => {
   });
 });
 
-describe("getRawTableFieldId", () => {
-  it("should return the field id when it's a number", () => {
-    const field = createMockField({ id: 123 });
-
-    expect(getRawTableFieldId(field)).toBe(123);
-  });
-
-  it("should throw an error when field id is not a number", () => {
-    const field = createMockField({ id: ["field", 1, null] });
-
-    expect(() => getRawTableFieldId(field)).toThrow(
-      "getRawFieldId supports only raw table fields",
-    );
-  });
-});
-
 describe("getFieldCurrency", () => {
   it("returns currency from field settings when available", () => {
     const field = createMockField({
@@ -231,7 +214,7 @@ describe("getFieldDisplayName", () => {
       display_name: "",
     });
 
-    expect(getFieldDisplayName(field)).toBe(NULL_DISPLAY_VALUE);
+    expect(getFieldDisplayName(field)).toBe(getNullDisplayValue());
   });
 
   it("should handle empty dimensions array", () => {

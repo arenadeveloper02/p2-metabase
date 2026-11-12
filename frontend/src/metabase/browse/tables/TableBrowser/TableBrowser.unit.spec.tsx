@@ -1,14 +1,29 @@
 import fetchMock from "fetch-mock";
 
+import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
+import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import {
   renderWithProviders,
   screen,
   waitFor,
   waitForLoaderToBeRemoved,
 } from "__support__/ui";
-import { createMockDatabase, createMockTable } from "metabase-types/api/mocks";
+import {
+  createMockDatabase,
+  createMockTable,
+  createMockTokenFeatures,
+  createMockUser,
+} from "metabase-types/api/mocks";
 
 import { TableBrowser } from "./TableBrowser";
+
+// The test asserts that the browser polls while a sync is in progress, not how
+// long it waits between polls.
+jest.mock("metabase/browse/constants", () => ({
+  ...jest.requireActual("metabase/browse/constants"),
+  RELOAD_INTERVAL: 50,
+}));
 
 describe("TableBrowser", () => {
   beforeEach(() => {
@@ -82,5 +97,39 @@ describe("TableBrowser", () => {
     expect(
       fetchMock.callHistory.calls("path:/api/database/1/schema/"),
     ).toHaveLength(0);
+  });
+
+  it("offers the edit action when the database allows table editing", async () => {
+    const table = createMockTable({
+      id: 123,
+      name: "foo",
+      display_name: "foo",
+      initial_sync_status: "complete",
+      is_writable: true,
+    });
+    const database = createMockDatabase({
+      id: 1,
+      tables: [table],
+      settings: { "database-enable-table-editing": true },
+    });
+    fetchMock.get(`path:/api/database/${database.id}`, database);
+    fetchMock.get(`path:/api/database/${database.id}/schema/public`, [table]);
+
+    const state = createMockState({
+      currentUser: createMockUser({ is_superuser: true }),
+      settings: mockSettings({
+        "token-features": createMockTokenFeatures({
+          table_data_editing: true,
+        }),
+      }),
+    });
+    setupEnterpriseOnlyPlugin("table-editing");
+
+    renderWithProviders(<TableBrowser dbId={1} schemaName="public" />, {
+      storeInitialState: state,
+    });
+
+    expect(await screen.findByText("foo")).toBeInTheDocument();
+    expect(await screen.findByTestId("edit-table-icon")).toBeInTheDocument();
   });
 });

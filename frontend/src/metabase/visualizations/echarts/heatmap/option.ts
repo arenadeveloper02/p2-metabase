@@ -1,9 +1,18 @@
 import type { EChartsOption } from "echarts";
+import type { CallbackDataParams } from "echarts/types/dist/shared";
 import type React from "react";
 
+import { colors } from "metabase/ui/colors";
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { RawSeries } from "metabase-types/api";
+
+import {
+  readSetting,
+  settingBoolean,
+  settingString,
+} from "../../lib/read-setting";
+
 import { getHeatmapTooltipOption } from "./tooltip";
 
 export interface HeatmapDataPoint {
@@ -13,7 +22,7 @@ export interface HeatmapDataPoint {
 export function getHeatmapChartOption(
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
 ): EChartsOption {
   const [
     {
@@ -21,88 +30,28 @@ export function getHeatmapChartOption(
     },
   ] = rawSeries;
 
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Raw Data:", { cols, rows });
+  const xDimensionName = settingString(
+    readSetting(settings, "heatmap.xDimension"),
+  );
+  const yDimensionName = settingString(
+    readSetting(settings, "heatmap.yDimension"),
+  );
+  const valueName = settingString(readSetting(settings, "heatmap.value"));
 
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Column Names:", {
-    columnNames: cols.map((col: any) => col.name),
-    columnDetails: cols.map((col: any) => ({
-      name: col.name,
-      display_name: col.display_name,
-      source: col.source,
-      base_type: col.base_type,
-    })),
-  });
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - First 5 Rows:", rows.slice(0, 5));
-
-  // Get the three dimensions: X-axis, Y-axis, and Value
-  const xDimensionSetting = settings["heatmap.xDimension"];
-  const yDimensionSetting = settings["heatmap.yDimension"];
-  const valueSetting = settings["heatmap.value"];
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Settings:", {
-    xDimensionSetting,
-    yDimensionSetting,
-    valueSetting,
-  });
-
-  const xDimensionName = Array.isArray(xDimensionSetting)
-    ? xDimensionSetting[0]
-    : xDimensionSetting;
-  const yDimensionName = Array.isArray(yDimensionSetting)
-    ? yDimensionSetting[0]
-    : yDimensionSetting;
-  const valueName = Array.isArray(valueSetting)
-    ? valueSetting[0]
-    : valueSetting;
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Dimension Names:", {
-    xDimensionName,
-    yDimensionName,
-    valueName,
-  });
-
-  // Find column indices
-  const xIndex = cols.findIndex(col => col.name === xDimensionName);
-  const yIndex = cols.findIndex(col => col.name === yDimensionName);
-  const valueIndex = cols.findIndex(col => col.name === valueName);
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Column Indices:", {
-    xIndex,
-    yIndex,
-    valueIndex,
-  });
+  const xIndex = cols.findIndex((col) => col.name === xDimensionName);
+  const yIndex = cols.findIndex((col) => col.name === yDimensionName);
+  const valueIndex = cols.findIndex((col) => col.name === valueName);
 
   // Get unique values for X and Y axes
-  const xValues = Array.from(new Set(rows.map(row => String(row[xIndex]))));
-  const yValues = Array.from(new Set(rows.map(row => String(row[yIndex]))));
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Unique Values:", {
-    xValues,
-    yValues,
-    xCount: xValues.length,
-    yCount: yValues.length,
-  });
+  const xValues = Array.from(new Set(rows.map((row) => String(row[xIndex]))));
+  const yValues = Array.from(new Set(rows.map((row) => String(row[yIndex]))));
 
   // Create a map for quick lookup
   const dataMap = new Map<string, number>();
-  rows.forEach(row => {
+  rows.forEach((row) => {
     const key = `${row[xIndex]}_${row[yIndex]}`;
     const value = Number(row[valueIndex]) || 0;
     dataMap.set(key, value);
-  });
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Data Map:", {
-    mapSize: dataMap.size,
-    sampleEntries: Array.from(dataMap.entries()).slice(0, 5),
   });
 
   // Transform data to ECharts format: [xIndex, yIndex, value]
@@ -115,30 +64,17 @@ export function getHeatmapChartOption(
     });
   });
 
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Transformed Data:", {
-    dataLength: data.length,
-    sampleData: data.slice(0, 10),
-  });
-
   // Calculate min and max for visual map
   const numericValues = Array.from(dataMap.values()).filter(
-    v => typeof v === "number",
+    (v) => typeof v === "number",
   );
   const minValue = Math.min(...numericValues, 0);
   const maxValue = Math.max(...numericValues, 10);
 
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Value Range:", {
-    minValue,
-    maxValue,
-    numericValuesCount: numericValues.length,
-  });
-
-  // Get column settings for formatting
   const { column: getColumnSettings } = settings;
   const valueCol = cols[valueIndex];
-  const valueColSettings = getColumnSettings ? getColumnSettings(valueCol) : {};
+  const valueColSettings =
+    valueCol && getColumnSettings ? getColumnSettings(valueCol) : {};
 
   // Format value function (used for both tooltip and labels)
   const formatValueForDisplay = (value: number | string) => {
@@ -155,8 +91,12 @@ export function getHeatmapChartOption(
   };
 
   // Get display settings
-  const showLabels = settings["heatmap.showLabels"] !== false;
-  const visualMapPosition = settings["heatmap.visualMapPosition"] || "bottom";
+  const showLabels =
+    settingBoolean(readSetting(settings, "heatmap.showLabels")) !== false;
+  const visualMapPosition =
+    settingString(readSetting(settings, "heatmap.visualMapPosition")) === "top"
+      ? "top"
+      : "bottom";
 
   const option = {
     tooltip: getHeatmapTooltipOption(
@@ -205,23 +145,26 @@ export function getHeatmapChartOption(
         data,
         label: {
           show: showLabels,
-          formatter: (params: any) => {
-            const value = params.data[2];
-            return formatValueForDisplay(value);
+          formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
+            if (Array.isArray(params) || !Array.isArray(params.data)) {
+              return "";
+            }
+            const cell = params.data[2];
+            if (typeof cell !== "number" && typeof cell !== "string") {
+              return "";
+            }
+            return formatValueForDisplay(cell);
           },
         },
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
+            shadowColor: colors["shadow-default"],
           },
         },
       },
     ],
   };
-
-  // eslint-disable-next-line no-console
-  console.log("🔥 HEATMAP DEBUG - Final ECharts Option:", option);
 
   return option;
 }

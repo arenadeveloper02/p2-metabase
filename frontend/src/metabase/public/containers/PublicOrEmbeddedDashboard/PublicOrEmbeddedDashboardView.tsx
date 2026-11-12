@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import cx from "classnames";
 import _ from "underscore";
 
@@ -88,7 +89,7 @@ export function PublicOrEmbeddedDashboardView() {
         className={cx({
           [DashboardS.DashboardFullscreen]: isFullscreen,
         })}
-        mt={isCompactHeader ? "xs" : "sm"}
+        mt={isCompactHeader ? "xxs" : "sm"}
       >
         <Dashboard.Grid />
       </FullWidthContainer>

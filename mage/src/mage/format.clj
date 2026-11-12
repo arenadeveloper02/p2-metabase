@@ -1,11 +1,14 @@
 (ns mage.format
   (:require
    [cljfmt.tool]
-   [clojure.string :as str]
    [mage.color :as c]
    [mage.util :as u]))
 
 (set! *warn-on-reflection* true)
+
+;; One cljfmt invocation over a whole merge (1k+ files) is large enough for the
+;; OS to SIGKILL the process. Format in batches so a pre-commit can finish.
+(def ^:private file-batch-size 20)
 
 (defn- select-cljfmt-function [force-check?]
   (if force-check? #'cljfmt.tool/check #'cljfmt.tool/fix))
@@ -19,8 +22,9 @@
       (throw (ex-info (str "No files to " f "."
                            "\nPlease specify file paths as arguments.")
                       {:babashka/exit 0})))
-    (printf (c/green "%sing %s...\n") f (str/join ", " file-paths)) (flush)
-    (try (f {:paths file-paths}) (catch Exception _e nil))))
+    (doseq [batch (partition-all file-batch-size file-paths)]
+      (printf (c/green "%sing %d files...\n") f (count batch)) (flush)
+      (try (f {:paths batch}) (catch Exception _e nil)))))
 
 (defn updated
   "Formats or checks all updated clojure files with cljfmt."

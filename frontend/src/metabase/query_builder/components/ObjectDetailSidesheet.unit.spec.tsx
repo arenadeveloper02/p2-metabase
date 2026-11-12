@@ -6,6 +6,10 @@ import {
   setupDatabasesEndpoints,
   setupTableEndpoints,
 } from "__support__/server-mocks";
+import {
+  createMockQueryBuilderState,
+  createMockState,
+} from "__support__/state";
 import { createMockEntitiesState } from "__support__/store";
 import { testDataset } from "__support__/testDataset";
 import {
@@ -15,22 +19,20 @@ import {
   waitFor,
   waitForLoaderToBeRemoved,
 } from "__support__/ui";
-import { ObjectDetailSidesheet } from "metabase/query_builder/components/ObjectDetailSidesheet";
-import {
-  createMockQueryBuilderState,
-  createMockState,
-} from "metabase/redux/store/mocks";
 import { checkNotNull } from "metabase/utils/types";
 import { registerVisualizations } from "metabase/visualizations/register";
+import * as Lib from "metabase-lib";
+import { SAMPLE_PROVIDER } from "metabase-lib/test-helpers";
 import type { Field } from "metabase-types/api";
 import { createMockCard, createMockDataset } from "metabase-types/api/mocks";
 import {
   PRODUCTS_ID,
-  SAMPLE_DB_ID,
   createOrdersTable,
   createProductsTable,
   createReviewsTable,
 } from "metabase-types/api/mocks/presets";
+
+import { ObjectDetailSidesheet } from "./ObjectDetailSidesheet";
 
 registerVisualizations();
 
@@ -92,13 +94,11 @@ function setup({ hideOrdersTable = false }: SetupOpts = {}) {
     }),
     qb: createMockQueryBuilderState({
       card: createMockCard({
-        dataset_query: {
-          database: SAMPLE_DB_ID,
-          type: "query",
-          query: {
-            "source-table": PRODUCTS_ID,
-          },
-        },
+        dataset_query: Lib.toJsQuery(
+          Lib.createTestQuery(SAMPLE_PROVIDER, {
+            stages: [{ source: { type: "table", id: PRODUCTS_ID } }],
+          }),
+        ),
       }),
       // Unjustified type cast. FIXME
       zoomedRowObjectId: testDataset.rows[0][ROW_ID_INDEX] as string,

@@ -65,6 +65,9 @@ export type MetabaseComponentTheme = {
     /** Background color of the table header that stays fixed while scrolling. Defaults to `background_page-secondary` */
     stickyBackgroundColor?: string;
 
+    /** Background color of every other row when the "Striped rows" table setting is enabled. Defaults to a subtle tint of the cell background color */
+    stripedBackgroundColor?: string;
+
     cell: {
       /** Text color of cells, defaults to `text-primary`. */
       textColor: string;
@@ -263,7 +266,7 @@ export const DEFAULT_METABASE_COMPONENT_THEME: MetabaseComponentTheme = {
     },
     splitLine: {
       lineStyle: {
-        color: "var(--mb-color-cartesian-grid-line)",
+        color: "var(--mb-color-chart-axis)",
       },
     },
   },

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { useCallback, useRef } from "react";
 import { t } from "ttag";
 
@@ -65,8 +66,7 @@ export function useDashboardChartPaste() {
         dispatch(
           addUndo({
             id: PASTE_TOAST_ID,
-            icon: "warning",
-            toastColor: "error",
+            variant: "negative",
             message: t`Couldn't add the chart to this dashboard`,
           }),
         );

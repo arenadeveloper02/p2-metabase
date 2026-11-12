@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { assocIn } from "icepick";
 import _ from "underscore";
 
@@ -5,7 +6,7 @@ import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
 import type { Series } from "metabase-types/api";
 
-import { getQuestionWithDefaultVisualizationSettings } from "./utils";
+import { getQuestionWithDefaultVisualizationSettings } from "../../utils/viz-settings";
 
 interface Options {
   question: Question;

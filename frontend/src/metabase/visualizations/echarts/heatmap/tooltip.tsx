@@ -1,19 +1,25 @@
-import type { TooltipOption } from "echarts/types/dist/shared";
+import type {
+  CallbackDataParams,
+  TooltipOption,
+} from "echarts/types/dist/shared";
 import type React from "react";
 
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import { getTooltipBaseOption } from "../tooltip";
+import {
+  type ComputedVisualizationSettings,
+  EChartsTooltip,
+  getTooltipBaseOption,
+} from "metabase/viz-core";
+import type { DatasetColumn, RawSeries } from "metabase-types/api";
 
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
-import type { RawSeries } from "metabase-types/api";
+import { readSetting, settingString } from "../../lib/read-setting";
 
 interface HeatmapTooltipProps {
   xValue: string;
   yValue: string;
   value: number | string;
-  valueCol: any;
+  valueCol?: DatasetColumn;
   valueColSettings: Record<string, unknown>;
 }
 
@@ -56,7 +62,7 @@ const HeatmapTooltipContent = ({
 export const getHeatmapTooltipOption = (
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
   xValues: string[],
   yValues: string[],
 ): TooltipOption => {
@@ -66,28 +72,35 @@ export const getHeatmapTooltipOption = (
     },
   ] = rawSeries;
 
-  const valueSetting = settings["heatmap.value"];
-  const valueName = Array.isArray(valueSetting)
-    ? valueSetting[0]
-    : valueSetting;
-
-  const valueIndex = cols.findIndex((col: any) => col.name === valueName);
+  const valueName = settingString(readSetting(settings, "heatmap.value"));
+  const valueIndex = cols.findIndex((col) => col.name === valueName);
   const valueCol = cols[valueIndex];
 
   const { column: getColumnSettings } = settings;
-  const valueColSettings = getColumnSettings ? getColumnSettings(valueCol) : {};
+  const valueColSettings =
+    valueCol && getColumnSettings ? getColumnSettings(valueCol) : {};
 
   return {
     ...getTooltipBaseOption(containerRef),
     trigger: "item",
-    formatter: (params: any) => {
-      if (Array.isArray(params)) {
+    formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
+      if (Array.isArray(params) || !Array.isArray(params.data)) {
         return "";
       }
 
-      const xVal = xValues[params.data[0]];
-      const yVal = yValues[params.data[1]];
-      const value = params.data[2];
+      const xIndex = params.data[0];
+      const yIndex = params.data[1];
+      const cell = params.data[2];
+      if (typeof xIndex !== "number" || typeof yIndex !== "number") {
+        return "";
+      }
+      if (typeof cell !== "number" && typeof cell !== "string") {
+        return "";
+      }
+
+      const xVal = xValues[xIndex] ?? "";
+      const yVal = yValues[yIndex] ?? "";
+      const value = cell;
 
       return reactNodeToHtmlString(
         <HeatmapTooltipContent
@@ -101,4 +114,3 @@ export const getHeatmapTooltipOption = (
     },
   };
 };
-

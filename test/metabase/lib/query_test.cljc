@@ -617,7 +617,7 @@
            :database 1
            :stages   [{:lib/type      :mbql.stage/native
                        :native        "SELECT * FROM table WHERE {{checkin_date}};"
-                       :template-tags [{:dimension    [:field {} 2]
+                       :template-tags [{:field-id 2
                                         :display-name "Checkin Date"
                                         :name         "checkin_date"
                                         :type         :dimension
@@ -630,7 +630,7 @@
                                             :display-name "Checkin Date"
                                             :type         :dimension
                                             :widget-type  :date/all-options
-                                            :dimension    [:field 2 nil]}}}))))
+                                            :field-id     2}}}))))
 
 #?(:clj
    (deftest ^:synchronized query-from-legacy-error-containment-test
@@ -642,6 +642,7 @@
            (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Error creating query from legacy query"
                                  (lib/query meta/metadata-provider legacy)))))
        (testing "a fatal Error thrown while converting a legacy query propagates unwrapped"
+         ;; ->mbql5 is a multimethod, which with-dynamic-fn-redefs refuses; plain with-redefs is required
          #_{:clj-kondo/ignore [:metabase/prefer-with-dynamic-fn-redefs]}
          (with-redefs [lib.convert/->mbql5 (fn [& _] (throw (Error. "boom")))]
            (is (thrown? Error

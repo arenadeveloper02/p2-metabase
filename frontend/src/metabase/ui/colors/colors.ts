@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- FIXME: any-typed values */
 // NOTE: DO NOT ADD COLORS WITHOUT EXTREMELY GOOD REASON AND DESIGN REVIEW
 
 import type { ColorSettings } from "metabase-types/api/settings";
 
-import { ds } from "./constants/arena-ds";
+import { getBaseColorsForThemeDefinitionOnly } from "./constants/base-colors";
 import { deriveFullMetabaseTheme } from "./derive-theme";
 import type { MetabaseColorKey } from "./types/color-keys";
 
@@ -12,6 +13,8 @@ const tokenFeatures = win.MetabaseBootstrap?.["token-features"] ?? {};
 const shouldWhitelabel = !!tokenFeatures["whitelabel"];
 const whitelabelColors =
   (shouldWhitelabel && win.MetabaseBootstrap?.["application-colors"]) || {};
+
+const baseColors = getBaseColorsForThemeDefinitionOnly();
 
 export const getColors = (whitelabelColors?: ColorSettings) =>
   deriveFullMetabaseTheme({ colorScheme: "light", whitelabelColors }).colors;
@@ -29,7 +32,8 @@ export const mutateColors = (whitelabelColors: ColorSettings) => {
 };
 
 export const staticVizOverrides = {
-  "text-primary": ds.light.textPrimary,
-  "text-secondary": ds.light.textSecondary,
-  "text-disabled": ds.light.textMuted,
+  "chart-axis": baseColors.orion[20],
+  "text-primary": baseColors.orion[80],
+  "text-secondary": baseColors.orion[60],
+  "text-disabled": baseColors.orion[40],
 };

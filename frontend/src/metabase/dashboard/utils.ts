@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- FIXME: any-typed values */
 import { getIn } from "icepick";
 import { msgid, ngettext, t } from "ttag";
 import _ from "underscore";
@@ -10,12 +11,11 @@ import {
 } from "metabase/utils/dashboard";
 import { isStaticEmbeddingEntityLoadingError } from "metabase/utils/errors/is-static-embedding-entity-loading-error";
 import type { StaticEmbeddingEntityError } from "metabase/utils/errors/types";
+import { hasNoResults } from "metabase/visualizations/lib/no-results";
 import {
   getDatasetPermissionError,
   getGenericErrorMessage,
-} from "metabase/visualizations/lib/errors";
-import { hasNoResults } from "metabase/visualizations/lib/no-results";
-import Question from "metabase-lib/v1/Question";
+} from "metabase/viz-core";
 import type { UiParameter } from "metabase-lib/v1/parameters/types";
 import {
   areParameterValuesIdentical,
@@ -104,6 +104,12 @@ export function isHeadingDashCard(
   return getVirtualCardType(dashcard) === "heading";
 }
 
+export function isTextDashCard(
+  dashcard: BaseDashboardCard,
+): dashcard is VirtualDashboardCard {
+  return getVirtualCardType(dashcard) === "text";
+}
+
 export function isLinkDashCard(
   dashcard: BaseDashboardCard,
 ): dashcard is VirtualDashboardCard {
@@ -178,12 +184,7 @@ export function getInlineParameterTabMap(dashboard: Dashboard) {
 }
 
 export function isNativeDashCard(dashcard: QuestionDashboardCard) {
-  // The `dataset_query` is null for questions on a dashboard the user doesn't have access to
-  if (dashcard.card.dataset_query == null) {
-    return false;
-  }
-  const question = new Question(dashcard.card);
-  return question.isNative();
+  return dashcard.card.query_type === "native";
 }
 
 // For a virtual (text) dashcard without any parameters, returns a boolean indicating whether we should display the
@@ -207,14 +208,17 @@ export function getAllDashboardCards(dashboard: Dashboard) {
   return results;
 }
 
+export const isDashCardOnTab = (
+  dashcard: BaseDashboardCard,
+  tabId: SelectedTabId,
+) => (dashcard.dashboard_tab_id ?? null) === tabId;
+
 export function getCurrentTabDashboardCards(
   dashboard: Dashboard,
   selectedTabId: SelectedTabId,
 ) {
-  return getAllDashboardCards(dashboard).filter(
-    ({ dashcard }) =>
-      (dashcard.dashboard_tab_id == null && selectedTabId == null) ||
-      dashcard.dashboard_tab_id === selectedTabId,
+  return getAllDashboardCards(dashboard).filter(({ dashcard }) =>
+    isDashCardOnTab(dashcard, selectedTabId),
   );
 }
 
@@ -277,7 +281,7 @@ export function isDashcardAccessRestricted(
 }
 
 export function getDashcardResultsError(
-  datasets: Dataset[],
+  datasets: Partial<Dataset>[],
   isGuestEmbed: boolean,
 ) {
   const permissionError = datasets
@@ -512,7 +516,7 @@ export function getClickBehaviorDescription(dashcard: DashboardCard) {
   const noBehaviorMessage = hasActionsMenu(dashcard)
     ? t`Open the drill-through menu`
     : t`Do nothing`;
-  if (isTableDisplay(dashcard)) {
+  if (hasColumnLevelClickBehavior(dashcard)) {
     const columnSettings: Record<string, ColumnSettings> =
       getIn(dashcard, ["visualization_settings", "column_settings"]) || {};
 
@@ -568,12 +572,12 @@ export function hasActionsMenu(dashcard: DashboardCard) {
 
   // This seems to work, but it isn't the right logic.
   // The right thing to do would be to check for any drills. However, we'd need a "clicked" object for that.
-  const question = Question.create({
-    dataset_query: dashcard.card.dataset_query,
-  });
-  return !question.isNative();
+  return dashcard.card.query_type !== "native";
 }
 
-export function isTableDisplay(dashcard: DashboardCard) {
+export function hasColumnLevelClickBehavior(dashcard: DashboardCard) {
+  if (isVisualizerDashboardCard(dashcard)) {
+    return dashcard.visualization_settings.visualization.display === "table";
+  }
   return dashcard?.card?.display === "table";
 }

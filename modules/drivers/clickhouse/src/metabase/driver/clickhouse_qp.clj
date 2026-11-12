@@ -584,7 +584,7 @@
 (defmethod sql-jdbc.execute/read-column-thunk [:clickhouse Types/BIGINT]
   [_ ^ResultSet rs ^ResultSetMetaData _ ^Integer i]
   (fn []
-    (with-null-check rs (.getBigDecimal rs i))))
+    (with-null-check rs (.getLong rs i))))
 
 (defmethod sql-jdbc.execute/read-column-thunk [:clickhouse Types/INTEGER]
   [_ ^ResultSet rs ^ResultSetMetaData _ ^Integer i]
@@ -674,6 +674,10 @@
         (.getString rs i)
         ;; _
         :else (.getObject rs i)))))
+
+(defmethod sql.qp/inline-value [:clickhouse String]
+  [_driver ^String s]
+  (sql.u/quote-literal s :backslashes))
 
 (defmethod sql.qp/inline-value [:clickhouse LocalDate]
   [_ t]

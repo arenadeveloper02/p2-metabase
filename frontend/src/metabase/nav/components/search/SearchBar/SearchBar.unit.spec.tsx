@@ -6,6 +6,7 @@ import {
   setupSearchEndpoints,
   setupUserRecipientsEndpoint,
 } from "__support__/server-mocks";
+import { createMockSettingsState, createMockState } from "__support__/state";
 import {
   renderWithProviders,
   screen,
@@ -14,11 +15,8 @@ import {
   within,
 } from "__support__/ui";
 import { SearchBar } from "metabase/nav/components/search/SearchBar";
-import {
-  createMockSettingsState,
-  createMockState,
-} from "metabase/redux/store/mocks";
 import { Route } from "metabase/router";
+import * as iframeUtils from "metabase/utils/iframe";
 import { checkNotNull } from "metabase/utils/types";
 import type { CollectionItem, RecentItem } from "metabase-types/api";
 import {
@@ -26,6 +24,13 @@ import {
   createMockRecentTableItem,
   createMockUser,
 } from "metabase-types/api/mocks";
+
+// The search debounce is idle time in these tests: they assert what a search
+// returns, not that the input waits before it asks.
+jest.mock("metabase/utils/constants", () => ({
+  ...jest.requireActual("metabase/utils/constants"),
+  SEARCH_DEBOUNCE_DURATION: 0,
+}));
 
 const TEST_SEARCH_RESULTS: CollectionItem[] = [
   "Card ABC",
@@ -157,6 +162,37 @@ describe("SearchBar", () => {
           // Unjustified type cast. FIXME
           within(filteredElement as HTMLElement).getByText("Our analytics"),
         ).toHaveFocus();
+      }
+    });
+  });
+
+  describe("command palette trigger", () => {
+    it("should show the trigger when the search bar is active", async () => {
+      setup();
+
+      await userEvent.click(getSearchBar());
+
+      expect(
+        await screen.findByRole("button", { name: / \+ K/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("should not be accessible when doing full app embedding", async () => {
+      const isWithinIframeSpy = jest
+        .spyOn(iframeUtils, "isWithinIframe")
+        .mockReturnValue(true);
+
+      try {
+        setup();
+
+        await userEvent.click(getSearchBar());
+
+        expect(await screen.findByText("Recents ABC")).toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: / \+ K/ }),
+        ).not.toBeInTheDocument();
+      } finally {
+        isWithinIframeSpy.mockRestore();
       }
     });
   });

@@ -1,67 +1,64 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import type { EChartsType } from "echarts/core";
 import {
   type MouseEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { useSet } from "react-use";
 
+import { colors as themeColors } from "metabase/ui/colors";
 import { isNotNull } from "metabase/utils/types";
-import { extractRemappings } from "metabase/visualizations";
 import { ChartWithLegend } from "metabase/visualizations/components/ChartWithLegend";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
-import { getPieChartFormatters } from "metabase/visualizations/echarts/pie/format";
-import { getPieChartModel } from "metabase/visualizations/echarts/pie/model";
-import { getPieChartOption } from "metabase/visualizations/echarts/pie/option";
-import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
-import { getArrayFromMapValues } from "metabase/visualizations/echarts/pie/util";
-import {
-  OTHER_SLICE_KEY,
-  getOtherSliceName,
-} from "metabase/visualizations/echarts/pie/constants";
 import {
   getDonutChartData,
   getDoughnutChartOption,
 } from "metabase/visualizations/echarts/pie-doughnut/option";
+import { getTooltipOption } from "metabase/visualizations/echarts/pie/tooltip";
+import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
+import { useLegendHiddenSeries } from "metabase/visualizations/hooks/use-legend-hidden-series";
+import type {
+  ClickObject,
+  VisualizationProps,
+} from "metabase/visualizations/types";
 import {
-  useCloseTooltipOnScroll,
+  type HoveredObject,
+  extractRemappings,
+  getArrayFromMapValues,
+  getPieChartFormatters,
+  getPieChartModel,
+  getPieChartOption,
   useInjectSeriesColorsClasses,
   usePieChartValuesColorsClasses,
-} from "metabase/visualizations/echarts/tooltip";
-import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
-import type { VisualizationProps } from "metabase/visualizations/types";
-import { useTooltipMouseLeave } from "metabase/visualizations/visualizations/CartesianChart/use-tooltip-mouse-leave";
+} from "metabase/viz-core";
+import type { PieRow } from "metabase-types/api";
 
 import S from "./PieChart.module.css";
 import { PIE_CHART_DEFINITION } from "./definition";
 import { useChartEvents } from "./use-chart-events";
 
 function PieChartComponent(props: VisualizationProps) {
-  const {
-    fontFamily,
-    rawSeries,
-    settings,
-    onRender,
-    isDashboard,
-    isDocument,
-    isFullscreen,
-  } = props;
+  const { fontFamily, rawSeries, settings, onRender, isDashboard, isDocument } =
+    props;
   const hoveredIndex = props.hovered?.index;
   const hoveredSliceKeyPath = props.hovered?.pieSliceKeyPath;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<EChartsType>();
-  const [chartSize, setChartSize] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
-  });
+  const chartRef = useRef<EChartsType | null>(null);
+  const [chartSize, setChartSize] = useState<{ width: number; height: number }>(
+    {
+      width: 0,
+      height: 0,
+    },
+  );
 
-  const [hiddenSlices, { toggle: toggleSliceVisibility }] = useSet<
+  const [hiddenSlices, toggleSliceVisibility] = useLegendHiddenSeries<
     string | number
-  >();
+  >(settings["legend.position"]);
 
   const showWarning = useCallback(
     (warning: string) => onRender({ warnings: [warning] }),
@@ -71,7 +68,6 @@ function PieChartComponent(props: VisualizationProps) {
   const renderingContext = useBrowserRenderingContext({
     fontFamily,
     isDashboard,
-    isFullscreen,
   });
   const rawSeriesWithRemappings = useMemo(
     () => extractRemappings(rawSeries) || [],
@@ -97,44 +93,40 @@ function PieChartComponent(props: VisualizationProps) {
     () => getPieChartFormatters(chartModel, settings),
     [chartModel, settings],
   );
-  const option = useMemo(
-    () => {
-      if (settings["pie.type"] === "donut-classic") {
-        return {};
-      }
-      return {
-        ...getPieChartOption(
-          chartModel,
-          formatters,
-          settings,
-          renderingContext,
-          Math.min(chartSize.width, chartSize.height),
-          hoveredIndex,
-          hoveredSliceKeyPath,
-        ),
-        tooltip: getTooltipOption(chartModel, formatters, containerRef),
-      };
-    },
-    [
-      chartModel,
-      formatters,
-      settings,
-      renderingContext,
-      chartSize,
-      hoveredIndex,
-      hoveredSliceKeyPath,
-    ],
-  );
+  const option = useMemo(() => {
+    if (settings["pie.type"] === "donut-classic") {
+      return {};
+    }
+    return {
+      ...getPieChartOption(
+        chartModel,
+        formatters,
+        settings,
+        renderingContext,
+        Math.min(chartSize.width, chartSize.height),
+        hoveredIndex,
+        hoveredSliceKeyPath,
+      ),
+      tooltip: getTooltipOption(chartModel, formatters, containerRef),
+    };
+  }, [
+    chartModel,
+    formatters,
+    settings,
+    renderingContext,
+    chartSize,
+    hoveredIndex,
+    hoveredSliceKeyPath,
+  ]);
 
   const valuesColorsCss = usePieChartValuesColorsClasses(chartModel);
 
   // Inject colors for Classic Donut (derived from settings) for tooltip usage
   const classicColors = useMemo(() => {
-    const rows = settings["pie.rows"] || [];
-    // Ensure we only have valid hex strings
+    const rows = settings["pie.rows"] ?? [];
     return rows
-      .map((r: any) => r.color)
-      .filter((c: any) => typeof c === "string" && c.startsWith("#"));
+      .map((row) => row.color)
+      .filter((color) => color.startsWith("#"));
   }, [settings]);
   const classicColorsCss = useInjectSeriesColorsClasses(classicColors);
 
@@ -151,9 +143,9 @@ function PieChartComponent(props: VisualizationProps) {
   // since classic donut has its own aggregation logic (20 slice limit etc).
   // This disables standard hook-based legend highlighting for classic donut, preventing crashes.
   const eventHandlers = useChartEvents(
-      props, 
-      chartRef, 
-      settings["pie.type"] === "donut-classic" ? undefined : chartModel
+    props,
+    chartRef,
+    settings["pie.type"] === "donut-classic" ? undefined : chartModel,
   );
 
   const slices = useMemo(
@@ -194,15 +186,18 @@ function PieChartComponent(props: VisualizationProps) {
     .filter((s) => s.includeInLegend)
     .map((s) => s.color);
 
-  const showLegend = settings["pie.show_legend"];
-
-  const onHoverChange = (hoverData: any) =>
-    props.onHoverChange(
-      hoverData && {
-        ...hoverData,
-        pieLegendHoverIndex: hoverData.index,
-      },
-    );
+  const { onHoverChange: onHoverChangeProp } = props;
+  const onHoverChange = useCallback(
+    (hoverData?: HoveredObject | null) => {
+      onHoverChangeProp(
+        hoverData && {
+          ...hoverData,
+          pieLegendHoverIndex: hoverData.index,
+        },
+      );
+    },
+    [onHoverChangeProp],
+  );
 
   const handleToggleSeriesVisibility = (
     _event: MouseEvent,
@@ -230,8 +225,9 @@ function PieChartComponent(props: VisualizationProps) {
   // Calculate Full Data (ignoring hidden state) for the Legend List
   // This ensures Legend shows the "Top 20" structure even if some are hidden.
   const fullDonutData = useMemo(() => {
-    if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings)
+    if (settings["pie.type"] !== "donut-classic" || !rawSeriesWithRemappings) {
       return null;
+    }
     return getDonutChartData(rawSeriesWithRemappings, settings, new Set());
   }, [rawSeriesWithRemappings, settings]);
 
@@ -242,113 +238,126 @@ function PieChartComponent(props: VisualizationProps) {
 
     const hoveredIndex = props.hovered?.pieLegendHoverIndex;
     const hoveredName =
-      hoveredIndex != null ? fullDonutData?.data[hoveredIndex]?.name : undefined;
+      hoveredIndex != null
+        ? fullDonutData?.data[hoveredIndex]?.name
+        : undefined;
 
     return getDoughnutChartOption(
       donutData,
       settings,
       chartSize.width,
       chartSize.height,
-      containerRef,
+      // useRef(null) is RefObject<HTMLDivElement | null>. This helper still
+      // takes RefObject<HTMLDivElement>.
+      containerRef as RefObject<HTMLDivElement>,
       hoveredName,
       renderingContext,
     );
-  }, [donutData, settings, chartSize, props.hovered, fullDonutData]);
+  }, [
+    donutData,
+    settings,
+    chartSize,
+    props.hovered,
+    fullDonutData,
+    renderingContext,
+  ]);
 
+  type DoughnutChartEvent = {
+    componentType?: string;
+    name?: string;
+    value?: ClickObject["value"];
+    event?: { event?: globalThis.MouseEvent };
+  };
 
   // Create event handlers for classic doughnut
   const doughnutEventHandlers = useMemo(() => {
-    const pieRows = settings["pie.rows"] || [];
+    const pieRows: PieRow[] = settings["pie.rows"] ?? [];
 
     return [
       {
         eventName: "click",
-        handler: (params: any) => {
-           // Ensure we only handle clicks on series items
-           if (params.componentType !== "series") return;
+        handler: (params: DoughnutChartEvent) => {
+          if (params.componentType !== "series") {
+            return;
+          }
 
-            const sliceName = params.name;
-            const pieRow = pieRows.find(
-              (r: any) => r.name === sliceName || r.key === sliceName,
+          const sliceName = params.name;
+          const pieRow = pieRows.find(
+            (row) => row.name === sliceName || row.key === sliceName,
+          );
+
+          if (
+            pieRow &&
+            props.onVisualizationClick &&
+            rawSeriesWithRemappings &&
+            rawSeriesWithRemappings.length > 0
+          ) {
+            const [
+              {
+                data: { cols, rows },
+              },
+            ] = rawSeriesWithRemappings;
+            const dimensionSetting = settings["pie.dimension"];
+            const dimensionName = Array.isArray(dimensionSetting)
+              ? dimensionSetting[0]
+              : dimensionSetting;
+            const metricSetting = settings["pie.metric"];
+            const metricName = Array.isArray(metricSetting)
+              ? metricSetting[0]
+              : metricSetting;
+
+            const dimensionCol = cols.find((col) => col.name === dimensionName);
+            const metricCol = cols.find((col) => col.name === metricName);
+            const dimensionIndex = cols.findIndex(
+              (col) => col.name === dimensionName,
             );
 
-            if (
-              pieRow &&
-              props.onVisualizationClick &&
-              rawSeriesWithRemappings &&
-              rawSeriesWithRemappings.length > 0
-            ) {
-              const [
-                {
-                  data: { cols, rows },
-                },
-              ] = rawSeriesWithRemappings;
-              const dimensionSetting = settings["pie.dimension"];
-              const dimensionName = Array.isArray(dimensionSetting)
-                ? dimensionSetting[0]
-                : dimensionSetting;
-              const metricSetting = settings["pie.metric"];
-              const metricName = Array.isArray(metricSetting)
-                ? metricSetting[0]
-                : metricSetting;
+            const dataRow = rows.find(
+              (row) => String(row[dimensionIndex]) === String(pieRow.key),
+            );
 
-              const dimensionCol = cols.find(
-                (c: any) => c.name === dimensionName,
-              );
-              const metricCol = cols.find((c: any) => c.name === metricName);
-              const dimensionIndex = cols.findIndex(
-                (c: any) => c.name === dimensionName,
-              );
+            if (dimensionCol && metricCol && dataRow) {
+              const data = dataRow.map((value, index) => ({
+                value,
+                col: cols[index],
+              }));
 
-              // Find the row that matches this slice
-              const dataRow = rows.find(
-                (row: any) =>
-                  String(row[dimensionIndex]) === String(pieRow.key),
-              );
+              const clickObject: ClickObject = {
+                value: params.value,
+                column: metricCol,
+                data,
+                dimensions: [
+                  {
+                    value: pieRow.key,
+                    column: dimensionCol,
+                  },
+                ],
+                settings,
+                event: params.event?.event,
+              };
 
-              if (dimensionCol && metricCol && dataRow) {
-                // Build the full data array with all columns, matching the format
-                // used by the regular pie chart
-                const data = dataRow.map((value: any, index: number) => ({
-                  value,
-                  col: cols[index],
-                }));
-
-                // Build the click object matching the regular pie chart format
-                const clickObject = {
-                  value: params.value, // The metric value
-                  column: metricCol, // The metric column
-                  data, // Full row data with all columns
-                  dimensions: [
-                    {
-                      value: pieRow.key,
-                      column: dimensionCol,
-                    },
-                  ],
-                  settings,
-                  event: params.event?.event,
-                };
-
-                // Check if it's clickable and trigger the handler
-                if (
-                  !props.visualizationIsClickable ||
-                  props.visualizationIsClickable(clickObject)
-                ) {
-                  props.onVisualizationClick(clickObject);
-                }
+              if (
+                !props.visualizationIsClickable ||
+                props.visualizationIsClickable(clickObject)
+              ) {
+                props.onVisualizationClick(clickObject);
               }
             }
+          }
         },
       },
       {
         eventName: "mouseover",
-        handler: (params: any) => {
+        handler: (params: DoughnutChartEvent) => {
           if (params.componentType === "series" && fullDonutData) {
-            const index = fullDonutData.data.findIndex(d => d.name === params.name);
+            const index = fullDonutData.data.findIndex(
+              (point) => point.name === params.name,
+            );
             if (index !== -1) {
+              const target = params.event?.event?.target;
               onHoverChange({
                 index,
-                element: params.event?.event?.target,
+                element: target instanceof Element ? target : undefined,
               });
             }
           }
@@ -363,107 +372,97 @@ function PieChartComponent(props: VisualizationProps) {
     ];
   }, [settings, rawSeriesWithRemappings, props, fullDonutData, onHoverChange]);
 
+  const classicLegendItems = useMemo((): [string[][], string[], number[]] => {
+    if (!fullDonutData) {
+      return [[], [], []];
+    }
 
-  const classicLegendItems = useMemo(() => {
-      // Use fullDonutData to populate legend so it matches the "Top 20 + Other" logic
-      if (!fullDonutData) return [[], [], []];
-      
-      const { data, total, metricCol, metricColSettings } = fullDonutData;
-      const titles: string[][] = [];
-      const colors: string[] = [];
-      const hiddenIndices: number[] = [];
-      
-      const showPercentInLegend =
-        settings["pie.percent_visibility"] === "legend" ||
-        settings["pie.percent_visibility"] === "both";
+    const { data, total } = fullDonutData;
+    const titles: string[][] = [];
+    const colors: string[] = [];
+    const hiddenIndices: number[] = [];
 
-      // Helper to format percentage
-      // We reusing logic from option.tsx implicitly or simple math
-      // option.tsx uses complex formatter. We can approximate or use basic.
-      // User wants "Value" too? Image 2 shows "Aditya ... 3.66%". Just percent?
-      // Standard legend usually shows Value if configured?
-      // The image shows "Name    Percent".
-      // Let's check settings["pie.show_legend"] behavior.
-      
-      data.forEach((slice, i) => {
-          const name = slice.name;
-          const color = slice.itemStyle?.color || "#B8BBC3"; // Fallback
-          
-          colors.push(color);
-          
-          if (hiddenSlices.has(slice.name)) { // Name-based hiding for generated slices
-             hiddenIndices.push(i);
-          } else if (slice.name === getOtherSliceName()) {
-             // "Other" might be special?
-          }
-          
-          // Build Title [Name, Percent?]
-          const titleParts = [name];
-          if (showPercentInLegend) {
-               const pct = total > 0 ? slice.value / total : 0;
-               // Simple percent formatting
-               const decimals = settings["pie.decimal_places"] ?? 2;
-               titleParts.push((pct * 100).toFixed(decimals) + "%");
-          }
-          titles.push(titleParts);
-      });
-      
-      return [titles, colors, hiddenIndices];
+    const showPercentInLegend =
+      settings["pie.percent_visibility"] === "legend" ||
+      settings["pie.percent_visibility"] === "both";
+
+    data.forEach((slice, index) => {
+      const color = slice.itemStyle?.color ?? themeColors["text-secondary"];
+      colors.push(color);
+
+      if (hiddenSlices.has(slice.name)) {
+        hiddenIndices.push(index);
+      }
+
+      const titleParts = [slice.name];
+      if (showPercentInLegend) {
+        const pct = total > 0 ? slice.value / total : 0;
+        const decimals = settings["pie.decimal_places"] ?? 2;
+        titleParts.push(`${(pct * 100).toFixed(decimals)}%`);
+      }
+      titles.push(titleParts);
+    });
+
+    return [titles, colors, hiddenIndices];
   }, [fullDonutData, settings, hiddenSlices]);
 
-  // Handle Legend Hover Highlighting for Classic Donut
-  // Since we disabled useChartEvents, we handle this manually using chartRef
+  // Classic donut skips useChartEvents, so legend hover is applied on the chart instance.
   useEffect(() => {
-      if (settings["pie.type"] !== "donut-classic") return;
-      const hoverIndex = props.hovered?.pieLegendHoverIndex;
-      const chart = chartRef.current;
-      
-      if (!chart || !fullDonutData) return;
-      
-      if (hoverIndex != null) {
-          const sliceName = fullDonutData.data[hoverIndex]?.name;
-          if (sliceName) {
-            chart.dispatchAction({
-                type: "highlight",
-                name: sliceName,
-            });
-            return () => {
-                chart.dispatchAction({
-                    type: "downplay",
-                    name: sliceName,
-                });
-            };
-          }
+    if (settings["pie.type"] !== "donut-classic") {
+      return;
+    }
+    const hoverIndex = props.hovered?.pieLegendHoverIndex;
+    const chart = chartRef.current;
+
+    if (!chart || !fullDonutData) {
+      return;
+    }
+
+    if (hoverIndex != null) {
+      const sliceName = fullDonutData.data[hoverIndex]?.name;
+      if (sliceName) {
+        chart.dispatchAction({
+          type: "highlight",
+          name: sliceName,
+        });
+        return () => {
+          chart.dispatchAction({
+            type: "downplay",
+            name: sliceName,
+          });
+        };
       }
+    }
   }, [props.hovered?.pieLegendHoverIndex, settings, fullDonutData]);
 
   // Render classic doughnut if selected
   if (settings["pie.type"] === "donut-classic") {
-       if (!doughnutOption) return null;
-       const [titles, colors, hiddenIndices] = classicLegendItems as [string[][], string[], number[]];
-              return (
-         <ChartWithLegend
-           key="donut-classic"
-           legendTitles={titles}
-           legendHiddenIndices={hiddenIndices}
-           legendColors={colors}
-           showLegend={showLegend}
-           onHoverChange={onHoverChange}
-           className={props.className}
-           chartClassName={S.PieChartContainer}
-           gridSize={props.gridSize}
-           legendPosition={settings["pie.legend_position"]}
-           aspectRatio={1.2}
-          hovered={props.hovered}
-          isDashboard={isDashboard}
-          onToggleSeriesVisibility={(e, index) => {
-              if (fullDonutData && index < fullDonutData.data.length) {
-                  const key = fullDonutData.data[index].name;
-                  toggleSliceVisibility(key);
-              }
-          }}
-          isDocument={isDocument}
-        >
+    if (!doughnutOption) {
+      return null;
+    }
+    const [titles, colors, hiddenIndices] = classicLegendItems;
+    return (
+      <ChartWithLegend
+        key="donut-classic"
+        legendTitles={titles}
+        legendHiddenIndices={hiddenIndices}
+        legendColors={colors}
+        onHoverChange={onHoverChange}
+        className={props.className}
+        chartClassName={S.PieChartContainer}
+        gridSize={props.gridSize}
+        legendPosition={settings["legend.position"]}
+        aspectRatio={1.2}
+        hovered={props.hovered}
+        isDashboard={isDashboard}
+        onToggleSeriesVisibility={(e, index) => {
+          if (fullDonutData && index < fullDonutData.data.length) {
+            const key = fullDonutData.data[index].name;
+            toggleSliceVisibility(key);
+          }
+        }}
+        isDocument={isDocument}
+      >
         <ResponsiveEChartsRenderer
           option={doughnutOption}
           onInit={handleInit}
@@ -472,9 +471,9 @@ function PieChartComponent(props: VisualizationProps) {
           ref={containerRef}
           notMerge={false}
         />
-        {classicColorsCss} 
-        </ChartWithLegend>
-       );
+        {classicColorsCss}
+      </ChartWithLegend>
+    );
   }
 
   return (
@@ -483,7 +482,7 @@ function PieChartComponent(props: VisualizationProps) {
       legendTitles={legendTitles}
       legendHiddenIndices={hiddenSlicesLegendIndices}
       legendColors={legendColors}
-      showLegend={showLegend}
+      legendPosition={settings["legend.position"]}
       onHoverChange={onHoverChange}
       className={props.className}
       chartClassName={S.PieChartContainer}
@@ -492,7 +491,6 @@ function PieChartComponent(props: VisualizationProps) {
       isDashboard={isDashboard}
       onToggleSeriesVisibility={handleToggleSeriesVisibility}
       isDocument={isDocument}
-      legendPosition={settings["pie.legend_position"]}
     >
       <ResponsiveEChartsRenderer
         ref={containerRef}

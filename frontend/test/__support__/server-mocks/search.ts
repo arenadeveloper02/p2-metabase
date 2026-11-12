@@ -46,6 +46,12 @@ export function setupSearchEndpoints(
   );
 }
 
+export function setupSearchErrorEndpoint({ status = 400 } = {}) {
+  const name = "search";
+  fetchMock.removeRoute(name);
+  fetchMock.get("path:/api/search", { status }, { name });
+}
+
 export function setupEmbeddingDataPickerDecisionEndpoints(
   dataPicker: EmbeddingDataPicker,
 ) {
@@ -58,7 +64,7 @@ export function setupEmbeddingDataPickerDecisionEndpoints(
     name: "entity-count",
     url: "path:/api/search",
     query: {
-      models: ["dataset", "table"],
+      models: ["dataset", "table", "metric"],
       limit: 0,
     },
     response: {

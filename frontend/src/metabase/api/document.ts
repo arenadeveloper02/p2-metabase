@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- FIXME: any-typed values */
 import { Api } from "metabase/api/api";
 import { idTag, listTag } from "metabase/api/tags";
 import type {
@@ -46,7 +47,13 @@ export const documentApi = Api.injectEndpoints({
       }),
       invalidatesTags: (_, error, { id }) =>
         !error
-          ? [listTag("document"), idTag("document", id), listTag("revision")]
+          ? [
+              listTag("document"),
+              idTag("document", id),
+              listTag("revision"),
+              // archiving a document resolves any content-diagnostics finding for it
+              listTag("content-diagnostics-finding"),
+            ]
           : [],
       async onQueryStarted(_props, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled;

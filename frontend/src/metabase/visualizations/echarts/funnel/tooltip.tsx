@@ -1,36 +1,38 @@
-import type { TooltipOption } from "echarts/types/dist/shared";
+import type {
+  CallbackDataParams,
+  TooltipOption,
+} from "echarts/types/dist/shared";
 import type React from "react";
 
 import { formatChangeWithSign } from "metabase/utils/formatting";
 import { reactNodeToHtmlString } from "metabase/utils/react-to-html";
 import { formatValue } from "metabase/value-formatting";
-import { EChartsTooltip } from "metabase/visualizations/components/ChartTooltip/EChartsTooltip";
-import { computeChange } from "metabase/visualizations/lib/numeric";
-import type { ComputedVisualizationSettings } from "metabase/visualizations/types";
+import {
+  type ComputedVisualizationSettings,
+  EChartsTooltip,
+  computeChange,
+  getTooltipBaseOption,
+} from "metabase/viz-core";
 import type { DatasetColumn, RawSeries } from "metabase-types/api";
 
-import { getTooltipBaseOption } from "../tooltip";
+import { readSetting, settingString } from "../../lib/read-setting";
 
 interface FunnelTooltipProps {
-  dimensionName: string;
   dimensionValue: string;
   metricName: string;
   metricValue: number;
   metricCol: DatasetColumn;
   metricColSettings: Record<string, unknown>;
   previousValue?: number;
-  initialValue: number;
 }
 
 const FunnelTooltipContent = ({
-  dimensionName,
   dimensionValue,
   metricName,
   metricValue,
   metricCol,
   metricColSettings,
   previousValue,
-  initialValue,
 }: FunnelTooltipProps) => {
   const formatMetricValue = (value: number): string => {
     const formatted = formatValue(value, {
@@ -80,19 +82,13 @@ export const getFunnelTooltipOption = (
     },
   ] = rawSeries;
 
-  const dimensionIndex = cols.findIndex(
-    (col) => col.name === settings["funnel.dimension"],
-  );
-  const metricIndex = cols.findIndex(
-    (col) => col.name === settings["funnel.metric"],
-  );
+  const metricName = settingString(readSetting(settings, "funnel.metric"));
+  const metricIndex = cols.findIndex((col) => col.name === metricName);
 
-  const dimensionCol = cols[dimensionIndex];
   const metricCol = cols[metricIndex];
   const { column: getColumnSettings } = settings;
-  const metricColSettings = getColumnSettings
-    ? getColumnSettings(metricCol)
-    : {};
+  const metricColSettings =
+    metricCol && getColumnSettings ? getColumnSettings(metricCol) : {};
 
   // Create a map for quick lookup of previous values
   const valueMap = new Map(
@@ -100,15 +96,18 @@ export const getFunnelTooltipOption = (
   );
 
   return {
-    ...getTooltipBaseOption(containerRef),
+    ...getTooltipBaseOption(
+      // React 19 RefObject is invariant, and this helper allows a null current.
+      containerRef as React.RefObject<HTMLDivElement | null>,
+    ),
     trigger: "item",
-    formatter: (params: any) => {
+    formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
       if (Array.isArray(params)) {
         return "";
       }
 
       const dataPoint = data.find((d) => d.name === params.name);
-      if (!dataPoint) {
+      if (!dataPoint || metricCol == null) {
         return "";
       }
 
@@ -120,14 +119,12 @@ export const getFunnelTooltipOption = (
 
       return reactNodeToHtmlString(
         <FunnelTooltipContent
-          dimensionName={dimensionCol.display_name}
           dimensionValue={params.name}
           metricName={metricCol.display_name}
           metricValue={dataPoint.value}
           metricCol={metricCol}
           metricColSettings={metricColSettings}
           previousValue={previousPoint?.value}
-          initialValue={data[0].value}
         />,
       );
     },

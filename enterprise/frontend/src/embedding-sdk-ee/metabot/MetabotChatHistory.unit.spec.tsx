@@ -2,20 +2,28 @@ import { assocIn } from "icepick";
 
 import { act, screen } from "__support__/ui";
 import { metabotActions } from "metabase/metabot/state";
-import type { MetabotChatMessage } from "metabase/metabot/state/types";
+import type { MetabotMessagePart } from "metabase/metabot/state/types";
 import {
   createTestMetabotState,
   setup,
   testConversationId,
 } from "metabase/metabot/tests/utils";
+import * as Lib from "metabase-lib";
+import { SAMPLE_PROVIDER } from "metabase-lib/test-helpers";
+import { ORDERS_ID } from "metabase-types/api/mocks/presets";
 
 import { MetabotChatHistory } from "./MetabotChatHistory";
 
-const makeVisibleState = (messages: MetabotChatMessage[]) =>
+const makeVisibleState = (parts: MetabotMessagePart[]) =>
   assocIn(
     assocIn(createTestMetabotState(), ["agents", "omnibot", "visible"], true),
     ["conversations", testConversationId("omnibot"), "messages"],
-    messages,
+    parts.map((part, index) => ({
+      id: `message-${index}`,
+      role: part.role,
+      parts: [part],
+      status: { type: "done" },
+    })),
   );
 
 describe("MetabotChatHistory", () => {
@@ -23,11 +31,22 @@ describe("MetabotChatHistory", () => {
     const { store } = setup({
       ui: <MetabotChatHistory />,
       metabotInitialState: assocIn(
-        makeVisibleState([
-          { id: "1", role: "user", type: "text", message: "hi" },
-        ]),
-        ["conversations", testConversationId("omnibot"), "lastTokenUsage"],
-        { contextTokens: 200, contextWindowTokens: 200 },
+        assocIn(
+          makeVisibleState([
+            { id: "1", role: "user", type: "text", message: "hi" },
+            { id: "2", role: "agent", type: "text", message: "hello" },
+          ]),
+          [
+            "conversations",
+            testConversationId("omnibot"),
+            "messages",
+            1,
+            "contextTokens",
+          ],
+          200,
+        ),
+        ["conversations", testConversationId("omnibot"), "contextWindowTokens"],
+        200,
       ),
     });
 
@@ -47,12 +66,18 @@ describe("MetabotChatHistory", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should not render generated_entity card data_part messages in the message list", () => {
+  it("does not render an agent message for a card-only reply", () => {
     setup({
       ui: <MetabotChatHistory />,
       metabotInitialState: makeVisibleState([
         {
-          id: "1",
+          id: "prompt",
+          role: "user",
+          type: "text",
+          message: "Show me orders",
+        },
+        {
+          id: "card",
           role: "agent",
           type: "data_part",
           part: {
@@ -63,11 +88,11 @@ describe("MetabotChatHistory", () => {
               title: "Orders",
               query: {
                 id: "q-1",
-                query: {
-                  database: 1,
-                  type: "query",
-                  query: { "source-table": 1 },
-                },
+                query: Lib.toJsQuery(
+                  Lib.createTestQuery(SAMPLE_PROVIDER, {
+                    stages: [{ source: { type: "table", id: ORDERS_ID } }],
+                  }),
+                ),
               },
               display: "table",
             },
@@ -76,9 +101,8 @@ describe("MetabotChatHistory", () => {
       ]),
     });
 
-    expect(
-      screen.queryByTestId("metabot-chat-message"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("Show me orders")).toBeInTheDocument();
+    expect(screen.getAllByTestId("metabot-chat-message")).toHaveLength(1);
   });
 
   it("should not render chain_of_thought messages (app-only reasoning UI)", () => {
@@ -90,6 +114,7 @@ describe("MetabotChatHistory", () => {
           role: "agent",
           type: "chain_of_thought",
           steps: [{ kind: "reasoning", text: "Let me think about this" }],
+          finished: true,
         },
       ]),
     });

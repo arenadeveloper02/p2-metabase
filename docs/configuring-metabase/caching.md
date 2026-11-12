@@ -1,5 +1,6 @@
 ---
 title: Caching query results
+summary: Store question results and serve them from the cache instead of querying your database again, with duration, schedule, and adaptive invalidation policies.
 redirect_from:
   - /docs/latest/administration-guide/14-caching
   - /docs/latest/enterprise-guide/cache
@@ -178,4 +179,4 @@ If you're using Metabase Cloud, cached question results will be saved to Metabas
 
 ## Further reading
 
-- [Model persistence](../data-modeling/model-persistence.md)
+- [Model persistence](../data-modeling/models/model-persistence.md)

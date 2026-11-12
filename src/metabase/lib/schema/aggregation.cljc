@@ -142,15 +142,11 @@
             (when-let [[tag _opts & args] (when (vector? x) x)]
               (or (lib.hierarchy/isa? tag hierarchy-tag)
                   ;; Case has shape [:case opts [[cond expr]...] default-expr?].
-                  ;; `:if` is an alias for `:case`. Then/default branches may be
-                  ;; scalar literals, so walk each form rather than seqing it.
+                  ;; `:if` is an alias for `:case`.
                   (if (#{:case :if} tag)
-                    (let [[pairs default] args]
-                      (or (some (fn [pair]
-                                  (when (sequential? pair)
-                                    (some walk pair)))
-                                pairs)
-                          (walk default)))
+                    (let [[pairs fallback] args]
+                      (or (some walk (eduction cat pairs))
+                          (walk fallback)))
                     (some walk args)))))]
     (walk x)))
 
@@ -292,7 +288,7 @@
                          :description  (i18n/tru "Maximum value of a column")})}])
 
 (mr/def ::operator
-  [:map
+  [:map {:closed true}
    [:lib/type [:= :operator/aggregation]]
    [:short (into [:enum] (map :short) aggregation-operators)]
    [:supported-field {:optional true} [:maybe :keyword]] ; TODO more precise type?

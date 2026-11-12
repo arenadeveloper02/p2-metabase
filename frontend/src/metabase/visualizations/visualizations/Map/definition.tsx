@@ -1,24 +1,22 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- FIXME: any-typed values */
 import { t } from "ttag";
 import _ from "underscore";
 
 import { getAccentColors, getPreferredColor } from "metabase/ui/colors/groups";
 import MetabaseSettings from "metabase/utils/settings";
 import {
-  getDefaultMapDimension,
-  getDefaultMapMetric,
-} from "metabase/visualizations/lib/choropleth";
-import { ChartSettingsError } from "metabase/visualizations/lib/errors";
-import { columnSettings } from "metabase/visualizations/lib/settings/column";
-import {
+  ChartSettingsError,
+  type VisualizationDefinition,
+  columnSettings,
   dimensionSetting,
   fieldSetting,
-  metricSetting,
-} from "metabase/visualizations/lib/settings/utils";
-import {
+  getDefaultMapDimension,
+  getDefaultMapMetric,
   getDefaultSize,
+  getLegendPositionSetting,
   getMinSize,
-} from "metabase/visualizations/shared/utils/sizes";
-import type { VisualizationDefinition } from "metabase/visualizations/types";
+  metricSetting,
+} from "metabase/viz-core";
 import {
   hasLatitudeAndLongitudeColumns,
   isCountry,
@@ -241,6 +239,10 @@ export const MAP_VIZ_DEFINITION: VisualizationDefinition = {
       getHidden: (_series, vizSettings) => vizSettings["map.type"] !== "region",
       readDependencies: ["map.metric"],
     },
+    "legend.position": getLegendPositionSetting({
+      getHidden: (_series, settings) => settings["map.type"] !== "region",
+      readDependencies: ["map.type"],
+    }),
     "map.zoom": {},
     "map.center_latitude": {},
     "map.center_longitude": {},
