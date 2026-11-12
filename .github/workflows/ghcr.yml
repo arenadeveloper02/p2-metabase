@@ -1,0 +1,60 @@
+name: Build and push GHCR image
+
+# Same image as `docker build --build-arg VERSION=... .` on the instance.
+# The build does not start Metabase and does not migrate the application database.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag to push, for example v3.0.3
+        required: true
+        type: string
+      edition:
+        description: MB_EDITION. The instance build leaves this unset, which is oss
+        required: true
+        default: oss
+        type: choice
+        options:
+          - oss
+          - ee
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+
+      # The hosted runner ships extra SDKs. This Dockerfile compiles the app, so drop them first.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost \
+            /usr/share/swift /opt/hostedtoolcache
+          df -h
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ inputs.version }}
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+            MB_EDITION=${{ inputs.edition }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
