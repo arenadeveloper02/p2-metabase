@@ -3,6 +3,7 @@ import cx from "classnames";
 import React, { useMemo, useRef } from "react";
 
 import CS from "metabase/css/core/index.css";
+import { formatNullable } from "metabase/utils/formatting";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
 import { ResponsiveEChartsRenderer } from "metabase/visualizations/components/EChartsRenderer";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
@@ -16,6 +17,13 @@ import { groupRawSeriesMetrics } from "metabase/viz-core";
 import { FunnelNormal } from "../../components/FunnelNormal";
 
 import { FUNNEL_CHART_DEFINITION } from "./definition";
+
+function readStepKey(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null || !("stepKey" in data)) {
+    return undefined;
+  }
+  return typeof data.stepKey === "string" ? data.stepKey : undefined;
+}
 
 function FunnelComponent(props: VisualizationProps) {
   const {
@@ -64,14 +72,18 @@ function FunnelComponent(props: VisualizationProps) {
         handler: (params: {
           componentType?: string;
           name?: string;
+          data?: unknown;
           event?: { event?: MouseEvent };
         }) => {
           if (params.componentType !== "series") {
             return;
           }
 
-          const dataRow = rows.find(
-            (row) => String(row[dimensionIndex]) === String(params.name),
+          const stepKey = readStepKey(params.data);
+          const dataRow = rows.find((row) =>
+            stepKey != null
+              ? formatNullable(row[dimensionIndex]) === stepKey
+              : String(row[dimensionIndex]) === String(params.name),
           );
 
           if (dataRow && props.onVisualizationClick) {
@@ -122,6 +134,7 @@ function FunnelComponent(props: VisualizationProps) {
       groupedRawSeries,
       settings,
       containerRef,
+      renderingContext,
     );
 
     return (

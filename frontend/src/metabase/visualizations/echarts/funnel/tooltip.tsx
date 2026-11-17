@@ -73,7 +73,7 @@ const FunnelTooltipContent = ({
 export const getFunnelTooltipOption = (
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
   data: Array<{ name: string; value: number }>,
 ): TooltipOption => {
   const [
@@ -96,10 +96,7 @@ export const getFunnelTooltipOption = (
   );
 
   return {
-    ...getTooltipBaseOption(
-      // React 19 RefObject is invariant, and this helper allows a null current.
-      containerRef as React.RefObject<HTMLDivElement | null>,
-    ),
+    ...getTooltipBaseOption(containerRef),
     trigger: "item",
     formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
       if (Array.isArray(params)) {

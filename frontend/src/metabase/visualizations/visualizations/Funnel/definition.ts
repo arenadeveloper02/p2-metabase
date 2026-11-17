@@ -8,21 +8,27 @@ import {
   ChartSettingsError,
   type ComputedVisualizationSettings,
   MinRowsError,
+  SERIES_SETTING_KEY,
   type VisualizationDefinition,
   columnSettings,
   dimensionSetting,
   getDefaultSize,
   getLegendPositionSetting,
   getMinSize,
+  keyForSingleSeries,
   metricSetting,
+  nestedSettings,
 } from "metabase/viz-core";
 import {
   type DatasetData,
   type RawSeries,
   type RowValue,
   type SeriesOrderSetting,
+  type SingleSeries,
   getRowsForStableKeys,
 } from "metabase-types/api";
+
+import type { SliceNameWidgetProps } from "../PieChart/SliceNameWidget";
 
 import type { FunnelRow } from "./types";
 
@@ -181,6 +187,45 @@ export const FUNNEL_CHART_DEFINITION: VisualizationDefinition = {
       writeDependencies: ["funnel.order_dimension"],
       dataTestId: "funnel-row-sort",
     },
+    ...nestedSettings<
+      "series_settings",
+      SingleSeries,
+      unknown,
+      SliceNameWidgetProps
+    >(SERIES_SETTING_KEY, {
+      getObjectKey: keyForSingleSeries,
+      widget: "pieSliceName",
+      getHidden: () => true,
+      getSection: () => t`Style`,
+      getWrapperStyle: () => ({
+        marginBottom: 0,
+      }),
+      getProps: (_series, vizSettings, _onChange, _extra, onChangeSettings) => {
+        const funnelRows = vizSettings["funnel.rows"];
+        if (funnelRows == null || onChangeSettings == null) {
+          return { pieRows: [], updateRowName: () => null };
+        }
+
+        return {
+          pieRows: funnelRows.map((row) => ({
+            key: String(row.key),
+            name: row.name,
+            originalName: String(row.key),
+          })),
+          updateRowName: (newName: string, key: string | number) => {
+            onChangeSettings({
+              "funnel.rows": funnelRows.map((row) => {
+                if (String(row.key) !== String(key)) {
+                  return row;
+                }
+                return { ...row, name: newName };
+              }),
+            });
+          },
+        };
+      },
+      readDependencies: ["funnel.rows"],
+    }),
     ...metricSetting("funnel.metric", {
       getSection: () => t`Data`,
 

@@ -27,6 +27,8 @@ import {
 import type { RowValue, RowValues } from "metabase-types/api";
 import { getRowsForStableKeys } from "metabase-types/api";
 
+import { funnelStepDisplayName } from "../visualizations/Funnel/step-name";
+
 import S from "./FunnelNormal.module.css";
 
 const IS_WEBKIT = isWebkit();
@@ -113,6 +115,14 @@ export function FunnelNormal({
       stringifyNull: true,
       majorWidth: 0,
     });
+  const stepLabel = (dimension: RowValue) => {
+    const customName = funnelStepDisplayName(
+      settings["funnel.rows"],
+      String(formatNullable(dimension)),
+      "",
+    );
+    return customName === "" ? formatDimension(dimension) : customName;
+  };
   const formatMetric = (metric: number, jsx = true) =>
     formatValue(metric, {
       ...settings.column?.(cols[metricIndex]),
@@ -217,7 +227,7 @@ export function FunnelNormal({
       <Flex className={S.step} direction="column">
         <StepHead fontSize={dashboardFontSize}>
           <Ellipsified data-testid="funnel-chart-header">
-            {formatDimension(dimensions[0])}
+            {stepLabel(dimensions[0])}
           </Ellipsified>
         </StepHead>
         <Flex
@@ -254,7 +264,7 @@ export function FunnelNormal({
           >
             <StepHead fontSize={dashboardFontSize}>
               <Ellipsified data-testid="funnel-chart-header">
-                {formatDimension(info.dimension)}
+                {stepLabel(info.dimension)}
               </Ellipsified>
             </StepHead>
             <GraphSection
@@ -287,7 +297,7 @@ type StepHeadProps = {
 };
 
 const StepHead = ({ fontSize, children }: StepHeadProps) => (
-  <Box ta="right" p="0.5em" miw={0} fz={fontSize}>
+  <Box ta="right" p="0.5em" miw={0} fz={fontSize} c="text-primary">
     {children}
   </Box>
 );

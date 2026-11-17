@@ -6,7 +6,11 @@ import { colors as themeColors } from "metabase/ui/colors";
 import { getColorsForValues } from "metabase/ui/colors/charts";
 import { formatNullable } from "metabase/utils/formatting";
 import { formatValue } from "metabase/value-formatting";
-import type { ComputedVisualizationSettings } from "metabase/viz-core";
+import { funnelStepDisplayName } from "metabase/visualizations/visualizations/Funnel/step-name";
+import type {
+  ComputedVisualizationSettings,
+  RenderingContext,
+} from "metabase/viz-core";
 import type { RawSeries, SeriesOrderSetting } from "metabase-types/api";
 
 import {
@@ -51,6 +55,7 @@ function paramName(
 export interface FunnelDataPoint {
   name: string;
   value: number;
+  stepKey: string;
   itemStyle?: {
     color: string;
   };
@@ -59,7 +64,8 @@ export interface FunnelDataPoint {
 export function getFunnelChartOption(
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
-  containerRef?: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null> | undefined,
+  renderingContext: Pick<RenderingContext, "getColor" | "fontFamily">,
 ): EChartsOption {
   const [
     {
@@ -79,6 +85,19 @@ export function getFunnelChartOption(
     readSetting(settings, "funnel.rows"),
   );
 
+  const toDataPoint = (
+    row: (typeof rows)[number],
+    stepKey: string,
+  ): FunnelDataPoint => ({
+    name: funnelStepDisplayName(
+      funnelRows,
+      stepKey,
+      String(row[dimensionIndex]),
+    ),
+    value: Number(row[metricIndex]),
+    stepKey,
+  });
+
   let data: FunnelDataPoint[];
   if (funnelRows) {
     data = funnelRows
@@ -88,10 +107,7 @@ export function getFunnelChartOption(
           (row) => formatNullable(row[dimensionIndex]) === fr.key,
         );
         if (row && row[dimensionIndex] != null && row[metricIndex] != null) {
-          return {
-            name: String(row[dimensionIndex]),
-            value: Number(row[metricIndex]),
-          };
+          return toDataPoint(row, fr.key);
         }
         return null;
       })
@@ -99,10 +115,9 @@ export function getFunnelChartOption(
   } else {
     data = rows
       .filter((row) => row[dimensionIndex] != null && row[metricIndex] != null)
-      .map((row) => ({
-        name: String(row[dimensionIndex]),
-        value: Number(row[metricIndex]),
-      }))
+      .map((row) =>
+        toDataPoint(row, String(formatNullable(row[dimensionIndex]))),
+      )
       // Default to sorting by value descending for proper pyramid shape
       .sort((a, b) => b.value - a.value);
   }
@@ -111,8 +126,8 @@ export function getFunnelChartOption(
     settingBoolean(readSetting(settings, "funnel.values_below_labels")) ===
     true;
 
-  // Get colors from funnel.rows settings or generate default colors
-  const dimensionValues = data.map((d) => d.name);
+  // Colors stay keyed by the step key so a renamed label keeps its color.
+  const stepKeys = data.map((d) => d.stepKey);
   const colorMapping: Record<string, string> = {};
 
   if (funnelRows) {
@@ -123,8 +138,7 @@ export function getFunnelChartOption(
     }
   }
 
-  // Generate colors for all values, using saved colors when available
-  const colors = getColorsForValues(dimensionValues, colorMapping);
+  const colors = getColorsForValues(stepKeys, colorMapping);
 
   // Get metric column for formatting
   const metricCol = cols[metricIndex];
@@ -150,7 +164,7 @@ export function getFunnelChartOption(
   const coloredData = data.map((d) => ({
     ...d,
     itemStyle: {
-      color: colors[d.name],
+      color: colors[d.stepKey],
     },
   }));
 
@@ -164,6 +178,10 @@ export function getFunnelChartOption(
   );
   const dimensionName = dimensionCol?.display_name || dimensionSetting || "";
   const seriesName = dimensionSetting || "Funnel";
+  // Same theme tokens as bar-chart series labels and the legend.
+  const textPrimary = renderingContext.getColor("text-primary");
+  const textSecondary = renderingContext.getColor("text-secondary");
+  const { fontFamily } = renderingContext;
 
   const tooltip = containerRef
     ? getFunnelTooltipOption(rawSeries, settings, containerRef, data)
@@ -192,13 +210,18 @@ export function getFunnelChartOption(
         textStyle: {
           fontSize: 14,
           fontWeight: "normal",
-          color: themeColors["text-secondary"],
+          fontFamily,
+          color: textPrimary,
         },
       },
     ],
     legend: {
       data: data.map((d) => d.name),
       bottom: 10,
+      textStyle: {
+        color: textPrimary,
+        fontFamily,
+      },
     },
     series: [
       {
@@ -229,16 +252,19 @@ export function getFunnelChartOption(
             }
             return name;
           },
-          color: themeColors["text-primary"],
+          color: textPrimary,
+          fontFamily,
           fontSize: 12,
           rich: {
             name: {
-              color: themeColors["text-secondary"],
+              color: textPrimary,
+              fontFamily,
               fontSize: 12,
               lineHeight: 16,
             },
             value: {
-              color: themeColors["text-primary"],
+              color: textPrimary,
+              fontFamily,
               fontSize: 14,
               fontWeight: "bold",
               lineHeight: 20,
@@ -251,7 +277,7 @@ export function getFunnelChartOption(
           lineStyle: {
             width: 1,
             type: "solid",
-            color: themeColors["text-secondary"],
+            color: textSecondary,
           },
         },
         data: coloredData,
