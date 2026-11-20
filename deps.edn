@@ -32,8 +32,8 @@
   com.clojure-goes-fast/jvm-hiccup-meter    {:mvn/version "0.1.1"}              ; Monitor GC pauses and other system-induced pauses.
   com.draines/postal                        {:mvn/version "2.0.5"               ; SMTP library
                                              :exclusions [com.sun.mail/jakarta.mail]}
-  com.fasterxml.jackson.core/jackson-core       {:mvn/version "2.21.5"}             ; pinned: cheshire pulls 2.21.1 which has resource exhaustion vuln
-  com.fasterxml.jackson.core/jackson-databind   {:mvn/version "2.21.5"}             ; pinned: snowplow pulls 2.13.3 which has DoS vulns
+  com.fasterxml.jackson.core/jackson-core       {:mvn/version "2.21.7"}             ; pinned: cheshire pulls 2.21.1 which has resource exhaustion vuln
+  com.fasterxml.jackson.core/jackson-databind   {:mvn/version "2.21.7"}             ; pinned: snowplow pulls 2.13.3 which has DoS vulns
   com.fasterxml.woodstox/woodstox-core      {:mvn/version "7.1.1"}              ; trans dep of commons-codec
                                                                                 ; Detect the charset in uploaded CSV files
   com.github.albfernandez/juniversalchardet {:mvn/version "2.5.0"}
@@ -49,7 +49,7 @@
   com.google.auth/google-auth-library-credentials {:mvn/version "1.40.0"}       ; dep for BigQuery, Databricks, and Snowflake. Require here rather than letting different dep versions stomp on each other — see #70908
   com.google.auth/google-auth-library-oauth2-http {:mvn/version "1.40.0"}       ; Token refresh for the Metabot Google provider. Also a dep for BigQuery. Keep the version in step with google-auth-library-credentials
   com.google.code.gson/gson                 {:mvn/version "2.12.1"}             ; dep for BigQuery, Databricks, and Snowflake. Pin here so driver plugin JARs all use the same version — see #73736
-  com.google.guava/guava                    {:mvn/version "33.5.0-jre"}         ; dep for BigQuery, Spark, and GA. Require here rather than letting different dep versions stomp on each other — see comments on #9697
+  com.google.guava/guava                    {:mvn/version "33.7.2-jre"}         ; dep for BigQuery, Spark, and GA. Require here rather than letting different dep versions stomp on each other — see comments on #9697
   com.h2database/h2                         ^:antq/exclude                      ; https://metaboat.slack.com/archives/CKZEMT1MJ/p1727191010259979
   {:mvn/version "2.1.214"}            ; embedded SQL database
   com.ibm.icu/icu4j                         {:mvn/version "78.1"}               ; Used to transliterate Unicode characters into Latin characters
@@ -115,7 +115,7 @@
   org.apache.commons/commons-lang3              {:mvn/version "3.20.0"}             ; helper methods for working with java.lang stuff
   org.apache.datasketches/datasketches-java     ^:antq/exclude                      ; Sketching algorithms (used for fingerprinting)
   {:mvn/version "7.0.1"}              ; version is fixed to ensure JDK21 compatibility.
-  org.apache.httpcomponents.client5/httpclient5 {:mvn/version "5.6.2"}              ; pinned: must pair with httpcore5 5.4.x (upstream pairing); ClickHouse JDBC needs httpcore5 5.3.4+
+  org.apache.httpcomponents.client5/httpclient5 {:mvn/version "5.6.3"}              ; pinned: must pair with httpcore5 5.4.x (upstream pairing); ClickHouse JDBC needs httpcore5 5.3.4+
   org.apache.httpcomponents.core5/httpcore5     {:mvn/version "5.4.3"}              ; pinned: 5.4.2+
   org.apache.httpcomponents.core5/httpcore5-h2  {:mvn/version "5.4.3"}              ; pinned: must match httpcore5 version
   org.apache.logging.log4j/log4j-1.2-api        {:mvn/version "2.26.1"}             ; apache logging framework
@@ -171,11 +171,11 @@
   org.graalvm.polyglot/polyglot             {:mvn/version "25.0.1"}             ; GraalVM platform, required by JS engine
   org.graalvm.polyglot/python               {:mvn/version "25.0.1"
                                              :extension "pom"}
-  org.jsoup/jsoup                           {:mvn/version "1.21.2"}             ; required by hickory
+  org.jsoup/jsoup                           {:mvn/version "1.23.2"}             ; required by hickory
   org.liquibase/liquibase-core              {:mvn/version "4.33.0"              ; migration management (Java lib)
                                              :exclusions  [ch.qos.logback/logback-classic]}
   org.mariadb.jdbc/mariadb-java-client      ^:antq/exclude                      ; 3.x only support jdbc:mariadb, so using 2.x for now
-  {:mvn/version "2.7.10"}             ; MySQL/MariaDB driver
+  {:mvn/version "2.7.14"}             ; MySQL/MariaDB driver
   org.mindrot/jbcrypt                       {:mvn/version "0.4"}                ; Crypto library
   org.postgresql/postgresql                 {:mvn/version "42.7.12"}            ; Postgres driver
   org.semver4j/semver4j                     {:mvn/version "6.0.0"}              ; Semantic versioning parsing & comparison
