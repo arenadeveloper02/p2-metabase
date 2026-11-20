@@ -8,10 +8,13 @@ import {
   MinRowsError,
 } from "metabase/visualizations/lib/errors";
 import { columnSettings } from "metabase/visualizations/lib/settings/column";
+import { nestedSettings } from "metabase/visualizations/lib/settings/nested";
+import { keyForSingleSeries } from "metabase/visualizations/lib/settings/series";
 import {
   dimensionSetting,
   metricSetting,
 } from "metabase/visualizations/lib/settings/utils";
+import { SERIES_SETTING_KEY } from "metabase/visualizations/shared/settings/series";
 import {
   getDefaultSize,
   getMinSize,
@@ -25,8 +28,11 @@ import {
   type RawSeries,
   type RowValue,
   type SeriesOrderSetting,
+  type SingleSeries,
   getRowsForStableKeys,
 } from "metabase-types/api";
+
+import type { SliceNameWidgetProps } from "../PieChart/SliceNameWidget";
 
 import type { FunnelRow } from "./types";
 
@@ -184,6 +190,45 @@ export const FUNNEL_CHART_DEFINITION: VisualizationDefinition = {
       writeDependencies: ["funnel.order_dimension"],
       dataTestId: "funnel-row-sort",
     },
+    ...nestedSettings<
+      "series_settings",
+      SingleSeries,
+      unknown,
+      SliceNameWidgetProps
+    >(SERIES_SETTING_KEY, {
+      getObjectKey: keyForSingleSeries,
+      widget: "pieSliceName",
+      getHidden: () => true,
+      getSection: () => t`Style`,
+      getWrapperStyle: () => ({
+        marginBottom: 0,
+      }),
+      getProps: (_series, vizSettings, _onChange, _extra, onChangeSettings) => {
+        const funnelRows = vizSettings["funnel.rows"];
+        if (funnelRows == null || onChangeSettings == null) {
+          return { pieRows: [], updateRowName: () => null };
+        }
+
+        return {
+          pieRows: funnelRows.map((row) => ({
+            key: String(row.key),
+            name: row.name,
+            originalName: String(row.key),
+          })),
+          updateRowName: (newName: string, key: string | number) => {
+            onChangeSettings({
+              "funnel.rows": funnelRows.map((row) => {
+                if (String(row.key) !== String(key)) {
+                  return row;
+                }
+                return { ...row, name: newName };
+              }),
+            });
+          },
+        };
+      },
+      readDependencies: ["funnel.rows"],
+    }),
     ...metricSetting("funnel.metric", {
       getSection: () => t`Data`,
 

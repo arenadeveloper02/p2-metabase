@@ -23,14 +23,12 @@ interface FunnelTooltipProps {
 }
 
 const FunnelTooltipContent = ({
-  dimensionName,
   dimensionValue,
   metricName,
   metricValue,
   metricCol,
   metricColSettings,
   previousValue,
-  initialValue,
 }: FunnelTooltipProps) => {
   const formatMetricValue = (value: number): string => {
     const formatted = formatValue(value, {
@@ -71,7 +69,7 @@ const FunnelTooltipContent = ({
 export const getFunnelTooltipOption = (
   rawSeries: RawSeries,
   settings: ComputedVisualizationSettings,
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
   data: Array<{ name: string; value: number }>,
 ): TooltipOption => {
   const [

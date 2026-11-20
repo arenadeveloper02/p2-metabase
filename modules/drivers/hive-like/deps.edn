@@ -247,16 +247,16 @@
   commons-logging/commons-logging                    {:mvn/version "1.3.5"}
 
   ;; Guava — hive-standalone-metastore-common pulls 22.0 transitively.
-  com.google.guava/guava                             {:mvn/version "33.5.0-jre"}
+  com.google.guava/guava                             {:mvn/version "33.7.2-jre"}
 
   ;; Netty — pinned explicitly at safe versions for security scanning.
   ;; Driver JARs are scanned individually so these must be declared directly.
-  io.netty/netty-common                              {:mvn/version "4.2.16.Final"}
-  io.netty/netty-handler                             {:mvn/version "4.2.16.Final"}
-  io.netty/netty-transport                           {:mvn/version "4.2.16.Final"}
-  io.netty/netty-buffer                              {:mvn/version "4.2.16.Final"}
-  io.netty/netty-codec                               {:mvn/version "4.2.16.Final"}
-  io.netty/netty-codec-compression                   {:mvn/version "4.2.16.Final"}
-  io.netty/netty-resolver                            {:mvn/version "4.2.16.Final"}
-  io.netty/netty-transport-native-unix-common        {:mvn/version "4.2.16.Final"}
-  io.netty/netty-transport-native-epoll              {:mvn/version "4.2.16.Final"}}}
+  io.netty/netty-common                              {:mvn/version "4.2.17.Final"}
+  io.netty/netty-handler                             {:mvn/version "4.2.17.Final"}
+  io.netty/netty-transport                           {:mvn/version "4.2.17.Final"}
+  io.netty/netty-buffer                              {:mvn/version "4.2.17.Final"}
+  io.netty/netty-codec                               {:mvn/version "4.2.17.Final"}
+  io.netty/netty-codec-compression                   {:mvn/version "4.2.17.Final"}
+  io.netty/netty-resolver                            {:mvn/version "4.2.17.Final"}
+  io.netty/netty-transport-native-unix-common        {:mvn/version "4.2.17.Final"}
+  io.netty/netty-transport-native-epoll              {:mvn/version "4.2.17.Final"}}}

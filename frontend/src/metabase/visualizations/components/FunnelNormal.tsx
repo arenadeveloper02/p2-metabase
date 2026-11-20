@@ -34,6 +34,7 @@ import type { RowValue, RowValues } from "metabase-types/api";
 import { getRowsForStableKeys } from "metabase-types/api";
 
 import { computeChange } from "../lib/numeric";
+import { funnelStepDisplayName } from "../visualizations/Funnel/step-name";
 
 type FunnelStepInfo = {
   value: number;
@@ -117,6 +118,14 @@ export function FunnelNormal({
       stringifyNull: true,
       majorWidth: 0,
     });
+  const stepLabel = (dimension: RowValue) => {
+    const customName = funnelStepDisplayName(
+      settings["funnel.rows"],
+      String(formatNullable(dimension)),
+      "",
+    );
+    return customName === "" ? formatDimension(dimension) : customName;
+  };
   const formatMetric = (metric: number, jsx = true) =>
     formatValue(metric, {
       ...settings.column?.(cols[metricIndex]),
@@ -221,7 +230,7 @@ export function FunnelNormal({
           style={{ fontSize: isDashboard ? "0.8125rem" : "unset" }}
         >
           <Ellipsified data-testid="funnel-chart-header">
-            {formatDimension(dimensions[0])}
+            {stepLabel(dimensions[0])}
           </Ellipsified>
         </Head>
         <FunnelStart isNarrow={isNarrow}>
@@ -244,7 +253,7 @@ export function FunnelNormal({
               style={{ fontSize: isDashboard ? "0.8125rem" : "unset" }}
             >
               <Ellipsified data-testid="funnel-chart-header">
-                {formatDimension(info.dimension)}
+                {stepLabel(info.dimension)}
               </Ellipsified>
             </Head>
             <GraphSection

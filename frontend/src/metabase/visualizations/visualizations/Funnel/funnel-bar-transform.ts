@@ -4,6 +4,8 @@ import { formatValue } from "metabase/value-formatting";
 import type { TransformSeries } from "metabase/visualizations/components/TransformedVisualization";
 import type { RowValue } from "metabase-types/api";
 
+import { funnelStepDisplayName } from "./step-name";
+
 export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
   const [series] = rawSeries;
   const {
@@ -28,10 +30,15 @@ export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
     rowsOrder.forEach((rowOrder) => {
       const dataRow = rowByFormattedKey.get(String(rowOrder.key));
       if (dataRow && rowOrder.color) {
-        const name = String(
-          formatValue(dataRow[dimensionIndex], {
-            column: cols[dimensionIndex],
-          }),
+        const stepKey = String(formatNullable(dataRow[dimensionIndex]));
+        const name = funnelStepDisplayName(
+          rowsOrder,
+          stepKey,
+          String(
+            formatValue(dataRow[dimensionIndex], {
+              column: cols[dimensionIndex],
+            }),
+          ),
         );
         seriesSettings[name] = { color: rowOrder.color };
       }
@@ -49,10 +56,15 @@ export const funnelToBarTransform: TransformSeries = (rawSeries, settings) => {
       : rows;
 
   return orderedRows.map((row) => {
-    const name = String(
+    const formattedName = String(
       formatValue(row[dimensionIndex], {
         column: cols[dimensionIndex],
       }),
+    );
+    const name = funnelStepDisplayName(
+      Array.isArray(rowsOrder) ? rowsOrder : undefined,
+      String(formatNullable(row[dimensionIndex])),
+      formattedName,
     );
     return {
       card: {
