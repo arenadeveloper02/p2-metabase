@@ -266,12 +266,6 @@ function getSeriesDataFromSlices(
         itemStyle: { color: s.color, borderWidth },
         label: {
           color: labelColor,
-          // Same outline as bar-chart labels. Dark text (common on light
-          // slices in dark mode) gets a white stroke so it stays readable.
-          textBorderColor: Color(labelColor).isLight()
-            ? renderingContext.getColor("background_page-primary")
-            : renderingContext.getColor("text-white"),
-          textBorderWidth: 3,
           formatter: () => (displayLabel != null ? displayLabel : " "),
           rotate: labelsPosition === "horizontal" ? 0 : "radial",
           verticalAlign: "middle",
@@ -391,8 +385,6 @@ export function getPieChartOption(
         overflow: "none",
         fontSize,
         fontWeight: DIMENSIONS.slice.label.fontWeight,
-        textBorderColor: renderingContext.getColor("background_page-primary"),
-        textBorderWidth: 3,
       },
       labelLayout: {
         hideOverlap: true,

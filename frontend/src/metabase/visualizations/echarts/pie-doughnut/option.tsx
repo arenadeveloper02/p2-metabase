@@ -322,6 +322,18 @@ export function getDoughnutChartOption(
   const center = ["50%", "50%"];
 
   const hasLabels = showLabels || showPercentOnChart;
+  // Same treatment as bar-chart series labels: theme text color, with the
+  // page background as the outline so labels stay readable in dark mode.
+  const labelColor = renderingContext?.getColor?.("text-primary");
+  const labelBorderColor = renderingContext?.getColor?.(
+    "background_page-primary",
+  );
+  const chartLabelStyle = {
+    color: labelColor,
+    fontFamily: renderingContext?.fontFamily,
+    textBorderColor: labelBorderColor,
+    textBorderWidth: 3,
+  };
   const radius = hasLabels ? ["50%", "70%"] : ["55%", "85%"];
   
   const actualWidth = width ?? 500;
@@ -401,11 +413,13 @@ export function getDoughnutChartOption(
         },
         label: {
           show: showLabels || showPercentOnChart,
+          ...chartLabelStyle,
           formatter: (params: any) => getLabelText(params.dataIndex),
         },
         emphasis: {
           label: {
             show: showLabels || showPercentOnChart,
+            ...chartLabelStyle,
             fontWeight: "bold",
             formatter: (params: any) => getLabelText(params.dataIndex),
           },
