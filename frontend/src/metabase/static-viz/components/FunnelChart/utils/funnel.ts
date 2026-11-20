@@ -11,6 +11,7 @@ import type {
   Step,
 } from "metabase/visualizations/lib/funnel/types";
 import { truncateText } from "metabase/visualizations/lib/text";
+import { funnelStepDisplayName } from "metabase/visualizations/visualizations/Funnel/step-name";
 
 import { formatNumber } from "../../../lib/numbers";
 import type { FunnelSettings } from "../types";
@@ -45,6 +46,11 @@ export const getFormattedStep = (
     typeof step.step === "number"
       ? formatNumber(step.step, settings?.step?.format)
       : step.step;
+  const stepNameSource = funnelStepDisplayName(
+    settings.visualization_settings["funnel.rows"],
+    String(step.step),
+    formattedStepName,
+  );
 
   const textMeasurer: TextWidthMeasurer = (text, style) =>
     measureTextWidth(text, Number(style.size), Number(style.weight));
@@ -56,7 +62,7 @@ export const getFormattedStep = (
   };
 
   const stepName = truncateText(
-    formattedStepName,
+    stepNameSource,
     maxStepTextWidth,
     textMeasurer,
     fontStyle,
